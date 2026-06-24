@@ -1,0 +1,120 @@
+# 5 · Planning & todos
+
+> An agent without a plan drifts. List the steps first, then execute.
+
+Big work needs decomposition. Two mechanisms cover it: a todo list the model writes to itself to track steps, and a plan mode that gates execution until a written plan is approved. Both keep a long task on course by making the plan a first-class artifact the loop carries forward.
+
+---
+
+## Problem
+
+Hand a model a 10-step refactor and it starts well, then drifts. Tool results pile into the context and dilute the original instruction, so by step 4 the model is improvising and steps 5 through 10 are gone from its attention. Two distinct failures hide here:
+
+1. **Mid-task drift.** No running checklist, so completed work is forgotten and remaining work is dropped.
+2. **Premature action.** The model edits files before it understands the codebase, then has to undo damage.
+
+Leave planning out and the agent reasons fine on short tasks but loses the thread on anything multi-step, and acts before it has thought.
+
+---
+
+## Mechanism
+
+Two tools, both called by the model, both layered on the loop (section 1) without changing it.
+
+**Todo list.** A tool the model calls to overwrite a structured checklist. It does no work: it reads no files and runs no commands. It only lets the model externalize its plan as state the loop keeps.
+
+**Plan then execute.** A mode the model enters to explore read-only, then exits by presenting a written plan. Exit is gated on user approval before any edit is allowed.
+
+```mermaid
+flowchart TD
+    T["complex task"] --> P{plan mode?}
+    P -->|yes| E["EnterPlanMode · mode := 'plan'"]
+    E --> R["explore read-only, write plan to disk"]
+    R --> X["ExitPlanMode · ask: approve?"]
+    X -->|approved| TW["TodoWrite: list steps (all pending)"]
+    P -->|no| TW
+    TW --> S["mark one in_progress, do it, mark completed"]
+    S -->|next pending| S
+```
+
+### New: todos and plan-mode tools
+
+```python
+@dataclass
+class Session:                                   # src/loop.py: mutable, outlives a turn
+    mode: str = DEFAULT
+    todos: list = field(default_factory=list)
+
+def todo_tool(session):                          # src/planning.py
+    def write(a): session.todos = list(a["todos"])    # model overwrites its checklist
+    return Tool("TodoWrite", write, is_read_only=True)    # no side effect, never gated
+
+def exit_plan_mode_tool(session):                # src/planning.py
+    def exit_plan(_): session.mode = ACCEPT_EDITS     # approval flips the live mode
+    return Tool("ExitPlanMode", exit_plan)
+```
+
+- `Session` ([`src/loop.py`](src/loop.py)) gains `todos`, and `mode` is mutable, so a tool can change what the next call is allowed to do.
+- `todo_tool` and `exit_plan_mode_tool` ([`src/planning.py`](src/planning.py)) are ordinary tools: TodoWrite is `is_read_only` (always allowed, mutates only `session.todos`); ExitPlanMode flips `session.mode` from `plan` to `acceptEdits`.
+
+### How it integrates
+
+No new loop, dispatch, or permission code. Both are tools, and approval reuses the section-3 gate, which already handles `plan` and reads the live `session.mode`:
+
+```python
+# src/permissions.py decide(), already there since section 3:
+if mode == PLAN:                              # exploring, not acting yet
+    if tool.is_read_only:           return "allow"
+    if tool.name == "ExitPlanMode": return "ask"     # the approval handshake
+    return "deny"                             # no edits until the plan is approved
+```
+
+- Section 5 adds no permission code: the `PLAN` branch has lived in `decide()` ([`src/permissions.py`](src/permissions.py)) since section 3.
+- The integration is pure state: `ExitPlanMode` flips `session.mode` to `acceptEdits`, and because the gate reads the live `session.mode`, that changes what the very next call may do. That is the whole approval mechanism.
+- The demo walks the arc: draft todos, edit denied in plan mode, approve, edit lands.
+
+A todo item is `{ content, status, activeForm }` where `status` is `pending | in_progress | completed`. The model writes the whole list each call; the harness diffs old against new and renders progress. Plan mode is literally a permission mode: `'plan'` sits in the same set as `default`, `acceptEdits`, and `bypassPermissions` (section 3), so entering it tightens the gate and exiting it restores the prior mode.
+
+---
+
+## Per system
+
+How each agent decomposes big work and gates execution.
+
+| System                | Plan artifact                                                                       | Plan mode                                    | Execution gate                                                   |
+| --------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| **Claude Code** | in-memory todo list (`TodoWriteTool`) + plan `.md` on disk (`utils/plans.ts`) | yes,`mode: 'plan'` (`EnterPlanModeTool`) | `ExitPlanMode` returns `behavior: 'ask'` ("Exit plan mode?") |
+| *(more soon)*       |                                                                                     |                                              |                                                                  |
+
+In Claude Code the todo list is the tool `TodoWrite` (name in `tools/TodoWriteTool/constants.ts`). Its `checkPermissions` always returns `allow`: planning is never gated. Items are stored in `appState.todos[todoKey]`, keyed by `agentId` or session, and the schema lives in `utils/todo/types.ts`. `EnterPlanModeTool` takes no parameters, is `isReadOnly`, and flips `toolPermissionContext.mode` to `'plan'`; it throws if a subagent tries to call it. The plan itself is written to disk as `<slug>.md` (`getPlanFilePath` in `utils/plans.ts`). `ExitPlanMode` (`ExitPlanModeV2Tool.ts`) reads that plan, returns `behavior: 'ask'` to force user approval, and on approval restores `prePlanMode`. It first runs `validateInput`, rejecting the call if the mode is not `'plan'`, so the model cannot exit a mode it never entered.
+
+> **Trade-off:** an in-memory todo list (TodoWrite, V1) is cheap and stateless, but it is a flat list with no dependencies, no persistence, and no concurrency safety. Promoting it to a file-backed task graph (the Task system, V2, gated by `isTodoV2Enabled()`, see section 12) buys dependencies, durability, and locks across agents at the cost of four tools instead of one and on-disk state to manage. Choose by whether tasks outlive one context or run in parallel.
+
+---
+
+## Failure modes
+
+- **Stale or abandoned list.** The model lists todos, then stops updating them as it works, so the rendered plan lies. Claude Code's tool result nudges every call ("continue to use the todo list to track your progress"), and a structural nudge fires when 3+ todos all close with no verification step.
+- **Over-planning trivia.** A todo list on a one-line task is pure overhead. The prompt explicitly says skip it for single, trivial, or under-3-step work; planning should be proportional to the task.
+- **Plan-mode trap.** If the surface cannot show the approval dialog (for example a chat channel, not the terminal), the model could enter plan mode and never exit. Claude Code disables both `EnterPlanMode` and `ExitPlanMode` together when channels are active so the mode is never a one-way door.
+- **Exit without entry.** The deferred-tool list announces `ExitPlanMode` regardless of mode, so the model may call it out of context. `validateInput` rejects it unless `mode === 'plan'`, preventing a spurious approval prompt.
+- **Plan outlives the context.** A flat todo list dies with the conversation; a large effort needs durable, dependency-aware tasks. That is why the Task system (section 12) persists to disk, and why genuinely large work is split across subagents with clean contexts (section 6).
+
+---
+
+## Runnable
+
+[`src/`](src/) is the full pipeline (sections 1 to 5). New: [`planning.py`](src/planning.py) (TodoWrite, ExitPlanMode). Updated: [`loop.py`](src/loop.py) holds a `Session` so plan mode can flip mid-run. The demo: draft todos in plan mode, edit denied, approve, edit lands, dangerous command hook-blocked. Stubbed model, no API key.
+
+```
+python sections/05-planning-todos/src/demo.py
+```
+
+---
+
+## Sources
+
+- Claude Code structure: `tools/TodoWriteTool/TodoWriteTool.ts`, `tools/TodoWriteTool/constants.ts`, `utils/todo/types.ts`, `tools/EnterPlanModeTool/EnterPlanModeTool.ts`, `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tools/ExitPlanModeTool/constants.ts`, `utils/plans.ts`, `utils/tasks.ts` (`isTodoV2Enabled`), `types/permissions.ts` (`'plan'` in the permission-mode set).
+- Framing: learn-claude-code · `s05_todo_write`
+
+Educational reconstruction from public structure and observed behavior, not an official description of any system.
