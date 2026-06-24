@@ -35,18 +35,24 @@ flowchart LR
 ```
 
 ```python
-messages = [user_intent]
-while True:
-    reply = model(messages, tools)        # one model call
-    messages.append(reply)
-    if reply.stop_reason == "tool_use":   # model wants to act
-        for call in reply.tool_calls:
-            result = run_tool(call)        # dispatch + execute
-            messages.append(result)       # feed the outcome back
-        continue                          # loop: let the model see results
-    if reply.stop_reason == "end_turn":   # model is done
-        return reply.text                 # reply to the user
+def run(user_intent, model, max_steps=10):          # src/loop.py
+    messages = [{"role": "user", "content": user_intent}]
+    for _ in range(max_steps):                       # the loop, with a backstop
+        reply = model(messages)                      # one model call
+        messages.append({"role": "assistant", **reply})
+        if reply["stop_reason"] == "end_turn":       # model is done
+            return reply["text"]
+        for call in reply["tool_calls"]:             # model wants to act
+            messages.append(run_tool(call))          # dispatch + execute, fed back
+    raise RuntimeError("hit max_steps without end_turn")
 ```
+
+**Maps to `src/`:**
+
+- `run()` in [`src/loop.py`](src/loop.py) is the loop above; `messages` is the entire running state.
+- `for _ in range(max_steps)` is the `while`, plus the backstop that stops a runaway loop (a failure mode below).
+- `run_tool(call)` (same file) is dispatch plus execute: look the tool up, run it, return a `{"role": "tool", ...}` result that is appended back so the next model call sees it.
+- The stub `model()` lives in [`src/demo.py`](src/demo.py). Swap it for a real client and `run()` is unchanged.
 
 The loop body never changes as you add capability. Permissions (section 3), subagents (6), memory (9), and hooks (4) bolt onto the four numbered steps; they are not rewrites of the `while`.
 
