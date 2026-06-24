@@ -64,7 +64,7 @@ Seven layers, from a bare loop to a self coordinating system. Each row is one se
 | | **Layer 0 · Foundations** | | |
 | 0 | Harness thesis | Where does agency come from? | model vs orchestration; harness = tools + knowledge + observation + actions + permissions |
 | | **Layer 1 · Core Loop** | | |
-| 1 | Agent loop | How does an agent keep going? | `messages[]`, `while True`, `stop_reason` |
+| 1 | [Agent loop](dimensions/01-agent-loop/) | How does an agent keep going? | `messages[]`, `while True`, `stop_reason` |
 | 2 | Tool runtime | How are tools called and routed? | dispatch map, schemas, parallel calls, deferred search |
 | 3 | Permission & sandbox | How are side effects gated? | approval pipeline, permission modes, sandboxing |
 | 4 | Hooks | How to extend without forking the loop? | `PreToolUse`, `PostToolUse`, interception points |
@@ -107,18 +107,19 @@ Analyses favor named, verifiable mechanisms over hand waving, each paired with a
 
 ## Repository Structure
 
-> Today the repo holds this README and a license. The layout below is the roadmap.
+> First dimension built: [Agent loop](dimensions/01-agent-loop/). The rest of the layout below is the roadmap.
 
 ```
 awesome-agent-architecture/
-├── README.md          # the map
-├── dimensions/        # one writeup per subsystem (rows of the Anatomy table)
-├── systems/           # per system deep dives (claude-code/, hermes-agent/, openclaw/, ...)
-├── patterns/          # cross cutting patterns and failure modes
-└── references/        # primary sources and prior art
+├── README.md                  # the map
+├── dimensions/                # one folder per subsystem (rows of the Anatomy table)
+│   └── 01-agent-loop/         # writeup + runnable strip-down (first built)
+├── systems/                   # per system deep dives (claude-code/, ...)
+├── patterns/                  # cross cutting patterns and failure modes
+└── references/                # primary sources and prior art
 ```
 
-New systems and dimensions slot into the same folders.
+Each dimension folder is `NN-name/`, numbered to match its Anatomy row, holding a `README.md` plus a runnable when the mechanism warrants one. New systems and dimensions slot into the same folders.
 
 ---
 
@@ -136,8 +137,7 @@ Open an issue or PR. Favor named, verifiable mechanisms over speculation, and ci
 
 | Source | What it offers |
 |---|---|
-| [Claude Code](https://www.anthropic.com/claude-code) | Anthropic's coding agent, the reference harness |
-| [Claude Code docs](https://docs.claude.com/en/docs/claude-code/overview) | Official feature and configuration reference |
+| [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Backup of Claude Code's leaked TypeScript source, the grounding for mechanism names (`QueryEngine.ts`, `query/`, `Tool.ts`) |
 | [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 20 lesson code first harness reconstruction, the depth benchmark |
 
 ---
