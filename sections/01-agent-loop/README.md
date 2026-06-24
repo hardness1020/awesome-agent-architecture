@@ -48,7 +48,7 @@ while True:
         return reply.text                 # reply to the user
 ```
 
-The loop body never changes as you add capability. Permissions (subsystem 3), subagents (6), memory (9), and hooks (4) bolt onto the four numbered steps; they are not rewrites of the `while`.
+The loop body never changes as you add capability. Permissions (section 3), subagents (6), memory (9), and hooks (4) bolt onto the four numbered steps; they are not rewrites of the `while`.
 
 Two `stop_reason` values drive everything:
 
@@ -57,7 +57,7 @@ Two `stop_reason` values drive everything:
 
 `messages[]` is the entire memory of the run. Each appended tool result is what lets the next model call build on the last action. That append-and-loop is the agent.
 
-This bare loop has no permission gate. Gating side effects is a separate concern layered on step 3 (see subsystem 3).
+This bare loop has no permission gate. Gating side effects is a separate concern layered on step 3 (see section 3).
 
 ---
 
@@ -79,7 +79,7 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 ## Failure modes
 
 - **No stop condition.** A bug that never yields `end_turn`, or a tool that always provokes another tool call, loops forever. Real loops add a max-iteration or token ceiling as a backstop.
-- **Context overflow mid-loop.** `messages[]` only grows, so long runs blow the context window. This is why context management (subsystem 8) exists; the loop alone has no answer.
+- **Context overflow mid-loop.** `messages[]` only grows, so long runs blow the context window. This is why context management (section 8) exists; the loop alone has no answer.
 - **Partial tool failure.** A tool throws or times out. If the error is not appended as a result, the model never learns it failed and may hang or repeat. The outcome, including failure, must always go back into `messages[]`.
 - **Lost results.** Appending the model reply but forgetting the tool result (or the reverse) desyncs the conversation, and the next call reasons over a hole.
 
@@ -87,10 +87,10 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 
 ## Runnable
 
-[`agent_loop.py`](agent_loop.py) is the loop above in ~60 lines with a stubbed model, so it runs with no API key. It fakes two model turns (one tool call, then a final answer) to show the branch and the append-back. Swap the stub for a real client and the loop body does not change.
+[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it with a stubbed model (no API key). Sections 2 to 5 carry this `src/` forward, evolving `loop.py` and adding one file per section, so the harness grows in front of you. Swap the stub for a real client and the loop body does not change.
 
 ```
-python dimensions/01-agent-loop/agent_loop.py
+python sections/01-agent-loop/src/demo.py
 ```
 
 ---
