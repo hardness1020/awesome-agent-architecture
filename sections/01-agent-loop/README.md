@@ -47,8 +47,6 @@ def run(user_intent, model, max_steps=10):          # src/loop.py
     raise RuntimeError("hit max_steps without end_turn")
 ```
 
-**Maps to `src/`:**
-
 - `run()` in [`src/loop.py`](src/loop.py) is the loop above; `messages` is the entire running state.
 - `for _ in range(max_steps)` is the `while`, plus the backstop that stops a runaway loop (a failure mode below).
 - `run_tool(call)` (same file) is dispatch plus execute: look the tool up, run it, return a `{"role": "tool", ...}` result that is appended back so the next model call sees it.
