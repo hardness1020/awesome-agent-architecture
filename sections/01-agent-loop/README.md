@@ -91,7 +91,7 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 
 ## Runnable
 
-[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it with a stubbed model (no API key). Sections 2 to 5 carry this `src/` forward, evolving `loop.py` and adding one file per section, so the harness grows in front of you. Swap the stub for a real client and the loop body does not change.
+[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it with a stubbed model (no API key). Sections 2 to 8 carry this `src/` forward, evolving `loop.py` and adding one file per section, so the harness grows in front of you. Swap the stub for a real client and the loop body does not change.
 
 ```
 python sections/01-agent-loop/src/demo.py

@@ -1,7 +1,7 @@
 """Planning and todos (section 5): a TodoWrite tool and plan mode. Introduced
-here. Both tools mutate the Session (loop.py): TodoWrite records the plan,
-ExitPlanMode flips the mode once the plan is approved. Mirrors Claude Code's
-TodoWriteTool and Enter/ExitPlanMode.
+in section 5, then carried forward unchanged. Both tools mutate the Session
+(loop.py): TodoWrite records the plan, ExitPlanMode flips the mode once the
+plan is approved. Mirrors Claude Code's TodoWriteTool and Enter/ExitPlanMode.
 """
 from __future__ import annotations
 

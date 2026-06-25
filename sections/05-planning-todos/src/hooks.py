@@ -1,5 +1,5 @@
 """Hooks (section 4): PreToolUse / PostToolUse interception around tool calls.
-Introduced in section 4, carried unchanged into section 5.
+Introduced in section 4, then carried forward unchanged.
 
 A PreToolUse hook may block a call or rewrite its input; it cannot grant
 permission a call lacks (so hooks here only deny or modify, never allow).

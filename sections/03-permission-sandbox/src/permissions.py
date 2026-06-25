@@ -1,6 +1,6 @@
 """Permission gate (section 3): the allow / ask / deny decision between a
-model's tool request and execution. Introduced in section 3, carried unchanged
-into sections 4 and 5. Modes mirror Claude Code's types/permissions.ts.
+model's tool request and execution. Introduced in section 3, then carried
+forward unchanged. Modes mirror Claude Code's types/permissions.ts.
 """
 from __future__ import annotations
 

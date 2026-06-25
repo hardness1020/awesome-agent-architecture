@@ -1,6 +1,6 @@
 """Tool runtime (section 2): the Tool contract, a registry, dispatch, and
-parallel execution of concurrency-safe calls. Introduced in section 2 and
-carried unchanged into sections 3 to 5.
+parallel execution of concurrency-safe calls. Introduced in section 2, then
+carried forward unchanged.
 
 Mirrors Claude Code's Tool.ts (name, isReadOnly, isConcurrencySafe) and the
 partition-then-run step in services/tools/.
