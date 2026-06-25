@@ -7,6 +7,14 @@
 *.swp
 *~
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets (keep .env.example tracked)
+.env
+
 # Claude Code local settings
 .claude
 CLAUDE.md

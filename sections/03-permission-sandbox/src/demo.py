@@ -1,41 +1,40 @@
-"""Section 3 self-check: the gate decisions mode by mode, then the gate in
-the loop (a read allowed, a bash denied without an approver). No API key.
+"""Section 3 demo: the permission gate inside the loop, against the Anthropic
+API. Offline checks live in test.py.
 
-    python sections/03-permission-sandbox/src/demo.py
+    uv run python sections/03-permission-sandbox/src/demo.py    (needs ANTHROPIC_API_KEY; see root README)
 """
+import os
+
+from anthropic import Anthropic
+from dotenv import load_dotenv
+
 from loop import run
-from permissions import ACCEPT_EDITS, BYPASS, DEFAULT, PLAN, decide
+from permissions import DEFAULT
 from tools import Registry, Tool
 
+load_dotenv(override=True)
 
-def stub_model(messages, registry):
-    ran = [m for m in messages if m.get("role") == "tool"]
-    if not ran:
-        return {"stop_reason": "tool_use", "text": "",
-                "tool_calls": [{"name": "ReadFile", "args": {"path": "a"}},
-                               {"name": "Bash", "args": {"command": "ls"}}]}
-
-    return {"stop_reason": "end_turn", "tool_calls": [],
-            "text": " | ".join(f"{m['name']}:{m['status']}" for m in ran)}
+SYSTEM = "You are a tiny agent. Use the provided tools to answer. Be brief."
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 
 def demo():
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("03 permissions: set ANTHROPIC_API_KEY to run the live demo (offline checks: test.py)")
+        return
+
+    client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
+
+    def model(messages, registry):
+        return client.messages.create(model=MODEL, system=SYSTEM, messages=messages,
+                                       tools=registry.schemas(), max_tokens=1024)
+
     reg = Registry()
-    reg.register(Tool("ReadFile", lambda a: "data", is_read_only=True))
-    reg.register(Tool("Bash", lambda a: "ran"))
-    reg.register(Tool("EditFile", lambda a: "edited", is_edit=True))
-
-    # the gate, mode by mode
-    assert decide(reg.get("ReadFile"), PLAN, set()) == "allow"
-    assert decide(reg.get("EditFile"), PLAN, set()) == "deny"
-    assert decide(reg.get("EditFile"), ACCEPT_EDITS, set()) == "allow"
-    assert decide(reg.get("Bash"), DEFAULT, set()) == "ask"
-    assert decide(reg.get("Bash"), DEFAULT, {"Bash"}) == "allow"
-    assert decide(reg.get("Bash"), BYPASS, set()) == "allow"
-
-    # in the loop: default mode, no approver -> read allowed, bash denied
-    assert run("do stuff", stub_model, reg, mode=DEFAULT) == "ReadFile:ok | Bash:denied"
-    print("03 permissions: ok")
+    reg.register(Tool("ReadFile", lambda a: "data", description="Read a file by path.",
+                      input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+                      is_read_only=True))
+    answer = run("Read the file a.txt and summarize it.", model, reg, mode=DEFAULT)
+    print("03 permissions ->", answer)
 
 
 if __name__ == "__main__":

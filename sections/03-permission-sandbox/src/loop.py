@@ -2,7 +2,8 @@
 
 Changed from 02: `_dispatch` now calls `permissions.decide` before running a
 tool, and `run()` carries the permission `mode`, `allow_rules`, and an
-`approver` for the 'ask' path. Section 4 adds hooks around this same path.
+`approver` for the 'ask' path. A denied call still returns a tool_result (the
+model sees the denial and adapts). Section 4 adds hooks around this same path.
 """
 from __future__ import annotations
 
@@ -17,29 +18,35 @@ def run(user_intent, model, registry: Registry, mode=permissions.DEFAULT,
     messages = [{"role": "user", "content": user_intent}]
 
     for _ in range(max_steps):
-        reply = model(messages, registry)
-        messages.append({"role": "assistant", **reply})
+        response = model(messages, registry)
+        messages.append({"role": "assistant", "content": response.content})
 
-        if reply["stop_reason"] == "end_turn":
-            return reply["text"]
+        if response.stop_reason != "tool_use":
+            return final_text(response)
 
-        for call in reply["tool_calls"]:
-            messages.append(_dispatch(call, registry, mode, allow_rules, approver))
+        results = [_dispatch(b, registry, mode, allow_rules, approver)
+                   for b in response.content if b.type == "tool_use"]
+        messages.append({"role": "user", "content": results})
 
     raise RuntimeError("hit max_steps without end_turn")
 
 
-def _dispatch(call, registry, mode, allow_rules, approver):
-    name, args = call["name"], call.get("args", {})
+def _dispatch(block, registry, mode, allow_rules, approver):
+    name = block.name
     tool = registry.get(name)
-    res = lambda status, content: {"role": "tool", "name": name, "status": status, "content": content}
+    res = lambda content: {"type": "tool_result", "tool_use_id": block.id, "content": content}
     if tool is None:
-        return res("error", f"no tool {name!r}")
+        return res(f"error: no tool {name!r}")
 
     decision = permissions.decide(tool, mode, allow_rules)   # 3 · the gate
     if decision == "deny":
-        return res("denied", f"{name} not allowed in {mode} mode")
-    if decision == "ask" and not approver(name, args):
-        return res("denied", f"{name} denied by user")
+        return res(f"{name} not allowed in {mode} mode")
+    if decision == "ask" and not approver(name, block.input):
+        return res(f"{name} denied by user")
 
-    return {"role": "tool", "name": name, **run_tool(tool, args)}
+    return res(run_tool(tool, block.input))
+
+
+def final_text(response):
+    """The model's last words: concatenate its text blocks."""
+    return "".join(b.text for b in response.content if b.type == "text")

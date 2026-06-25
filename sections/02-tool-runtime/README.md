@@ -32,6 +32,8 @@ A tool is a small self-describing object: a `name`, a `run` handler, and predica
 class Tool:                                  # src/tools.py
     name: str
     run: Callable[[dict], Any]
+    description: str = ""                      # advertised to the model
+    input_schema: dict = ...                   # the Anthropic schema it accepts
     is_read_only: bool = False
     is_concurrency_safe: bool = False         # may batch in parallel
     is_edit: bool = False                     # read by the gate (section 3)
@@ -39,24 +41,27 @@ class Tool:                                  # src/tools.py
 class Registry:                              # src/tools.py
     def register(self, tool): self._tools[tool.name] = tool   # add a handler
     def get(self, name):      return self._tools.get(name)    # dispatch = lookup
+    def schemas(self):        ...             # the tools list handed to the model
 ```
 
 - A tool is a dataclass; the registry is `name -> tool`; `register` is one line. Adding a capability is registering a handler.
-- `run_concurrently` ([`src/tools.py`](src/tools.py)) batches the safe calls: `safe = [i for i, t in enumerate(tools) if t.is_concurrency_safe]` run in one `ThreadPoolExecutor`, the rest in order, so reads parallelize but writes stay sequenced.
+- `run_concurrently` ([`src/tools.py`](src/tools.py)) batches the safe calls: `safe = [i for i, t in enumerate(tools) if t and t.is_concurrency_safe]` run in one `ThreadPoolExecutor`, the rest in order, so reads parallelize but writes stay sequenced.
 
 ### How it integrates
 
-Section 1 ran `run_tool(call)` against an inline `TOOLS` dict. The loop now takes a `registry` and routes each call through `_dispatch`:
+Section 1 ran tools from an inline `HANDLERS` dict. The loop now takes a `registry` and routes each `tool_use` block through `_dispatch`:
 
 ```python
 def run(user_intent, model, registry, max_steps=10):   # src/loop.py (now takes a registry)
     ...
-    for call in reply["tool_calls"]:
-        messages.append(_dispatch(call, registry))      # was: run_tool(call)
+    results = [_dispatch(b, registry)                   # was: run_tool(call)
+               for b in response.content if b.type == "tool_use"]
+    messages.append({"role": "user", "content": results})
 
-def _dispatch(call, registry):               # resolve, run, wrap as a tool message
-    tool = registry.get(call["name"])         # name -> tool
-    return {"role": "tool", "name": call["name"], **run_tool(tool, call.get("args", {}))}
+def _dispatch(block, registry):              # resolve, run, wrap as a tool_result
+    tool = registry.get(block.name)           # name -> tool
+    content = run_tool(tool, block.input)
+    return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 ```
 
 - The loop body is otherwise unchanged from section 1; only the dispatch step is now a registry lookup.
@@ -93,10 +98,11 @@ Claude Code's tools are objects built by `buildTool`, which fills safe defaults 
 
 ## Runnable
 
-[`src/`](src/) is section 1's loop plus the tool runtime. New this section: [`tools.py`](src/tools.py) (Tool, Registry, `run_concurrently`). Updated: [`loop.py`](src/loop.py) now dispatches through a Registry. Stubbed model, no API key.
+[`src/`](src/) is section 1's loop plus the tool runtime. New this section: [`tools.py`](src/tools.py) (Tool, Registry, `run_concurrently`). Updated: [`loop.py`](src/loop.py) now dispatches through a Registry and the model advertises `registry.schemas()`.
 
-```
-python sections/02-tool-runtime/src/demo.py
+```bash
+python sections/02-tool-runtime/src/test.py         # offline checks, no key
+uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 ```
 
 ---

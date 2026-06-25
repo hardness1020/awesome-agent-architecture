@@ -51,18 +51,18 @@ def decide(tool, mode, allow_rules) -> str:      # src/permissions.py (new)
 One gate call goes into `_dispatch` (`src/loop.py`, the section-2 dispatcher), just before `run_tool`:
 
 ```python
-def _dispatch(call, registry, mode, allow_rules, approver):   # src/loop.py
+def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
     ...                                                  # resolve tool (section 2)
     decision = decide(tool, mode, allow_rules)           # 3 · the gate, the new line
     if decision == "deny":
-        return res("denied", f"{name} not allowed in {mode} mode")
-    if decision == "ask" and not approver(name, args):
-        return res("denied", f"{name} denied by user")
-    return {"role": "tool", "name": name, **run_tool(tool, args)}   # only now does it run
+        return res(f"{name} not allowed in {mode} mode")
+    if decision == "ask" and not approver(name, block.input):
+        return res(f"{name} denied by user")
+    return res(run_tool(tool, block.input))              # only now does it run
 ```
 
-- The loop body from sections 1 and 2 is untouched; only `_dispatch` gains the gate.
-- `deny` and an unapproved `ask` never reach `run_tool`. `_dispatch` returns a `res("denied", ...)` result into `messages[]` like any tool result, so the model sees the denial on its next turn and adapts. `approver` (the human) defaults to `False`, so `ask` means `no` unless the call is approved (plan approval, section 5).
+- The loop body from sections 1 and 2 is untouched; only `_dispatch` gains the gate. `res` wraps content as a `tool_result` block keyed to `block.id`.
+- `deny` and an unapproved `ask` never reach `run_tool`. `_dispatch` returns a `res(...)` result into `messages[]` like any tool result, so the model sees the denial on its next turn and adapts. `approver` (the human) defaults to `False`, so `ask` means `no` unless the call is approved (plan approval, section 5).
 - Net: the gate substitutes a result for an action at step 3, so every call still yields a result and section 1's append-and-continue invariant holds.
 
 This is the gate the bare loop deliberately omitted. Real systems extend it with ordered rule sources, remembered approvals, and a sandbox (see Per system).
@@ -96,10 +96,11 @@ In Claude Code the loop (`QueryEngine.ts`) calls `canUseTool` for every tool use
 
 ## Runnable
 
-[`src/`](src/) carries 02 forward and adds the gate. New: [`permissions.py`](src/permissions.py) (`decide` over the four modes). Updated: [`loop.py`](src/loop.py) now gates each call before running it. Stubbed model, no API key.
+[`src/`](src/) carries 02 forward and adds the gate. New: [`permissions.py`](src/permissions.py) (`decide` over the four modes). Updated: [`loop.py`](src/loop.py) now gates each call before running it.
 
-```
-python sections/03-permission-sandbox/src/demo.py
+```bash
+python sections/03-permission-sandbox/src/test.py         # offline checks, no key
+uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a key
 ```
 
 ---

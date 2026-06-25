@@ -69,10 +69,11 @@ In Claude Code the spawn primitive is the `Agent` tool defined in `tools/AgentTo
 
 ## Runnable
 
-[`src/`](src/) carries 05 forward and adds delegation. New: [`subagents.py`](src/subagents.py) (the `Agent` tool). Unchanged: [`loop.py`](src/loop.py) is byte-identical to section 5, because a subagent is that loop run again. In the demo the parent delegates "count the python files" to a child; the child's own tool call runs in its context and only its one-line conclusion returns. Stubbed model, no API key.
+[`src/`](src/) carries 05 forward and adds delegation. New: [`subagents.py`](src/subagents.py) (the `Agent` tool). Unchanged: [`loop.py`](src/loop.py) is byte-identical to section 5, because a subagent is that loop run again. In the demo the parent delegates counting the python files to a child; the child's own tool call runs in its context and only its conclusion returns.
 
-```
-python sections/06-subagents/src/demo.py
+```bash
+python sections/06-subagents/src/test.py         # offline checks, no key
+uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 ```
 
 ---

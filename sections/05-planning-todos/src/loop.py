@@ -1,9 +1,8 @@
 """Agent loop with planning / plan mode (section 5), the full pipeline.
 
 Changed from 04: the mutable bits (mode, allow_rules, todos) move onto a
-Session so plan-mode tools can flip the mode mid-run, and `model()` receives the
-session. The gate now reads `session.mode` live, so approving a plan changes
-what the very next call is allowed to do.
+Session so plan-mode tools can flip the mode mid-run. The gate reads
+`session.mode` live, so approving a plan changes what the next call may do.
 """
 from __future__ import annotations
 
@@ -29,35 +28,41 @@ def run(user_intent, model, registry: Registry, session: Session,
     messages = [{"role": "user", "content": user_intent}]
 
     for _ in range(max_steps):
-        reply = model(messages, registry, session)
-        messages.append({"role": "assistant", **reply})
+        response = model(messages, registry)
+        messages.append({"role": "assistant", "content": response.content})
 
-        if reply["stop_reason"] == "end_turn":
-            return reply["text"]
+        if response.stop_reason != "tool_use":
+            return final_text(response)
 
-        for call in reply["tool_calls"]:
-            messages.append(_dispatch(call, registry, session, hooks, approver))
+        results = [_dispatch(b, registry, session, hooks, approver)
+                   for b in response.content if b.type == "tool_use"]
+        messages.append({"role": "user", "content": results})
 
     raise RuntimeError("hit max_steps without end_turn")
 
 
-def _dispatch(call, registry, session, hooks, approver):
-    name, args = call["name"], call.get("args", {})
+def _dispatch(block, registry, session, hooks, approver):
+    name, args = block.name, block.input
     tool = registry.get(name)
-    res = lambda status, content: {"role": "tool", "name": name, "status": status, "content": content}
+    res = lambda content: {"type": "tool_result", "tool_use_id": block.id, "content": content}
     if tool is None:
-        return res("error", f"no tool {name!r}")
+        return res(f"error: no tool {name!r}")
 
     blocked, args, msg = hooks.fire_pre(name, args)                         # 4 · PreToolUse
     if blocked:
-        return res("blocked", msg)
+        return res(msg)
 
     decision = permissions.decide(tool, session.mode, session.allow_rules)  # 3 · gate (live mode)
     if decision == "deny":
-        return res("denied", f"{name} not allowed in {session.mode} mode")
+        return res(f"{name} not allowed in {session.mode} mode")
     if decision == "ask" and not approver(name, args):
-        return res("denied", f"{name} denied by user")
+        return res(f"{name} denied by user")
 
-    out = {"role": "tool", "name": name, **run_tool(tool, args)}
+    out = res(run_tool(tool, args))
     hooks.fire_post(name, args, out)                                        # 4 · PostToolUse
     return out
+
+
+def final_text(response):
+    """The model's last words: concatenate its text blocks."""
+    return "".join(b.text for b in response.content if b.type == "text")

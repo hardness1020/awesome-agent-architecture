@@ -41,10 +41,10 @@ Two fire points are the only change to `_dispatch` ([`src/loop.py`](src/loop.py)
 ```python
 # src/loop.py _dispatch
 blocked, args, msg = hooks.fire_pre(name, args)          # 4 · PreToolUse
-if blocked: return res("blocked", msg)
+if blocked: return res(msg)
 decision = permissions.decide(tool, mode, allow_rules)   # 3 · gate (section 3)
 ...                                                      # deny / ask short-circuit
-out = {"role": "tool", "name": name, **run_tool(tool, args)}   # 2 · execute
+out = res(run_tool(tool, args))                          # 2 · execute -> tool_result
 hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 ```
 
@@ -82,10 +82,11 @@ How each agent exposes interception points around the loop.
 
 ## Runnable
 
-[`src/`](src/) carries 03 forward and adds interception. New: [`hooks.py`](src/hooks.py) (PreToolUse / PostToolUse). Updated: [`loop.py`](src/loop.py) fires hooks around each call. In the demo a PreToolUse hook blocks `rm -rf` even under `bypassPermissions`. Stubbed model, no API key.
+[`src/`](src/) carries 03 forward and adds interception. New: [`hooks.py`](src/hooks.py) (PreToolUse / PostToolUse). Updated: [`loop.py`](src/loop.py) fires hooks around each call. [`test.py`](src/test.py) shows a PreToolUse hook blocking `rm -rf` even under `bypassPermissions`.
 
-```
-python sections/04-hooks/src/demo.py
+```bash
+python sections/04-hooks/src/test.py         # offline checks, no key
+uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 ```
 
 ---

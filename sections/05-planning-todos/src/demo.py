@@ -1,65 +1,41 @@
-"""Section 5 self-check: the full pipeline (1 to 5). The agent starts in plan
-mode, drafts todos, is denied an edit, exits plan mode (human approves), the
-edit lands under acceptEdits, and a dangerous command is hook-blocked. No API key.
+"""Section 5 demo: planning / plan mode, against the Anthropic API. Offline
+checks live in test.py.
 
-    python sections/05-planning-todos/src/demo.py
+    uv run python sections/05-planning-todos/src/demo.py    (needs ANTHROPIC_API_KEY; see root README)
 """
-from hooks import POST_TOOL_USE, PRE_TOOL_USE, Hooks
+import os
+
+from anthropic import Anthropic
+from dotenv import load_dotenv
+
 from loop import Session, run
-from permissions import ACCEPT_EDITS, PLAN
-from planning import exit_plan_mode_tool, todo_tool
-from tools import Registry, Tool
+from permissions import DEFAULT
+from planning import todo_tool
+from tools import Registry
 
-# scripted stub model: one canned tool call per assistant turn so far, then stop
-SCRIPT = [
-    {"name": "TodoWrite", "args": {"todos": [
-        {"step": "read config", "status": "completed"},
-        {"step": "fix typo", "status": "in_progress"}]}},
-    {"name": "EditFile", "args": {"path": "config.toml", "old": "nmae", "new": "name"}},  # denied: plan mode
-    {"name": "ExitPlanMode", "args": {}},
-    {"name": "EditFile", "args": {"path": "config.toml", "old": "nmae", "new": "name"}},  # now allowed
-    {"name": "Bash", "args": {"command": "rm -rf /"}},                                    # blocked by hook
-]
+load_dotenv(override=True)
 
-
-def model(messages, registry, session):
-    turns = sum(1 for m in messages if m["role"] == "assistant")
-    if turns < len(SCRIPT):
-        return {"stop_reason": "tool_use", "text": "", "tool_calls": [SCRIPT[turns]]}
-
-    return {"stop_reason": "end_turn", "text": "done", "tool_calls": []}
+SYSTEM = "You are a tiny agent. Use the provided tools to answer. Be brief."
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 
 def demo():
-    session = Session(mode=PLAN)
-    files = {"config.toml": "nmae = 'x'"}   # the typo we will fix
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("05 planning: set ANTHROPIC_API_KEY to run the live demo (offline checks: test.py)")
+        return
 
+    client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
+
+    def model(messages, registry):
+        return client.messages.create(model=MODEL, system=SYSTEM, messages=messages,
+                                       tools=registry.schemas(), max_tokens=1024)
+
+    session = Session(mode=DEFAULT)
     reg = Registry()
     reg.register(todo_tool(session))
-    reg.register(exit_plan_mode_tool(session, to_mode=ACCEPT_EDITS))
-
-    def edit(a):
-        files[a["path"]] = files[a["path"]].replace(a["old"], a["new"])
-        return f"edited {a['path']}"
-    reg.register(Tool("EditFile", edit, is_edit=True))
-    reg.register(Tool("Bash", lambda a: f"ran {a['command']}"))
-
-    hooks = Hooks()
-    log = []
-    hooks.on(PRE_TOOL_USE, lambda n, a: {"deny": True, "message": "refusing rm -rf"}
-             if n == "Bash" and "rm -rf" in a.get("command", "") else None)
-    hooks.on(POST_TOOL_USE, lambda n, a, r: log.append(n))
-    approver = lambda name, args: name == "ExitPlanMode"   # the human approves the plan, nothing else
-
-    out = run("fix the typo in config.toml", model, reg, session, hooks=hooks, approver=approver)
-
-    assert out == "done"
-    assert files["config.toml"] == "name = 'x'", files                 # the edit landed
-    assert session.mode == ACCEPT_EDITS                                # plan was approved
-    assert session.todos[0]["step"] == "read config"                   # todos recorded
-    assert log == ["TodoWrite", "ExitPlanMode", "EditFile"], log       # only executed tools reach PostToolUse
-
-    print("05 planning: ok ->", files["config.toml"], log)
+    answer = run("Make a 2-step todo list for cleaning a kitchen, then say done.",
+                 model, reg, session)
+    print("05 planning ->", answer, "| todos:", len(session.todos))
 
 
 if __name__ == "__main__":

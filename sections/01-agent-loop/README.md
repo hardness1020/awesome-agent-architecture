@@ -37,27 +37,35 @@ flowchart LR
 ```python
 def run(user_intent, model, max_steps=10):          # src/loop.py
     messages = [{"role": "user", "content": user_intent}]
+
     for _ in range(max_steps):                       # the loop, with a backstop
-        reply = model(messages)                      # one model call
-        messages.append({"role": "assistant", **reply})
-        if reply["stop_reason"] == "end_turn":       # model is done
-            return reply["text"]
-        for call in reply["tool_calls"]:             # model wants to act
-            messages.append(run_tool(call))          # dispatch + execute, fed back
+        response = model(messages)                   # one Anthropic Messages call
+        messages.append({"role": "assistant", "content": response.content})
+
+        if response.stop_reason != "tool_use":       # model produced its answer
+            return final_text(response)
+
+        results = []                                 # tool_use: run each, feed back
+        for block in response.content:
+            if block.type == "tool_use":
+                results.append({"type": "tool_result", "tool_use_id": block.id,
+                                "content": run_tool(block.name, block.input)})
+        messages.append({"role": "user", "content": results})
+
     raise RuntimeError("hit max_steps without end_turn")
 ```
 
-- `run()` in [`src/loop.py`](src/loop.py) is the loop above; `messages` is the entire running state.
+- `run()` in [`src/loop.py`](src/loop.py) is the loop above; `messages` is the entire running state, in the Anthropic Messages format.
 - `for _ in range(max_steps)` is the `while`, plus the backstop that stops a runaway loop (a failure mode below).
-- `run_tool(call)` (same file) is dispatch plus execute: look the tool up, run it, return a `{"role": "tool", ...}` result that is appended back so the next model call sees it.
-- The stub `model()` lives in [`src/demo.py`](src/demo.py). Swap it for a real client and `run()` is unchanged.
+- `run_tool(name, input)` (same file) is dispatch plus execute: look the tool up, run it, return a string that goes back as a `tool_result` so the next model call sees it.
+- `model()` in [`src/demo.py`](src/demo.py) is one `client.messages.create` call against the Anthropic API. Swap it for any provider and `run()` is unchanged.
 
 The loop body never changes as you add capability. Permissions (section 3), subagents (6), memory (9), and hooks (4) bolt onto the four numbered steps; they are not rewrites of the `while`.
 
 Two `stop_reason` values drive everything:
 
 - `tool_use` the model emitted tool calls. Run them, append results, loop.
-- `end_turn` the model produced a final answer. Stop.
+- `end_turn` the model produced a final answer. Stop. (The loop stops on any `stop_reason` that is not `tool_use`.)
 
 `messages[]` is the entire memory of the run. Each appended tool result is what lets the next model call build on the last action. That append-and-loop is the agent.
 
@@ -91,10 +99,11 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 
 ## Runnable
 
-[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it with a stubbed model (no API key). Sections 2 to 8 carry this `src/` forward, evolving `loop.py` and adding one file per section, so the harness grows in front of you. Swap the stub for a real client and the loop body does not change.
+[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it against the Anthropic API. The model cannot know the current time, so it must call the `get_time` tool: the loop runs it, feeds the result back, and the model answers. That round trip is the whole agent. Sections 2 to 8 carry this `src/` forward, evolving `loop.py` and adding one file per section.
 
-```
-python sections/01-agent-loop/src/demo.py
+```bash
+python sections/01-agent-loop/src/test.py         # offline checks, no key
+uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 ```
 
 ---

@@ -1,24 +1,34 @@
-"""Section 1 self-check. The model is a stub, so this runs with no API key.
+"""Section 1 demo: the agent loop answering one question with a tool call,
+against the Anthropic API. Offline checks live in test.py.
 
-    python sections/01-agent-loop/src/demo.py
+    uv run python sections/01-agent-loop/src/demo.py    (needs ANTHROPIC_API_KEY; see root README)
 """
-from loop import run
+import os
 
+from anthropic import Anthropic
+from dotenv import load_dotenv
 
-def stub_model(messages):
-    """Turn 1 -> ask for a tool; turn 2 -> answer from the result."""
-    ran = any(m.get("role") == "tool" for m in messages)
-    if not ran:
-        return {"stop_reason": "tool_use", "text": "checking",
-                "tool_calls": [{"name": "get_time", "args": {}}]}
+from loop import TOOL_SCHEMAS, run
 
-    last = next(m["content"] for m in reversed(messages) if m.get("role") == "tool")
-    return {"stop_reason": "end_turn", "tool_calls": [], "text": f"The time is {last}."}
+load_dotenv(override=True)
+
+SYSTEM = "You are a tiny agent. Use the provided tools to answer. Be brief."
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 
 def demo():
-    assert run("what time is it?", stub_model) == "The time is 2026-06-24T10:00:00Z."
-    print("01 agent_loop: ok")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("01 agent_loop: set ANTHROPIC_API_KEY to run the live demo (offline checks: test.py)")
+        return
+
+    client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
+
+    def model(messages):                          # the injected model; swap it, keep run()
+        return client.messages.create(model=MODEL, system=SYSTEM, messages=messages,
+                                       tools=TOOL_SCHEMAS, max_tokens=1024)
+
+    answer = run("What time is it right now? Answer in one sentence.", model)
+    print("01 agent_loop ->", answer)
 
 
 if __name__ == "__main__":

@@ -104,10 +104,11 @@ In Claude Code the todo list is the tool `TodoWrite` (name in `tools/TodoWriteTo
 
 ## Runnable
 
-[`src/`](src/) is the full pipeline (sections 1 to 5). New: [`planning.py`](src/planning.py) (TodoWrite, ExitPlanMode). Updated: [`loop.py`](src/loop.py) holds a `Session` so plan mode can flip mid-run. The demo: draft todos in plan mode, edit denied, approve, edit lands, dangerous command hook-blocked. Stubbed model, no API key.
+[`src/`](src/) is the full pipeline (sections 1 to 5). New: [`planning.py`](src/planning.py) (TodoWrite, ExitPlanMode). Updated: [`loop.py`](src/loop.py) holds a `Session` so plan mode can flip mid-run. [`test.py`](src/test.py) walks the arc through the loop's dispatch: draft todos, edit denied in plan mode, approve, edit lands.
 
-```
-python sections/05-planning-todos/src/demo.py
+```bash
+python sections/05-planning-todos/src/test.py         # offline checks, no key
+uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 ```
 
 ---

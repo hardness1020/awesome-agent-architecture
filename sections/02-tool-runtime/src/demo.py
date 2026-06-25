@@ -1,38 +1,42 @@
-"""Section 2 self-check: the loop dispatching through a registry, plus the
-concurrency-safe parallel primitive. Stubbed model, no API key.
+"""Section 2 demo: the loop dispatching tool calls through a Registry, against
+the Anthropic API. Offline checks live in test.py.
 
-    python sections/02-tool-runtime/src/demo.py
+    uv run python sections/02-tool-runtime/src/demo.py    (needs ANTHROPIC_API_KEY; see root README)
 """
+import os
+
+from anthropic import Anthropic
+from dotenv import load_dotenv
+
 from loop import run
-from tools import Registry, Tool, run_concurrently
+from tools import Registry, Tool
 
+load_dotenv(override=True)
 
-def stub_model(messages, registry):
-    """Turn 1 -> read two files; turn 2 -> combine the results."""
-    ran = [m for m in messages if m.get("role") == "tool"]
-    if not ran:
-        return {"stop_reason": "tool_use", "text": "reading",
-                "tool_calls": [{"name": "ReadFile", "args": {"path": "a.txt"}},
-                               {"name": "ReadFile", "args": {"path": "b.txt"}}]}
-
-    return {"stop_reason": "end_turn", "tool_calls": [],
-            "text": " + ".join(m["content"] for m in ran)}
+SYSTEM = "You are a tiny agent. Use the provided tools to answer. Be brief."
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+FILES = {"a.txt": "alpha", "b.txt": "beta"}
 
 
 def demo():
-    files = {"a.txt": "alpha", "b.txt": "beta"}
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("02 tool_runtime: set ANTHROPIC_API_KEY to run the live demo (offline checks: test.py)")
+        return
+
+    client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
+
+    def model(messages, registry):
+        return client.messages.create(model=MODEL, system=SYSTEM, messages=messages,
+                                       tools=registry.schemas(), max_tokens=1024)
+
     reg = Registry()
-    reg.register(Tool("ReadFile", lambda a: files[a["path"]], is_read_only=True, is_concurrency_safe=True))
-
-    # the loop dispatches the two reads and the model combines them
-    assert run("read both files", stub_model, reg) == "alpha + beta"
-
-    # run_concurrently is the batching primitive for concurrency-safe calls
-    results = run_concurrently(reg, [{"name": "ReadFile", "args": {"path": "a.txt"}},
-                                     {"name": "ReadFile", "args": {"path": "b.txt"}}])
-    assert [r["content"] for r in results] == ["alpha", "beta"]
-
-    print("02 tool_runtime: ok")
+    reg.register(Tool("ReadFile", lambda a: FILES[a["path"]],
+                      description="Read a file's contents by path.",
+                      input_schema={"type": "object", "properties": {"path": {"type": "string"}},
+                                    "required": ["path"]},
+                      is_read_only=True, is_concurrency_safe=True))
+    answer = run("Read a.txt and b.txt, then reply with both contents.", model, reg)
+    print("02 tool_runtime ->", answer)
 
 
 if __name__ == "__main__":
