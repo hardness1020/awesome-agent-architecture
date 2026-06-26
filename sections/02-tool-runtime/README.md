@@ -52,7 +52,7 @@ class Registry:                              # src/tools.py
 Section 1 ran tools from an inline `HANDLERS` dict. The loop now takes a `registry` and routes each `tool_use` block through `_dispatch`:
 
 ```python
-def run(user_intent, model, registry, max_steps=10):   # src/loop.py (now takes a registry)
+def run_turn(messages, model, registry, max_steps=10): # src/loop.py (now takes a registry)
     ...
     results = [_dispatch(b, registry)                   # was: run_tool(call)
                for b in response.content if b.type == "tool_use"]

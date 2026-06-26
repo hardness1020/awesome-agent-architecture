@@ -8,7 +8,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import run
+from loop import run_turn
 from permissions import DEFAULT
 from tools import Registry, Tool
 
@@ -33,7 +33,7 @@ def demo():
     reg.register(Tool("ReadFile", lambda a: "data", description="Read a file by path.",
                       input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
                       is_read_only=True))
-    answer = run("Read the file a.txt and summarize it.", model, reg, mode=DEFAULT)
+    answer = run_turn([{"role": "user", "content": "Read the file a.txt and summarize it."}], model, reg, mode=DEFAULT)
     print("03 permissions ->", answer)
 
 

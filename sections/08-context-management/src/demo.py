@@ -8,7 +8,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import Session, run
+from loop import Session, run_turn
 from permissions import DEFAULT
 from tools import Registry, Tool
 
@@ -32,7 +32,8 @@ def demo():
     reg = Registry()
     reg.register(Tool("ReadDoc", lambda a: "lorem ipsum " * 80, description="Read the project doc.",
                       is_read_only=True))
-    answer = run("Read the project doc, then summarize it in one line.",
+    
+    answer = run_turn([{"role": "user", "content": "Read the project doc, then summarize it in one line."}],
                  model, reg, Session(mode=DEFAULT), summarizer=lambda ms: "earlier: read the doc")
     print("08 context ->", answer)
 

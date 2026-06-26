@@ -8,7 +8,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import Session, run
+from loop import Session, run_turn
 from permissions import DEFAULT
 from subagents import agent_tool
 from tools import Registry, Tool
@@ -36,7 +36,8 @@ def demo():
                             description="Count the python files in the repo.", is_read_only=True))
     parent_reg = Registry()                         # parent can ONLY delegate
     parent_reg.register(agent_tool(model, child_reg, parent_session))
-    answer = run("Use the Agent tool to count the python files, then report the number.",
+    
+    answer = run_turn([{"role": "user", "content": "Use the Agent tool to count the python files, then report the number."}],
                  model, parent_reg, parent_session)
     print("06 subagents ->", answer)
 

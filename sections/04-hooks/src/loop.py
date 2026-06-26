@@ -11,13 +11,12 @@ from hooks import Hooks
 from tools import Registry, run_tool
 
 
-def run(user_intent, model, registry: Registry, hooks: Hooks | None = None,
+def run_turn(messages, model, registry: Registry, hooks: Hooks | None = None,
         mode=permissions.DEFAULT, allow_rules=None, approver=None, max_steps=10):
     hooks = hooks or Hooks()
     allow_rules = allow_rules or set()
     approver = approver or (lambda name, args: False)
-    messages = [{"role": "user", "content": user_intent}]
-
+    
     for _ in range(max_steps):
         response = model(messages, registry)
         messages.append({"role": "assistant", "content": response.content})

@@ -25,18 +25,19 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
     def spawn(a):
         child = Session(mode=parent_session.mode,          # fresh context, inherited authority
                         allow_rules=set(parent_session.allow_rules))
-        return run(a["description"], model, child_registry, child)   # the loop, run again
+        messages = [{"role": "user", "content": a["description"]}]   # the child's own conversation
+        return run_turn(messages, model, child_registry, child)      # the loop, run again
     return Tool("Agent", spawn, is_read_only=True)
 ```
 
-- `agent_tool` ([`src/subagents.py`](src/subagents.py)) returns an ordinary `Tool`. Its `run` calls `run()` from section 1, the same loop, with a brand-new `Session` and a `messages[]` seeded only by the description.
-- The child returns the text of its last message (`run()` already returns exactly that), so the parent receives a conclusion, never the child's transcript.
+- `agent_tool` ([`src/subagents.py`](src/subagents.py)) returns an ordinary `Tool`. Its `run` calls `run_turn()` from section 1, the same loop, with a brand-new `Session` and a `messages[]` seeded only by the description.
+- The child returns the text of its last message (`run_turn()` already returns exactly that), so the parent receives a conclusion, never the child's transcript.
 
 ### How it integrates
 
 No loop change. A subagent is the section-1 loop invoked inside a tool call, so [`src/loop.py`](src/loop.py) is byte-identical to section 5. Three properties fall out of that:
 
-- **Fresh context:** the child's `messages[]` is local to its `run()` call and discarded on return, so the parent's history cannot distract the child and the child's history cannot bloat the parent.
+- **Fresh context:** the child's `messages[]` is local to its `run_turn()` call and discarded on return, so the parent's history cannot distract the child and the child's history cannot bloat the parent.
 - **Inherited authority:** the child `Session` copies the parent's `mode` and `allow_rules`, so the child's own calls still hit the section-3 gate. Isolating context does not isolate permission.
 - **Recursion fenced:** `child_registry` omits the `Agent` tool, so a child cannot spawn another. (Claude Code fences the same risk with `isInForkChild`.)
 
@@ -46,10 +47,10 @@ No loop change. A subagent is the section-1 loop invoked inside a tool call, so 
 
 How a parent isolates a subproblem and gets the answer back.
 
-| System | Spawn primitive | Context isolation | Result return | Resume? |
-|---|---|---|---|---|
-| **Claude Code** | `Agent` tool (`AGENT_TOOL_NAME`, legacy `Task`), with `subagent_type` + `description` | child loop in `runAgent.ts` with fresh `initialMessages` (`messages: initialMessages`) | `extractTextContent` of the child's last message (`AgentTool.tsx`) | yes, via `resumeAgentBackground` (`resumeAgent.ts`) for addressable agents; `Explore`/`Plan` are `ONE_SHOT_BUILTIN_AGENT_TYPES` |
-| *(more soon)* | | | | |
+| System                | Spawn primitive                                                                                 | Context isolation                                                                           | Result return                                                          | Resume?                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Claude Code** | `Agent` tool (`AGENT_TOOL_NAME`, legacy `Task`), with `subagent_type` + `description` | child loop in`runAgent.ts` with fresh `initialMessages` (`messages: initialMessages`) | `extractTextContent` of the child's last message (`AgentTool.tsx`) | yes, via`resumeAgentBackground` (`resumeAgent.ts`) for addressable agents; `Explore`/`Plan` are `ONE_SHOT_BUILTIN_AGENT_TYPES` |
+| *(more soon)*       |                                                                                                 |                                                                                             |                                                                        |                                                                                                                                          |
 
 In Claude Code the spawn primitive is the `Agent` tool defined in `tools/AgentTool/AgentTool.tsx` (`AGENT_TOOL_NAME = 'Agent'`, kept addressable under the legacy wire name `Task`). `subagent_type` selects a persona; `getBuiltInAgents()` in `builtInAgents.ts` registers `GENERAL_PURPOSE_AGENT`, `EXPLORE_AGENT`, `PLAN_AGENT`, `STATUSLINE_SETUP_AGENT`, `CLAUDE_CODE_GUIDE_AGENT`, and `VERIFICATION_AGENT` (each defined under `built-in/`). The child runs the same loop as the parent in `runAgent.ts`, seeded with a fresh `initialMessages`, and the parent receives only `extractTextContent` of the last message. Recursion is fenced: `isInForkChild` in `forkSubagent.ts` rejects a fork child that already carries the `FORK_BOILERPLATE_TAG`. Spawns can be synchronous or, with `run_in_background`, async (returning `status: 'async_launched'` and tracked as a `LocalAgentTask`, see `tasks/LocalAgentTask/`). Most agents stay addressable via `SendMessage` and can be continued with `resumeAgent.ts`; the one-shot `Explore`/`Plan` types report once and skip the resume trailer.
 

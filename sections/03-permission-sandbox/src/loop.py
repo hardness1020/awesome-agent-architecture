@@ -11,12 +11,11 @@ import permissions
 from tools import Registry, run_tool
 
 
-def run(user_intent, model, registry: Registry, mode=permissions.DEFAULT,
+def run_turn(messages, model, registry: Registry, mode=permissions.DEFAULT,
         allow_rules=None, approver=None, max_steps=10):
     allow_rules = allow_rules or set()
     approver = approver or (lambda name, args: False)   # no human present: 'ask' means 'no'
-    messages = [{"role": "user", "content": user_intent}]
-
+    
     for _ in range(max_steps):
         response = model(messages, registry)
         messages.append({"role": "assistant", "content": response.content})

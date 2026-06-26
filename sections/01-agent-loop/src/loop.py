@@ -1,11 +1,16 @@
-"""Agent loop (section 1): the core while-loop.
+"""Agent loop (section 1): the core while-loop, and the conversation around it.
 
-Call the model; while it asks for a tool, run the tool, feed the result back as
-a `tool_result` turn, and call again; stop when it does not. The loop speaks the
-Anthropic Messages format directly (content blocks, `tool_use`, `tool_result`),
-so `model` is just a thin call to client.messages.create (see demo.py). Swap
-that one function and run() is unchanged. Sections 2 to 8 carry this file
-forward and evolve it.
+Two nested loops. The inner loop is one user turn: call the model, and while it
+asks for a tool, run the tool, feed the result back as a `tool_result`, and call
+again; stop when it does not. The outer loop is the conversation: the SAME
+`messages[]` persists, and each new user turn is appended to it, so the model
+sees every prior message exactly on the next call. `run_turn` is the inner loop;
+the caller owns `messages` and drives the outer one (see demo.py).
+
+The loop speaks the Anthropic Messages format directly (content blocks,
+`tool_use`, `tool_result`), so `model` is just a thin call to
+client.messages.create. Swap that one function and run_turn is unchanged.
+Sections 2 to 11 carry this file forward and evolve it.
 """
 from datetime import datetime, timezone
 
@@ -35,14 +40,19 @@ def run_tool(name, tool_input):
         return f"error: {e}"
 
 
-def run(user_intent, model, max_steps=10):
-    messages = [{"role": "user", "content": user_intent}]
+def run_turn(messages, model, max_steps=10):
+    """Run one user turn to completion over the shared conversation `messages`.
 
+    Precondition: the new user message is already the last item in `messages`.
+    The model and tools iterate, each step appended to the SAME list, until the
+    model stops asking for tools. Returns the assistant's final text; `messages`
+    is mutated in place, so the next turn sees this whole exchange verbatim.
+    """
     for _ in range(max_steps):                  # ponytail: max_steps is the no-infinite-loop backstop
         response = model(messages)              # one model call -> an Anthropic Message
         messages.append({"role": "assistant", "content": response.content})
 
-        if response.stop_reason != "tool_use":  # model produced its final answer
+        if response.stop_reason != "tool_use":  # model produced its final answer for this turn
             return final_text(response)
 
         results = []                            # tool_use: run each call, feed results back

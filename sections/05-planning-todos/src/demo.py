@@ -8,7 +8,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import Session, run
+from loop import Session, run_turn
 from permissions import DEFAULT
 from planning import todo_tool
 from tools import Registry
@@ -33,7 +33,8 @@ def demo():
     session = Session(mode=DEFAULT)
     reg = Registry()
     reg.register(todo_tool(session))
-    answer = run("Make a 2-step todo list for cleaning a kitchen, then say done.",
+    
+    answer = run_turn([{"role": "user", "content": "Make a 2-step todo list for cleaning a kitchen, then say done."}],
                  model, reg, session)
     print("05 planning ->", answer, "| todos:", len(session.todos))
 

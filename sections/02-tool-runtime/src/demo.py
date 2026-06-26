@@ -8,7 +8,7 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import run
+from loop import run_turn
 from tools import Registry, Tool
 
 load_dotenv(override=True)
@@ -35,7 +35,8 @@ def demo():
                       input_schema={"type": "object", "properties": {"path": {"type": "string"}},
                                     "required": ["path"]},
                       is_read_only=True, is_concurrency_safe=True))
-    answer = run("Read a.txt and b.txt, then reply with both contents.", model, reg)
+    
+    answer = run_turn([{"role": "user", "content": "Read a.txt and b.txt, then reply with both contents."}], model, reg)
     print("02 tool_runtime ->", answer)
 
 

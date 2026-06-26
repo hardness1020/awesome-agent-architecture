@@ -24,12 +24,11 @@ class Session:
     todos: list = field(default_factory=list)
 
 
-def run(user_intent, model, registry: Registry, session: Session,
+def run_turn(messages, model, registry: Registry, session: Session,
         hooks: Hooks | None = None, approver=None, summarizer=None, max_steps=20):
     hooks = hooks or Hooks()
     approver = approver or (lambda name, args: False)
-    messages = [{"role": "user", "content": user_intent}]
-
+    
     for _ in range(max_steps):
         messages = context.manage(messages, summarizer=summarizer)   # 8 · keep context under the window
         response = model(messages, registry)

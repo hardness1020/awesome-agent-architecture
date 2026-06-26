@@ -12,7 +12,7 @@ extractTextContent of the last message).
 """
 from __future__ import annotations
 
-from loop import Session, run
+from loop import Session, run_turn
 from tools import Tool
 
 DESCRIPTION_SCHEMA = {
@@ -27,7 +27,7 @@ def agent_tool(model, child_registry, parent_session, max_steps=20) -> Tool:
     def spawn(a):
         child = Session(mode=parent_session.mode,
                         allow_rules=set(parent_session.allow_rules))  # fresh context, inherited authority
-        return run(a["description"], model, child_registry, child, max_steps=max_steps)
+        return run_turn([{"role": "user", "content": a["description"]}], model, child_registry, child, max_steps=max_steps)
 
     # spawning is read-only itself; the child's individual calls are what the gate sees
     return Tool("Agent", spawn,

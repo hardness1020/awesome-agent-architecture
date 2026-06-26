@@ -21,12 +21,11 @@ class Session:
     todos: list = field(default_factory=list)
 
 
-def run(user_intent, model, registry: Registry, session: Session,
+def run_turn(messages, model, registry: Registry, session: Session,
         hooks: Hooks | None = None, approver=None, max_steps=20):
     hooks = hooks or Hooks()
     approver = approver or (lambda name, args: False)
-    messages = [{"role": "user", "content": user_intent}]
-
+    
     for _ in range(max_steps):
         response = model(messages, registry)
         messages.append({"role": "assistant", "content": response.content})

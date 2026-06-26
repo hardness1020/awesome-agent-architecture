@@ -9,7 +9,7 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 
 from hooks import PRE_TOOL_USE, Hooks
-from loop import run
+from loop import run_turn
 from permissions import BYPASS
 from tools import Registry, Tool
 
@@ -34,10 +34,12 @@ def demo():
     reg.register(Tool("Bash", lambda a: "ran", description="Run a shell command.",
                       input_schema={"type": "object", "properties": {"command": {"type": "string"}},
                                     "required": ["command"]}))
+    
     hooks = Hooks()
     hooks.on(PRE_TOOL_USE, lambda n, a: {"deny": True, "message": "refusing rm -rf"}
              if n == "Bash" and "rm -rf" in a.get("command", "") else None)
-    answer = run("Run the shell command: echo hello", model, reg, hooks=hooks, mode=BYPASS)
+    
+    answer = run_turn([{"role": "user", "content": "Run the shell command: echo hello"}], model, reg, hooks=hooks, mode=BYPASS)
     print("04 hooks ->", answer)
 
 

@@ -2,7 +2,7 @@
 
 > One loop, and almost nothing else. Everything in this repo hangs off this branch.
 
-The model decides; the loop lets it keep deciding. Strip the branding from any agent and you find the same `while`: call the model, and if it asked for a tool, run it, feed the result back, call again.
+The model decides; the loop lets it keep deciding. Strip the branding from any agent and you find the same `while`: call the model, and if it asked for a tool, run it, feed the result back, call again. The same `messages[]` carries across user turns, so each new question is asked with everything before it still in view.
 
 ---
 
@@ -23,26 +23,27 @@ Leave this out and the model can reason but never acts. Get it wrong and the age
 
 ## Mechanism
 
-Three pieces: a growing `messages[]` list, a `while` loop, and a branch on the model's `stop_reason`.
+Two nested loops over one growing `messages[]`. The inner loop is a single turn: call the model, branch on its `stop_reason`, run any tools, and call again until it stops. The outer loop is the conversation: the same `messages[]` persists, and each new user turn is appended before the inner loop runs again, so the model re-reads every prior message.
 
 ```mermaid
 flowchart LR
-    U([User intent]) --> M["messages[]"]
+    U([User turn]) --> M["messages[] · persists across turns"]
     M --> L{{model call}}
     L -->|stop_reason: tool_use| T[run tools]
     T --> A[append results] --> M
-    L -->|stop_reason: end_turn| D([reply to user])
+    L -->|stop_reason: end_turn| D([reply])
+    D -.next user turn appended.-> M
 ```
 
-```python
-def run(user_intent, model, max_steps=10):          # src/loop.py
-    messages = [{"role": "user", "content": user_intent}]
+The inner loop is one turn over a `messages[]` the caller owns:
 
-    for _ in range(max_steps):                       # the loop, with a backstop
+```python
+def run_turn(messages, model, max_steps=10):        # src/loop.py · one turn over the shared messages[]
+    for _ in range(max_steps):                       # the inner loop, with a backstop
         response = model(messages)                   # one Anthropic Messages call
         messages.append({"role": "assistant", "content": response.content})
 
-        if response.stop_reason != "tool_use":       # model produced its answer
+        if response.stop_reason != "tool_use":       # model produced its answer for this turn
             return final_text(response)
 
         results = []                                 # tool_use: run each, feed back
@@ -55,10 +56,22 @@ def run(user_intent, model, max_steps=10):          # src/loop.py
     raise RuntimeError("hit max_steps without end_turn")
 ```
 
-- `run()` in [`src/loop.py`](src/loop.py) is the loop above; `messages` is the entire running state, in the Anthropic Messages format.
+- `run_turn()` in [`src/loop.py`](src/loop.py) is the inner loop; `messages` is the running state in the Anthropic Messages format, and the new user message is already its last item when the turn begins.
 - `for _ in range(max_steps)` is the `while`, plus the backstop that stops a runaway loop (a failure mode below).
 - `run_tool(name, input)` (same file) is dispatch plus execute: look the tool up, run it, return a string that goes back as a `tool_result` so the next model call sees it.
-- `model()` in [`src/demo.py`](src/demo.py) is one `client.messages.create` call against the Anthropic API. Swap it for any provider and `run()` is unchanged.
+- `model()` in [`src/demo.py`](src/demo.py) is one `client.messages.create` call against the Anthropic API. Swap it for any provider and `run_turn()` is unchanged.
+
+The outer loop is the conversation: the caller appends one user message per turn and never throws the buffer away:
+
+```python
+messages = []                                        # src/demo.py · the conversation, owned by the caller
+for user_text in turns:                              # the outer loop: one iteration per user turn
+    messages.append({"role": "user", "content": user_text})
+    reply = run_turn(messages, model)                # appends in place; turn N sees turns 1..N-1
+```
+
+- `run_turn` appends in place (assistant replies and tool results included), so turn 2 is sent with the full transcript of turn 1, and the model sees every prior message exactly.
+- A one-shot question is just a conversation of length one: seed `messages` with a single user turn and call `run_turn` once.
 
 The loop body never changes as you add capability. Permissions (section 3), subagents (6), memory (9), and hooks (4) bolt onto the four numbered steps; they are not rewrites of the `while`.
 
@@ -67,7 +80,7 @@ Two `stop_reason` values drive everything:
 - `tool_use` the model emitted tool calls. Run them, append results, loop.
 - `end_turn` the model produced a final answer. Stop. (The loop stops on any `stop_reason` that is not `tool_use`.)
 
-`messages[]` is the entire memory of the run. Each appended tool result is what lets the next model call build on the last action. That append-and-loop is the agent.
+`messages[]` is the entire memory of the conversation, not just one turn. Each appended tool result lets the next model call build on the last action; each retained user turn lets the next answer build on the last reply. That append-and-loop, inner turn and outer conversation, is the agent.
 
 This bare loop has no permission gate. Gating side effects is a separate concern layered on step 3 (see section 3).
 
@@ -99,7 +112,7 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 
 ## Runnable
 
-[`src/loop.py`](src/loop.py) is the bare loop; [`src/demo.py`](src/demo.py) runs it against the Anthropic API. The model cannot know the current time, so it must call the `get_time` tool: the loop runs it, feeds the result back, and the model answers. That round trip is the whole agent. Sections 2 to 8 carry this `src/` forward, evolving `loop.py` and adding one file per section.
+[`src/loop.py`](src/loop.py) is the loop; [`src/demo.py`](src/demo.py) drives a two-turn conversation against the Anthropic API over one persistent `messages[]`. The model cannot know the current time, so turn 1 calls `get_time`; turn 2 ("before or after noon?") only works because it still sees turn 1 in the shared buffer. That round trip, repeated, is the whole agent. [`src/test.py`](src/test.py) checks tool dispatch, final-text, and that a second turn sees the first. Sections 2 to 11 carry this `src/` forward, evolving `loop.py` and adding one file per section.
 
 ```bash
 python sections/01-agent-loop/src/test.py         # offline checks, no key

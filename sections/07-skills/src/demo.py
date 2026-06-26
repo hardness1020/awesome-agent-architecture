@@ -9,7 +9,7 @@ from pathlib import Path
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from loop import Session, run
+from loop import Session, run_turn
 from permissions import DEFAULT
 from skills import load_skills, skill_tool
 from tools import Registry
@@ -34,7 +34,8 @@ def demo():
 
     reg = Registry()
     reg.register(skill_tool(load_skills(SKILLS_DIR)))   # L2; the agent's Read tool would do L3
-    answer = run("Use the pdf-fill skill and tell me step 1.", model, reg, Session(mode=DEFAULT))
+    
+    answer = run_turn([{"role": "user", "content": "Use the pdf-fill skill and tell me step 1."}], model, reg, Session(mode=DEFAULT))
     print("07 skills ->", answer)
 
 

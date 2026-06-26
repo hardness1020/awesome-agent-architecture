@@ -11,9 +11,7 @@ from __future__ import annotations
 from tools import Registry, run_tool
 
 
-def run(user_intent, model, registry: Registry, max_steps=10):
-    messages = [{"role": "user", "content": user_intent}]
-
+def run_turn(messages, model, registry: Registry, max_steps=10):
     for _ in range(max_steps):                  # ponytail: max_steps is the no-infinite-loop backstop
         response = model(messages, registry)
         messages.append({"role": "assistant", "content": response.content})
