@@ -136,10 +136,10 @@ if response.stop_reason != "tool_use":
 
 Rows are systems; columns are the four memory operations.
 
-| System                | Store                                                                                                                                                                                                                                                                                                                                      | Recall                                                                                                                                                                                                                              | Extraction                                                                                                                                                                         | Consolidation                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Claude Code** | `memory/` dir under `~/.claude/projects/<sanitized-git-root>/` (`memdir/paths.ts`); per-memory `.md` files with YAML frontmatter (`type`, `description`); `MEMORY.md` index, capped 200 lines / 25KB (`memdir/memdir.ts`); four types `user` · `feedback` · `project` · `reference` (`memdir/memoryTypes.ts`) | `findRelevantMemories.ts`: `memoryScan.ts` builds a header manifest (name + type + description, newest-first, max 200 files), a Sonnet `sideQuery` picks up to 5, bodies injected with a freshness note from `memoryAge.ts` | `services/extractMemories/extractMemories.ts`: forked agent at run end (no tool calls), `skipTranscript: true`, `maxTurns: 5`, skipped if the run already wrote memory files | `services/autoDream/autoDream.ts` ("Dream"): forked agent gated by time (>= 24h), sessions touched (>= 5), and a `.consolidate-lock` file (section 13) |
-| *(more soon)*       |                                                                                                                                                                                                                                                                                                                                            |                                                                                                                                                                                                                                     |                                                                                                                                                                                    |                                                                                                                                                            |
+| System | Store | Recall | Extraction | Consolidation |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | `memory/` under `~/.claude/projects/<sanitized-git-root>/` (`memdir/paths.ts`); `.md` files, YAML frontmatter (`type`, `description`); `MEMORY.md` index capped 200 lines / 25KB (`memdir/memdir.ts`); four types `user` · `feedback` · `project` · `reference` (`memdir/memoryTypes.ts`) | `findRelevantMemories.ts` + `memoryScan.ts` build a header manifest (name + type + description, newest-first, max 200 files); a Sonnet `sideQuery` picks up to 5; bodies injected with a freshness note (`memoryAge.ts`) | `services/extractMemories/extractMemories.ts`: forked agent at run end, `skipTranscript: true`, `maxTurns: 5`; skipped if the run already wrote memory | `services/autoDream/autoDream.ts` ("Dream", `config.ts`): forked agent gated by time (>= 24h), sessions (>= 5), and a `.consolidate-lock` (section 13) |
+| *(more soon)* | | | | |
 
 > **Trade-off:** picking memories with an LLM `sideQuery` (Claude Code's choice) judges relevance the way a reader would (it reads "warnings about a tool you are using" as useful, "API docs for that tool" as noise) and needs no embedding index to maintain. It costs a model call per turn and a few hundred tokens, where a vector store would be a single cheap lookup. Choose by whether semantic nuance or per-turn latency matters more.
 
@@ -147,17 +147,21 @@ Rows are systems; columns are the four memory operations.
 
 ## Failure modes
 
-- **Recall misses or floods.** A loose selector pulls 5 near-irrelevant files and crowds out the real task; a strict one returns nothing useful. Claude Code's selector prompt is explicitly conservative ("if unsure, do not include it") and capped at 5, trading recall for precision.
-- **Stale memory asserted as fact.** A memory citing `file.ts:42` stays in the store after the code moves, and the model repeats it confidently. The fix is freshness metadata: `memoryAge.ts` stamps each injected memory ("47 days ago") and adds a caveat that point-in-time observations may be outdated, so the model weighs age instead of trusting blindly.
-- **Store rot.** Extraction only ever appends, so duplicates and contradictions accumulate and degrade every later recall. Consolidation (Dream, section 13) is the answer, but it must be gated (time, session count, a lock) or it churns the store on every idle moment or races a second process.
-- **Saving the derivable.** Writing code structure or git facts as memories bloats the index with things a grep would answer fresher. The `memoryTypes.ts` taxonomy exists to keep memory to the non-derivable: user, feedback, project, reference.
-- **Lossy capture.** Extraction runs after the turn against a transcript that compaction (section 8) may already have thinned, so a nuance stated mid-run can be gone before it is ever written. Running extraction at run end on the fuller transcript, before the next compaction, narrows the window but does not close it.
+- **Recall misses or floods.** A loose selector crowds the task with near-irrelevant files; a strict one returns nothing useful. Mitigation: a conservative selector prompt ("if unsure, do not include it") capped at 5, trading recall for precision.
+- **Stale memory asserted as fact.** A memory citing `file.ts:42` survives the code moving, and the model repeats it confidently. Mitigation: freshness metadata (`memoryAge.ts` stamps each injected memory "47 days ago" with an outdated-observation caveat), so the model weighs age instead of trusting blindly.
+- **Store rot.** Append-only extraction accumulates duplicates and contradictions that degrade every later recall. Mitigation: consolidation (Dream, section 13), gated by time, session count, and a lock so it neither churns on idle moments nor races a second process.
+- **Saving the derivable.** Storing code structure or git facts bloats the index with things a grep answers fresher. Mitigation: the `memoryTypes.ts` taxonomy keeps memory to the non-derivable (user, feedback, project, reference).
+- **Lossy capture.** Extraction reads a transcript that compaction (section 8) may already have thinned, so a mid-run nuance can vanish before it is written. Mitigation: extract at run end on the fuller transcript, before the next compaction, which narrows but does not close the window.
 
 ---
 
 ## Runnable
 
-[`src/`](src/) carries 08 forward and adds [`memory.py`](src/memory.py): a `Store` over a dir of `.md` files, with `load_index` and `manifest` (the cheap catalog), `recall` (word overlap by default, an LLM `selector` when live), and `extract` (writes new files at run end). [`loop.py`](src/loop.py) now recalls into the opening turn and extracts when the run ends. [`test.py`](src/test.py) walks the four operations on a temporary store.
+[`src/`](src/) carries 08 forward and adds:
+
+- [`memory.py`](src/memory.py): a `Store` over a dir of `.md` files; `load_index` + `manifest` (the cheap catalog), `recall` (word overlap by default, an LLM `selector` when live), `extract` (writes new files at run end).
+- [`loop.py`](src/loop.py): recalls into the opening turn and extracts when the run ends.
+- [`test.py`](src/test.py): walks the four operations on a temporary store.
 
 ```bash
 python sections/09-memory/src/test.py         # offline checks, no key
@@ -168,7 +172,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code structure (verified `cc-src/src` paths): `memdir/findRelevantMemories.ts`, `memdir/memoryScan.ts`, `memdir/memoryTypes.ts`, `memdir/memoryAge.ts`, `memdir/memdir.ts`, `memdir/paths.ts`, `services/extractMemories/extractMemories.ts`, `services/autoDream/autoDream.ts` (and `config.ts`), `services/SessionMemory/sessionMemory.ts`.
-- Framing: learn-claude-code · s09_memory
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- Claude Code source (verified `cc-src/src`): `memdir/findRelevantMemories.ts`, `memdir/memdir.ts`, `services/extractMemories/extractMemories.ts`, `services/autoDream/autoDream.ts`, `services/SessionMemory/sessionMemory.ts`.
+- learn-claude-code · s09_memory: section framing.

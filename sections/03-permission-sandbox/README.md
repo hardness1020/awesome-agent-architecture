@@ -74,11 +74,18 @@ This is the gate the bare loop deliberately omitted. Real systems extend it with
 How each agent gates side effects, switches posture, and remembers decisions.
 
 | System | Gate point | Permission modes | Sandbox | Rule persistence |
-|---|---|---|---|---|
-| **Claude Code** | `canUseTool` in `QueryEngine.ts`, before each tool runs | `default`, `acceptEdits`, `plan`, `bypassPermissions`, `dontAsk` (+ internal `auto`, `bubble`) | `Bash` via `shouldUseSandbox.ts` + `SandboxManager`; `dangerouslyDisableSandbox` opt-out | rules carry a `destination` (`session` or settings files); 8 ordered rule sources |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | `canUseTool` (`QueryEngine.ts`), before each tool runs | `default`, `acceptEdits`, `plan`, `bypassPermissions`, `dontAsk` (+ internal `auto`, `bubble`) | `Bash` via `shouldUseSandbox.ts` + `SandboxManager`; `dangerouslyDisableSandbox` opts out | 8 ordered rule sources; `destination` `session` or settings files |
 | *(more soon)* | | | | |
 
-In Claude Code the loop (`QueryEngine.ts`) calls `canUseTool` for every tool use; `useCanUseTool.tsx` resolves a `PermissionDecision` of `allow` / `deny` / `ask` from `hasPermissionsToUseTool`. Modes are real strings in `types/permissions.ts` (`EXTERNAL_PERMISSION_MODES = ['acceptEdits','bypassPermissions','default','dontAsk','plan']`). Rules come from 8 sources (`userSettings`, `projectSettings`, `localSettings`, `flagSettings`, `policySettings`, `cliArg`, `command`, `session`), merged by priority. An approval can be saved with `destination: 'session'` or to a settings file via `PermissionUpdate.ts`, so "always allow" sticks. `WebFetch` has a separate gate: `tools/WebFetchTool/preapproved.ts` lets `GET`s to a fixed `PREAPPROVED_HOSTS` set (docs sites) through, and warns that the sandbox deliberately does not inherit that list. MCP servers get their own approval step (`services/mcpServerApproval.tsx`), and remote runs bridge the prompt back to a local terminal (`remote/remotePermissionBridge.ts`).
+### Claude Code
+
+- **Gate per call.** The loop (`QueryEngine.ts`) calls `canUseTool` for every tool use; `useCanUseTool.tsx` resolves a `PermissionDecision` (`allow` / `deny` / `ask`) from `hasPermissionsToUseTool`.
+- **Modes are strings.** `types/permissions.ts` sets `EXTERNAL_PERMISSION_MODES = ['acceptEdits','bypassPermissions','default','dontAsk','plan']`.
+- **8 rule sources, priority-merged.** `userSettings`, `projectSettings`, `localSettings`, `flagSettings`, `policySettings`, `cliArg`, `command`, `session`.
+- **Approvals persist.** Saved with `destination: 'session'` or to a settings file via `PermissionUpdate.ts`, so "always allow" sticks.
+- **WebFetch has its own gate.** `tools/WebFetchTool/preapproved.ts` lets `GET`s to a fixed `PREAPPROVED_HOSTS` set (docs sites) through; the sandbox deliberately does not inherit that list.
+- **MCP and remote.** MCP servers get a separate approval step (`services/mcpServerApproval.tsx`); remote runs bridge the prompt back to a local terminal (`remote/remotePermissionBridge.ts`).
 
 > **Trade-off:** ordered rules plus modes plus a sandbox give fine-grained, auditable control and let trusted work flow without friction, but the surface is large (8 rule sources, several modes, a sandbox adapter) and every escape hatch (`bypassPermissions`, `dangerouslyDisableSandbox`, preapproved hosts) is a place safety can leak. Fewer knobs are safer to reason about; more knobs are friendlier to power users.
 
@@ -86,17 +93,20 @@ In Claude Code the loop (`QueryEngine.ts`) calls `canUseTool` for every tool use
 
 ## Failure modes
 
-- **Pattern-match bypass.** Deny lists keyed on substrings miss command variants and shell expansion (`FOO=bar rm`, wrappers, `&&` chains). Claude Code strips leading env vars and safe wrappers to a fixed point before matching, and notes that string matching on `Bash` is not the real boundary; the sandbox is. Mitigate by gating on behavior and confinement, not strings (section 2).
-- **Mode left wide open.** `bypassPermissions` or a broad `allow` rule turns the gate off; a later risky call runs silently. Mitigate by scoping bypass to the session, surfacing the active mode, and keeping ask rules non-bypassable.
-- **Over-prompting fatigue.** Asking on every call trains users to approve blindly. Mitigate with `acceptEdits` for low-risk edit work, preapproved hosts, and remembered `session` rules, balanced against not auto-approving destructive calls.
-- **Silent denial in delegation.** A subagent (section 6) that denies on its own has no human to ask. Claude Code's internal `bubble` mode floats the prompt up to the parent's terminal instead of failing quietly.
-- **Sandbox escape or unavailability.** If the sandbox is disabled or a command opts out (`dangerouslyDisableSandbox`), an allowed call hits the host directly. Mitigate by gating the opt-out behind policy (`areUnsandboxedCommandsAllowed`) and keeping the permission prompt as the backstop.
+- **Pattern-match bypass.** Deny lists keyed on substrings miss command variants and shell expansion (`FOO=bar rm`, wrappers, `&&` chains). Mitigation: gate on behavior and confinement, not strings; Claude Code strips leading env vars and safe wrappers to a fixed point before matching, and treats the sandbox (not string matching on `Bash`) as the real boundary (section 2).
+- **Mode left wide open.** `bypassPermissions` or a broad `allow` rule turns the gate off, and a later risky call runs silently. Mitigation: scope bypass to the session, surface the active mode, keep ask rules non-bypassable.
+- **Over-prompting fatigue.** Asking on every call trains users to approve blindly. Mitigation: `acceptEdits` for low-risk edits, preapproved hosts, and remembered `session` rules, without auto-approving destructive calls.
+- **Silent denial in delegation.** A subagent (section 6) that denies on its own has no human to ask. Mitigation: Claude Code's internal `bubble` mode floats the prompt up to the parent's terminal instead of failing quietly.
+- **Sandbox escape or unavailability.** A disabled sandbox or an opt-out (`dangerouslyDisableSandbox`) sends an allowed call straight to the host. Mitigation: gate the opt-out behind policy (`areUnsandboxedCommandsAllowed`) and keep the permission prompt as the backstop.
 
 ---
 
 ## Runnable
 
-[`src/`](src/) carries 02 forward and adds the gate. New: [`permissions.py`](src/permissions.py) (`decide` over the four modes). Updated: [`loop.py`](src/loop.py) now gates each call before running it.
+[`src/`](src/) carries 02 forward and adds:
+
+- [`permissions.py`](src/permissions.py): `decide` over the four modes (the gate).
+- [`loop.py`](src/loop.py): gates each call in `_dispatch` before running it.
 
 ```bash
 python sections/03-permission-sandbox/src/test.py         # offline checks, no key
@@ -107,7 +117,5 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 
 ## Sources
 
-- Claude Code structure (verified `cc-src/src` paths): `hooks/useCanUseTool.tsx`, `hooks/toolPermission/` (`PermissionContext.ts`, `handlers/`, `permissionLogging.ts`), `types/permissions.ts`, `QueryEngine.ts`, `services/mcpServerApproval.tsx`, `remote/remotePermissionBridge.ts`, `tools/WebFetchTool/preapproved.ts`, `tools/BashTool/shouldUseSandbox.ts`, `utils/permissions/PermissionUpdate.ts`.
-- Framing: learn-claude-code · s03_permission
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- Claude Code source: `QueryEngine.ts`, `hooks/useCanUseTool.tsx`, `types/permissions.ts`, `tools/BashTool/shouldUseSandbox.ts`, `tools/WebFetchTool/preapproved.ts`, `utils/permissions/PermissionUpdate.ts`.
+- learn-claude-code · s03_permission: section framing.

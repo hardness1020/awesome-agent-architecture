@@ -75,12 +75,18 @@ The bare loop dispatches sequentially for clarity; `run_concurrently` is the bat
 
 How each agent defines a tool, routes a call, parallelizes, and keeps a large catalog discoverable.
 
-| System                | Tool definition                                                                                    | Dispatch                                                                                                            | Parallel calls                                                                                                                                                                          | Discovery                                                                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Claude Code** | `buildTool({...})` object: `name`, `inputSchema` (Zod), `call()`, predicates (`Tool.ts`) | `findToolByName(tools, name)` lookup over the `getAllBaseTools()` registry (`tools.ts`, `toolExecution.ts`) | `partitionToolCalls` batches consecutive `isConcurrencySafe` calls, cap `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` (default 10); unsafe calls run serially (`toolOrchestration.ts`) | deferred tools ship as names only (`shouldDefer`), model fetches schemas via `ToolSearchTool` (`select:` or keyword + `searchHint`) |
-| *(more soon)*       |                                                                                                    |                                                                                                                     |                                                                                                                                                                                         |                                                                                                                                             |
+| System | Tool definition | Dispatch | Parallel calls | Discovery |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | `buildTool({...})`: `name`, `inputSchema` (Zod), `call()`, predicates (`Tool.ts`) | `findToolByName` over the `getAllBaseTools()` registry (`toolExecution.ts`) | `partitionToolCalls` batches `isConcurrencySafe` runs, cap 10 (`CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`); unsafe run serially | deferred tools ship as names (`shouldDefer`); model pulls schemas via `ToolSearchTool` (`select:` or keyword + `searchHint`) |
+| *(more soon)* | | | | |
 
-Claude Code's tools are objects built by `buildTool`, which fills safe defaults (`isConcurrencySafe` defaults to `false`, `isReadOnly` to `false`, `checkPermissions` to allow). `getAllBaseTools()` is the single source of truth that lists `BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, `AgentTool`, and the rest; `getTools()` and `assembleToolPool()` filter that list by permission rules and merge in MCP tools. Dispatch is `findToolByName`, which also matches `aliases`. Within a turn, `partitionToolCalls` walks the calls in order and groups runs of concurrency-safe ones into a parallel batch (`runToolsConcurrently`), breaking the batch whenever an unsafe call appears so it runs alone. When the catalog grows (many MCP servers), tools marked `shouldDefer` are sent with `defer_loading: true` (names only) and the model calls `ToolSearchTool` to pull full schemas, by exact name (`select:A,B`) or keyword scored against each tool's `searchHint` and description.
+### Claude Code
+
+- **Safe defaults.** `buildTool` fills them: `isConcurrencySafe` and `isReadOnly` default to `false`, `checkPermissions` to allow.
+- **One source of truth.** `getAllBaseTools()` lists `BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, `AgentTool`, and the rest; `getTools()` and `assembleToolPool()` filter by permission rules and merge in MCP tools.
+- **Dispatch.** `findToolByName` resolves by `name`, also matching `aliases`.
+- **Parallel batching.** `partitionToolCalls` walks calls in order, groups concurrency-safe runs into a parallel batch (`runToolsConcurrently`), and breaks the batch at any unsafe call so it runs alone.
+- **Lazy discovery.** Tools marked `shouldDefer` ship with `defer_loading: true` (names only); the model calls `ToolSearchTool` to pull full schemas, by exact name (`select:A,B`) or keyword scored against each tool's `searchHint` and description.
 
 > **Trade-off:** a schema-per-tool object model with predicates buys per-tool validation, permission hooks, parallel-safe batching, and lazy discovery, but every tool now carries a contract (schema, concurrency predicate, permission check, render methods). A single `bash` tool has none of that overhead and nothing to register, at the cost of no validation, no parallelism, and no way to gate a destructive command differently from a read.
 
@@ -88,17 +94,22 @@ Claude Code's tools are objects built by `buildTool`, which fills safe defaults 
 
 ## Failure modes
 
-- **Unknown tool name.** The model emits a `name` with no registered handler (typo, a tool disabled by permissions, or a deferred tool never loaded). Dispatch returns nothing and the call must error back as a result, not crash the loop; Claude Code retries `findToolByName` against the full base set as a fallback.
-- **Schema drift.** The advertised `inputSchema` and what `call()` expects diverge, so valid-looking input fails at runtime. Validating against the schema before dispatch (Zod parse) catches it early and returns a model-readable error instead of a thrown exception.
-- **Unsafe parallelism.** Two writes to the same file run concurrently and corrupt state. The fix is conservative `isConcurrencySafe` (default `false`, and `false` on any parse failure) so only provably independent calls batch together (relates to permissions, section 3).
-- **Catalog overflow.** Dozens of MCP tools blow the prompt's token budget and degrade tool selection. Deferred loading plus `ToolSearchTool` keeps only names in-context until a tool is actually needed (relates to context management, section 8).
-- **Oversized results.** A tool returns megabytes and floods the context window. Each tool sets `maxResultSizeChars`; results over the cap are persisted to disk and the model gets a preview plus a path (set to `Infinity` for `FileReadTool` to avoid a read-persist-read loop).
+- **Unknown tool name.** The model emits a `name` with no registered handler (typo, disabled, or a deferred tool never loaded). Mitigation: error back as a `tool_result` instead of crashing the loop; Claude Code retries `findToolByName` against the full base set.
+- **Schema drift.** The advertised `inputSchema` and what `call()` expects diverge, so valid-looking input fails at runtime. Mitigation: validate against the schema before dispatch (Zod parse), returning a model-readable error.
+- **Unsafe parallelism.** Two writes to the same file run concurrently and corrupt state. Mitigation: conservative `isConcurrencySafe` (default `false`, and `false` on any parse failure) so only provably independent calls batch (section 3).
+- **Catalog overflow.** Dozens of MCP tools blow the token budget and degrade tool selection. Mitigation: deferred loading plus `ToolSearchTool` keeps only names in-context until a tool is needed (section 8).
+- **Oversized results.** A tool returns megabytes and floods the context window. Mitigation: each tool sets `maxResultSizeChars`; over-cap results persist to disk and the model gets a preview plus a path (`Infinity` for `FileReadTool` avoids a read-persist-read loop).
 
 ---
 
 ## Runnable
 
-[`src/`](src/) is section 1's loop plus the tool runtime. New this section: [`tools.py`](src/tools.py) (Tool, Registry, `run_concurrently`). Updated: [`loop.py`](src/loop.py) now dispatches through a Registry and the model advertises `registry.schemas()`.
+[`src/`](src/) carries 01 forward and adds:
+
+- [`tools.py`](src/tools.py): `Tool`, `Registry`, and `run_concurrently` (batch the concurrency-safe calls).
+- [`loop.py`](src/loop.py): dispatches each `tool_use` through the `Registry` (`_dispatch`); the model advertises `registry.schemas()`.
+- [`demo.py`](src/demo.py): live entry; registers a `ReadFile` tool and runs the loop against the API.
+- [`test.py`](src/test.py): offline checks for dispatch, the unknown-tool error, and parallel batching.
 
 ```bash
 python sections/02-tool-runtime/src/test.py         # offline checks, no key
@@ -109,7 +120,5 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code structure: `Tool.ts` (`buildTool`, `Tool` type, `inputSchema`, `isConcurrencySafe`, `isReadOnly`, `checkPermissions`, `shouldDefer`, `searchHint`, `maxResultSizeChars`, `findToolByName`), `tools.ts` (`getAllBaseTools`, `getTools`, `assembleToolPool`), `tools/` (`BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, `AgentTool`, `ToolSearchTool`), `tools/ToolSearchTool/ToolSearchTool.ts`, `tools/shared/`, `tools/utils.ts`, `services/tools/toolOrchestration.ts` (`partitionToolCalls`, concurrency cap), `services/tools/toolExecution.ts` (`runToolUse` dispatch).
-- Framing: learn-claude-code · s02_tool_use
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- Claude Code source: `Tool.ts`, `tools.ts`, `services/tools/toolOrchestration.ts`, `services/tools/toolExecution.ts`, `tools/ToolSearchTool/ToolSearchTool.ts`.
+- learn-claude-code · s02_tool_use: section framing.

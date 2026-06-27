@@ -2,7 +2,7 @@
 
 > A skill is a manifest plus instructions, loaded into context only when invoked.
 
-Skills are capabilities you add on demand. Each is a folder with a `SKILL.md` (frontmatter metadata plus a body of instructions). The agent sees a one-line catalog of what is available at all times, but it only pays for the full body when it decides a skill is relevant and invokes it. This is the opposite of stuffing every guideline into the system prompt (section 10).
+Skills are capabilities you add on demand. Each is a folder with a `SKILL.md`: frontmatter metadata plus a body of instructions. The agent always sees a one-line catalog of what exists, but pays for the full body only when it judges a skill relevant and invokes it. This is the opposite of stuffing every guideline into the system prompt (section 10).
 
 ---
 
@@ -84,11 +84,16 @@ No loop change. A skill loads through the section-2 tool runtime like any other 
 How each agent describes, triggers, and finds its skills.
 
 | System | Skill format | Load trigger | Discovery |
-|---|---|---|---|
-| **Claude Code** | `SKILL.md` folder: YAML frontmatter (`name`, `description`, `when_to_use`, `allowed-tools`, `context`, `paths`) + Markdown body | `Skill` tool invoke; catalog visible every turn via budgeted listing | `loadSkillsDir.ts` scans managed / user / project / `--add-dir` dirs, `bundledSkills.ts` for built ins, plus plugin and MCP skills |
+| --- | --- | --- | --- |
+| **Claude Code** | `SKILL.md` folder: YAML frontmatter (`name`, `description`, `when_to_use`, `allowed-tools`, `context`, `paths`) + body | `Skill` tool invoke; catalog visible every turn via budgeted listing | `loadSkillsDir.ts` scans managed/user/project/`--add-dir`; `bundledSkills.ts` built-ins; plus plugin and MCP skills |
 | *(more soon)* | | | |
 
-In Claude Code the catalog is assembled in `loadSkillsDir.ts` (`formatCommandsWithinBudget`, `getCharBudget`) and the actual invoke is handled by `tools/SkillTool/SkillTool.ts`. The visible tool result is just `Launching skill: {name}`; the real content is returned as `newMessages` injected into the conversation. Frontmatter is parsed by `parseSkillFrontmatterFields`, which also reads `context: 'fork'` (run the skill as a forked sub-agent, section 6), a `model` override, `paths` (conditional skills activated only when matching files are touched), and `user-invocable` (whether `/name` works). The same machinery folds in legacy `.claude/commands/` and MCP-served skills via `mcpSkillBuilders.ts`.
+### Claude Code
+
+- **Catalog assembly.** `loadSkillsDir.ts` builds the listing within budget (`formatCommandsWithinBudget`, `getCharBudget`).
+- **Invoke is indirect.** `tools/SkillTool/SkillTool.ts` returns the body as `newMessages` injected into the conversation; the visible tool result is just `Launching skill: {name}`.
+- **Frontmatter drives behavior.** `parseSkillFrontmatterFields` reads `context: 'fork'` (run as a forked sub-agent, section 6), a `model` override, `paths` (conditional skills activated only when matching files are touched), and `user-invocable` (whether `/name` works).
+- **One machinery, many sources.** It folds in legacy `.claude/commands/` and MCP-served skills via `mcpSkillBuilders.ts`.
 
 > **Trade-off:** the two-level split buys a near-free catalog and full bodies only when needed, but it leans entirely on the `description` and `when_to_use` text being good enough for the model to self-select. A bad description means the skill is never invoked even though it exists; an always-on prompt would have guaranteed the instructions were seen.
 
@@ -96,17 +101,22 @@ In Claude Code the catalog is assembled in `loadSkillsDir.ts` (`formatCommandsWi
 
 ## Failure modes
 
-- **Skill never fires.** A vague `description` or missing `when_to_use` means the model cannot tell the catalog entry is relevant, so it never invokes the skill. Mitigation: write trigger-shaped descriptions and keep them within the per-entry budget so they are not truncated.
-- **Catalog crowds out context.** Hundreds of skills push the listing past its budget; descriptions get trimmed to names only, eroding selection accuracy. Mitigation: the `SKILL_BUDGET_CONTEXT_PERCENT` cap and per-entry truncation bound the damage, but the real fix is fewer, sharper skills.
-- **Body evaporates after compaction.** The loaded `SKILL.md` enters the conversation as messages, so a long run can compact or drop it (section 8) and the agent forgets the instructions mid-task. Mitigation: re-invoke, or keep the skill body short and let it point at files read on demand.
-- **Path traversal on load.** Loading by raw file path would let a crafted name escape the skill directory. Mitigation: invoke by registered name through the registry, and resolve bundled file paths against the skill dir (`resolveSkillFilePath` rejects escapes).
-- **Forked skill loses the main thread.** A `context: 'fork'` skill runs in an isolated sub-agent (section 6) with its own budget; only its final result returns. Mitigation: use `fork` only for self-contained work, keep `inline` (the default) when the skill must see and edit the live conversation state.
+- **Skill never fires.** A vague `description` or missing `when_to_use` reads as irrelevant, so the model never invokes the skill. Mitigation: write trigger-shaped descriptions within the per-entry budget so they are not truncated.
+- **Catalog crowds out context.** Hundreds of skills push the listing past budget, trimming descriptions to names and eroding selection. Mitigation: the `SKILL_BUDGET_CONTEXT_PERCENT` cap and per-entry truncation bound it; the real fix is fewer, sharper skills.
+- **Body evaporates after compaction.** The loaded `SKILL.md` rides in `messages[]`, so a long run can compact or drop it (section 8) and the agent forgets mid-task. Mitigation: re-invoke, or keep the body short and let it point at files read on demand.
+- **Path traversal on load.** Loading by raw file path lets a crafted name escape the skill directory. Mitigation: invoke by registered name; `resolveSkillFilePath` resolves bundled paths against the skill dir and rejects escapes.
+- **Forked skill loses the main thread.** A `context: 'fork'` skill runs in an isolated sub-agent (section 6); only its final result returns. Mitigation: use `fork` only for self-contained work, keep `inline` (the default) when the skill must edit live conversation state.
 
 ---
 
 ## Runnable
 
-[`src/`](src/) carries 06 forward and adds skills. New: [`skills.py`](src/skills.py) (`load_skills`, `catalog`, `Skill` tool) plus sample `skills/<name>/SKILL.md`, one with a bundled `reference.md` (the L3 resource). Unchanged: [`loop.py`](src/loop.py), because a skill is just another tool. [`test.py`](src/test.py) walks the levels: scan the catalog (L1), read a body on invoke (L2), and confirm the bundled file sits on disk for the agent's file tool to read (L3).
+[`src/`](src/) carries 06 forward and adds:
+
+- [`skills.py`](src/skills.py): `load_skills`, `catalog`, and the `Skill` tool (L1 scan at startup, L2 body-on-invoke). The only skill-specific code.
+- `skills/<name>/SKILL.md`: sample skills, one with a bundled `reference.md` (the L3 resource).
+- [`loop.py`](src/loop.py): unchanged, because a skill is just another tool.
+- [`test.py`](src/test.py): walks the levels (L1 catalog scan, L2 body on invoke, L3 bundled file on disk for the file tool).
 
 ```bash
 python sections/07-skills/src/test.py         # offline checks, no key
@@ -117,8 +127,6 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code structure: `skills/loadSkillsDir.ts` (`parseSkillFrontmatterFields`, `createSkillCommand`, `formatCommandsWithinBudget`, `getCharBudget`, budget constants), `skills/bundledSkills.ts` (`registerBundledSkill`, `resolveSkillFilePath`), `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts` (`newMessages` injection, `Launching skill`, forked execution), `tools/SkillTool/prompt.ts`.
-- Progressive disclosure: [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices).
-- Framing: learn-claude-code · s07_skill_loading
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- Claude Code source: `skills/loadSkillsDir.ts`, `skills/bundledSkills.ts`, `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts`, `tools/SkillTool/prompt.ts`.
+- [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure levels.
+- learn-claude-code · s07_skill_loading: section framing.

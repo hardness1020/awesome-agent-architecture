@@ -2,7 +2,7 @@
 
 > Agency comes from the model. The harness gives agency a place to land.
 
-This is the premise the whole repo rests on. Capability (reasoning, tool choice, when to stop) lives in the model. Everything else, the loop and the tools and memory and permissions and interfaces around it, is engineering you build. That surrounding engineering is the **harness**, and it is where nearly all the code lives.
+This is the premise the whole repo rests on. Capability (reasoning, tool choice, when to stop) lives in the model. Everything else, the loop, tools, memory, permissions, and interfaces around it, is engineering you build. That surrounding engineering is the **harness**, and it is where nearly all the code lives.
 
 ---
 
@@ -41,7 +41,15 @@ flowchart TB
 
 Read the loop (section 1) as the spine. Hanging off it: a tool runtime that dispatches actions (2), a permission layer that gates them (3), hooks that intercept (4), context and memory that feed the model (8, 9), the system prompt assembled each turn (10), and the long-running, multi-agent, and extension layers beyond. None of these change the `while`. They feed it, gate it, or persist it.
 
-In Claude Code the split is visible in the tree. The model is reached through one `QueryEngine.ts`. The harness is everything else: `tools/` holds 40 `*Tool` directories (`BashTool`, `FileEditTool`, `AgentTool`, `SkillTool`, `TaskCreateTool`, ...), each conforming to the `Tool.ts` contract (`name`, `inputSchema`, `isEnabled()`, `checkPermissions()`, `prompt()`). Around that sit `hooks/` (interception), `skills/` and `memdir/` (knowledge), `tasks/` and `coordinator/` (long-running and multi-agent), and `plugins/` plus `services/` (extension and integration). One file calls the model; dozens of folders are the chassis.
+In Claude Code the split is visible in the tree. The model is reached through one `QueryEngine.ts`; everything else is harness:
+
+- `tools/`: 40 `*Tool` directories (`BashTool`, `FileEditTool`, `AgentTool`, `SkillTool`, `TaskCreateTool`, ...), each conforming to the `Tool.ts` contract (`name`, `inputSchema`, `isEnabled()`, `checkPermissions()`, `prompt()`).
+- `hooks/`: interception.
+- `skills/`, `memdir/`: knowledge.
+- `tasks/`, `coordinator/`: long-running and multi-agent.
+- `plugins/`, `services/`: extension and integration.
+
+One file calls the model; dozens of folders are the chassis.
 
 ---
 
@@ -49,12 +57,16 @@ In Claude Code the split is visible in the tree. The model is reached through on
 
 What the model decides versus what the surrounding code builds, and how heavy that code is.
 
-| System                | What the model owns                                                              | What the harness owns                                                                                                                                                                       | Harness footprint                                                                                                                                       |
-| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Claude Code** | Reasoning, tool selection, when to stop (the`tool_use` vs `end_turn` branch) | Loop, dispatch, gating, knowledge, persistence:`QueryEngine.ts` + `query/`, `tools/`, `hooks/`, `skills/`, `memdir/`, `tasks/`, `coordinator/`, `plugins/`, `services/` | `tools/` has 40 `*Tool` dirs · `hooks/` 85 files · `services/` 36 · `utils/` 329 dirs; the model itself is reached through one engine file |
-| *(more soon)*       |                                                                                  |                                                                                                                                                                                             |                                                                                                                                                         |
+| System | What the model owns | What the harness owns | Harness footprint |
+| --- | --- | --- | --- |
+| **Claude Code** | Reasoning, tool selection, when to stop (`tool_use` vs `end_turn`) | Loop, dispatch, gating, knowledge, persistence: `QueryEngine.ts`, `tools/`, `hooks/`, `skills/`, `memdir/`, `tasks/`, `coordinator/` | 40 `*Tool` dirs · 85 hook files · 36 services · 329 `utils/` dirs; one engine file reaches the model |
+| *(more soon)* | | | |
 
-Claude Code is a single binary, and almost none of it is the model. The model is an API call behind `QueryEngine.ts`; the rest of `src/` is harness. The `Tool.ts` interface is the seam: each tool declares its schema, whether it `isEnabled()`, and how it `checkPermissions()`, so the harness can dispatch and gate uniformly while the model only ever sees tool names and results.
+### Claude Code
+
+- **One binary, almost no model.** The model is an API call behind `QueryEngine.ts`; the rest of `src/` is harness.
+- **`Tool.ts` is the seam.** Each tool declares its schema, `isEnabled()`, and `checkPermissions()`, so the harness dispatches and gates uniformly.
+- **The model sees only names and results.** It never touches dispatch or gating.
 
 > **Trade-off:** Pouring engineering into the harness buys discipline (gated side effects, durable tasks, isolated subagents, on-demand skills) and lets one harness ride model upgrades for free. The cost is surface: a large codebase to maintain, where most bugs and most behavior live in code, not in the model. A thin harness (a one-file bash loop) is trivial to audit but cannot gate, persist, or coordinate.
 
@@ -62,17 +74,15 @@ Claude Code is a single binary, and almost none of it is the model. The model is
 
 ## Failure modes
 
-- **Crediting the model for harness behavior.** When an agent gates a dangerous command or recovers from a failure, that is permission (section 3) or error recovery (11), not model intelligence. Misattributing it leads to "the model should just know better" instead of fixing the harness.
-- **Building harness the model could do.** The inverse: hard-coding decision logic the model is better at (rigid planners, scripted tool order) fights the model and rots as models improve. Let the model decide; let the harness execute.
-- **Thin harness, capped agency.** A bare loop with no tool runtime (2), permissions (3), or context management (8) caps a strong model at chatbot behavior. Capability exists but has nowhere to land.
-- **Harness sprawl.** Every section added is surface to maintain and a place for bugs to hide. With most behavior in code (40 tool dirs, 85 hook files in Claude Code), observability and evaluation (20) become the only way to know the harness still works.
-- **Leaky decomposition.** When sections entangle (permission logic baked into tool execution instead of a hook point), you can no longer swap or reason about one piece. The clean seam (a `Tool.ts` contract, a `PreToolUse` hook) is what keeps the parts independent.
+- **Crediting the model for harness behavior.** Gating a dangerous command or recovering from a failure looks like model intelligence but is harness work. Mitigation: credit permissions (section 3) and error recovery (section 11), then fix the harness, not "the model should know better".
+- **Building harness the model could do.** Hard-coding decision logic the model is better at (rigid planners, scripted tool order) fights the model and rots as models improve. Mitigation: let the model decide, let the harness only execute.
+- **Thin harness, capped agency.** A bare loop with no tool runtime, permissions, or context management caps a strong model at chatbot behavior. Mitigation: add the missing layers (section 2, section 3, section 8) so capability has somewhere to land.
+- **Harness sprawl.** Every section added is surface to maintain and a place for bugs to hide (40 tool dirs, 85 hook files in Claude Code). Mitigation: lean on observability and evaluation (section 20) to know the harness still works.
+- **Leaky decomposition.** Entangled sections (permission logic baked into tool execution) cannot be swapped or reasoned about in isolation. Mitigation: keep clean seams, a `Tool.ts` contract and a `PreToolUse` hook (section 4), so parts stay independent.
 
 ---
 
 ## Sources
 
-- Claude Code structure: verified in `cc-src/src` · the central engine `QueryEngine.ts` and `query/` (`config.ts`, `deps.ts`, `stopHooks.ts`, `tokenBudget.ts`); the tool contract `Tool.ts`; harness folders `tools/` (40 `*Tool` dirs), `hooks/`, `skills/`, `memdir/`, `tasks/`, `coordinator/`, `plugins/`, `services/`; permission modes in `types/permissions.ts` (`acceptEdits`, `bypassPermissions`, `default`, `dontAsk`, `plan`).
-- Framing: learn-claude-code · `s20_comprehensive` ("Many mechanisms, one loop"; the model judges and chooses actions, the harness organizes environment, tools, permissions, memory).
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- Claude Code source (`cc-src/src`): `QueryEngine.ts`, `query/`, `Tool.ts`, `tools/`, `hooks/`, `types/permissions.ts`.
+- learn-claude-code · s20_comprehensive: section framing.

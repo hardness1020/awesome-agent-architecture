@@ -155,5 +155,3 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 - Claude Code source: `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): `cache_control` breakpoints, pricing, TTLs, token minimums.
 - learn-claude-code · s10_system_prompt: section framing.
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.

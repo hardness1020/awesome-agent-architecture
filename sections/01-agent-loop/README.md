@@ -95,7 +95,12 @@ How each agent owns that `while` and decides to stop.
 | **Claude Code** | `QueryEngine.ts` + `query/` (async generator) | `stop_reason: end_turn` | yes | yes |
 | *(more soon)* | | | | |
 
-Claude Code runs the loop as an async generator. The `query/` module yields each step (model token, tool call, tool result) as it happens, which is what drives the live-updating terminal. Tool calls within one model turn can run in parallel, and the `Tool.ts` contract is how each tool plugs into dispatch. The loop itself stays the trivial branch above.
+### Claude Code
+
+- **Async generator.** The `query/` module yields each step (model token, tool call, tool result) as it happens, driving the live-updating terminal.
+- **Parallel tools.** Tool calls within one model turn run in parallel.
+- **Dispatch contract.** Each tool plugs into dispatch through the `Tool.ts` contract.
+- **Loop stays trivial.** The branch itself is the same one shown above.
 
 > **Trade-off:** a one-file bash loop (model returns a command, you run it, repeat) is trivial to read and audit, but it cannot gate side effects, run tools in parallel, or stream output. A generator-based loop like Claude Code's buys permissions, parallelism, and live output at the cost of a much larger surface. Choose by whether you need to gate what the model does.
 
@@ -103,16 +108,22 @@ Claude Code runs the loop as an async generator. The `query/` module yields each
 
 ## Failure modes
 
-- **No stop condition.** A bug that never yields `end_turn`, or a tool that always provokes another tool call, loops forever. Real loops add a max-iteration or token ceiling as a backstop.
-- **Context overflow mid-loop.** `messages[]` only grows, so long runs blow the context window. This is why context management (section 8) exists; the loop alone has no answer.
-- **Partial tool failure.** A tool throws or times out. If the error is not appended as a result, the model never learns it failed and may hang or repeat. The outcome, including failure, must always go back into `messages[]`.
-- **Lost results.** Appending the model reply but forgetting the tool result (or the reverse) desyncs the conversation, and the next call reasons over a hole.
+- **No stop condition.** A bug that never yields `end_turn`, or a tool that always provokes another, loops forever. Mitigation: a max-iteration or token ceiling as backstop (`for _ in range(max_steps)`).
+- **Context overflow mid-loop.** `messages[]` only grows, so long runs blow the context window. Mitigation: context management (section 8); the loop alone has no answer.
+- **Partial tool failure.** A tool throws or times out and the model never learns it failed, so it hangs or repeats. Mitigation: always append the outcome, including failure, as a `tool_result`.
+- **Lost results.** Appending the model reply but dropping the tool result (or the reverse) desyncs the conversation. Mitigation: append the assistant reply and tool results together so the next call reasons over no hole.
 
 ---
 
 ## Runnable
 
-[`src/loop.py`](src/loop.py) is the loop; [`src/demo.py`](src/demo.py) drives a two-turn conversation against the Anthropic API over one persistent `messages[]`. The model cannot know the current time, so turn 1 calls `get_time`; turn 2 ("before or after noon?") only works because it still sees turn 1 in the shared buffer. That round trip, repeated, is the whole agent. [`src/test.py`](src/test.py) checks tool dispatch, final-text, and that a second turn sees the first. Sections 2 to 11 carry this `src/` forward, evolving `loop.py` and adding one file per section.
+[`src/`](src/) starts the chain with:
+
+- [`loop.py`](src/loop.py): the loop itself, inner turn and outer conversation over one persistent `messages[]`.
+- [`demo.py`](src/demo.py): drives a two-turn conversation against the Anthropic API. Turn 1 calls `get_time`; turn 2 ("before or after noon?") only works because it still sees turn 1 in the shared buffer.
+- [`test.py`](src/test.py): checks tool dispatch, final-text, and that a second turn sees the first.
+
+Sections 2 to 11 carry this `src/` forward, evolving `loop.py` and adding one file per section.
 
 ```bash
 python sections/01-agent-loop/src/test.py         # offline checks, no key
@@ -123,7 +134,5 @@ uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code leaked source structure (`QueryEngine.ts`, `query/`, `Tool.ts`): [backup repo](https://github.com/yasasbanukaofficial/claude-code)
-- Framing: [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code)
-
-Educational reconstruction from public structure and observed behavior, not an official description of any system.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`.
+- [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code): section framing.
