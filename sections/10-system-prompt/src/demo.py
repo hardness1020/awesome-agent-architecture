@@ -36,6 +36,7 @@ def demo():
 
     reg = Registry()
     reg.register(Tool("Ping", lambda a: "pong", description="Return pong.", is_read_only=True))
+    
     # automatic caching (top-level cache_control) caches the whole system prompt plus the growing
     # messages, advancing as the conversation grows. This prompt is far under the 1024-token minimum,
     # so it shows where caching is enabled, not a live hit.
