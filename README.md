@@ -114,20 +114,20 @@ awesome-agent-architecture/
 ├── README.md                  # the map
 ├── sections/                # one folder per section (rows of the Sections table)
 │   ├── 00-harness-thesis/     # README.md per section
-│   ├── 01-agent-loop/src/     # sections 1 to 14 carry a runnable src/ that grows:
+│   ├── 01-agent-loop/src/     # sections 1 to 15 carry a runnable src/ that grows:
 │   └── 20-observability/      #   each section adds one file and evolves loop.py
 ├── systems/                   # per system deep dives (claude-code/, ...)
 ├── patterns/                  # cross cutting patterns and failure modes
 └── references/                # primary sources and prior art
 ```
 
-Each section folder is `NN-name/`, numbered to match its Sections row, holding a `README.md`. Sections 1 to 14 also carry a `src/` whose code accumulates section by section: each adds one file and evolves `loop.py`, so `diff` between two sections shows exactly what that section added. New systems and sections slot into the same folders.
+Each section folder is `NN-name/`, numbered to match its Sections row, holding a `README.md`. Sections 1 to 15 also carry a `src/` whose code accumulates section by section: each adds one file and evolves `loop.py`, so `diff` between two sections shows exactly what that section added. New systems and sections slot into the same folders.
 
 ---
 
 ## Running the demos
 
-Sections 1 to 14 ship a runnable `src/`. One-time setup with [uv](https://docs.astral.sh/uv/), from the repo root:
+Sections 1 to 15 ship a runnable `src/`. One-time setup with [uv](https://docs.astral.sh/uv/), from the repo root:
 
 ```bash
 uv venv
