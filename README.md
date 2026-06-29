@@ -161,8 +161,3 @@ Open an issue or PR. Favor named, verifiable mechanisms over speculation, and ci
 | [claude-code](https://github.com/yasasbanukaofficial/claude-code)     | Backup of Claude Code's leaked TypeScript source, the grounding for mechanism names (`QueryEngine.ts`, `query/`, `Tool.ts`) |
 | [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 20 lesson code first harness reconstruction, the depth benchmark                                                                  |
 
----
-
-## License
-
-[MIT](LICENSE). Analyses are educational reconstructions from public documentation and observed behavior, not official descriptions of any system.
