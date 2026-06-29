@@ -1,39 +1,44 @@
 # 10 · System prompt assembly
 
-> The prompt is built, not written. Each turn concatenates sections chosen from live state.
+> Build the prompt from live state each turn.
 
-An agent's system prompt is its standing instructions: who it is, what tools it has, what the project looks like. None of that survives as a single hardcoded string. A one-string prompt does not survive contact with a real agent: once the harness has tools, memory, output styles, and MCP servers, the prompt has to describe whatever is actually live this run, assembled from independent sections each switched on or off by the real state of the session (which tools are enabled, whether a memory file exists, which mode is active).
+The system prompt is the agent's standing instruction set. It describes identity, rules, tools, project context, and active features.
 
-1. **Drift.** Hand-editing one giant string means new capability text collides with old instructions, and nobody knows which lines are load-bearing.
-2. **Waste.** Shipping every clause every turn burns tokens on sections the current session does not use (no MCP server connected, no memory file present).
-3. **Cache misses.** If the whole prompt is one blob and any part changes per turn, the entire prefix re-bills instead of hitting the prompt cache.
+In a real agent, this cannot stay as one hardcoded string.
 
-Leave it hardcoded and the prompt becomes either stale or bloated, and the agent pays for both on every single call.
+Tools, memory, output style, MCP servers, and modes can vary by session. The prompt should describe what is actually active.
+
+A prompt assembler solves three problems:
+
+1. New feature text has a clear place to live.
+2. Inactive feature text can be skipped.
+3. Stable sections can use prompt caching.
+
+Without assembly, the prompt becomes stale, bloated, or hard to change safely.
 
 ---
 
 ## Mechanism
 
-Define the prompt as a list of named sections. Some are static (always present), some are dynamic (a `compute()` that returns a string or `null`). Resolve them against current state, drop the `null`s, and join. The result is stable across a conversation, so one top-level cache breakpoint caches the whole prompt (and the growing messages with it).
+Define the prompt as named sections. Some sections are static. Others compute text from live state and return `None` when they do not apply.
+
+Assembly is simple: resolve every section, drop `None`, and join the rest.
 
 ```python
 sections = [
-    intro, system_rules, doing_tasks, tools_section,   # static
-    session_guidance(), memory(), env_info(),          # compute() -> str | None
-    output_style(), mcp_instructions(),                # null when not applicable
+    intro, system_rules, doing_tasks, tools_section,
+    session_guidance(), memory(), env_info(),
+    output_style(), mcp_instructions(),
 ]
 prompt = [s for s in resolve(sections) if s is not None]
-# recalled memory bodies (section 9), CLAUDE.md, and date ride as a separate <system-reminder> message
 ```
 
-Two ideas do the work.
+Two rules keep it manageable:
 
-1. A section is included by **state, not keywords**: `mcp_instructions` appears only when an MCP server is connected, `env_info` only when there is a cwd.
-2. The prompt is **stable across a conversation**, so one top-level `cache_control` caches it whole along with the growing messages. (Claude Code splits it further at a `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` to protect a large static prefix from a churning tail; below.)
+1. Include sections by state, not keyword guesses.
+2. Keep volatile content away from the stable prompt prefix.
 
 ### New: sections and assemble
-
-A `Section` is `static` (returns a constant) or dynamic (`compute(state) -> str | None`):
 
 ```python
 @dataclass
@@ -41,19 +46,15 @@ class Section:                                          # src/prompt.py
     name: str
     compute: Callable    # (state) -> str | None ; static sections ignore state
 
-def static(name, text) -> Section:                     # always present, state-independent
+def static(name, text) -> Section:
     return Section(name, lambda _state: text)
-```
 
-`assemble` is the whole mechanism: run every `compute`, drop the `None`s, and join.
-
-```python
 def assemble(sections, state) -> str:                  # the prompt for this turn
     parts = (s.compute(state) for s in sections)
     return "\n\n".join(p for p in parts if p is not None)
 ```
 
-The section list is where state-driven inclusion lives: a dynamic section returns `None` until its state is present, so `env` appears only with a cwd, `mcp` only when a server is connected. Recalled memory is not here: it rides in the message (section 9), so it never invalidates the system-prompt cache:
+The section list owns state-driven inclusion:
 
 ```python
 DEMO_SECTIONS = [
@@ -64,9 +65,11 @@ DEMO_SECTIONS = [
 ]
 ```
 
+Recalled memory is not part of this prompt. It is injected as a `<system-reminder>` message by section 9. That keeps the prompt prefix more stable.
+
 ### How it integrates
 
-The loop re-assembles the prompt from live state every turn and passes it to the model, so `model` gains a `system` argument:
+The loop assembles the prompt before each model call:
 
 ```python
 for _ in range(max_steps):                             # src/loop.py
@@ -76,55 +79,53 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-- `prompt` is a callable closing over the section list; it reads the live registry (enabled tools) and session, so the prompt only ever describes what is actually live this turn.
-- Re-running it each turn is cheap, and because the prompt is stable across a conversation the whole thing is cached automatically (the demo enables it), along with the growing messages (section 8).
-- Pass `prompt=None` and the loop sends `system=None`, falling back to the section-9 behavior.
+- `prompt` is a callable that closes over the section list.
+- It reads live state such as enabled tools and session mode.
+- Passing `prompt=None` keeps the section-9 behavior.
 
-### Prompt caching: one automatic breakpoint
+### Prompt caching
 
-A conversation's system prompt barely moves (tools, cwd, MCP servers are stable per session); what grows is `messages[]`. So the demo sets one top-level `cache_control`. The API caches up to the last block and advances the breakpoint as messages grow:
+Most system prompt sections are stable during a session. The demo sets a top-level cache breakpoint:
 
 ```python
-client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),   # src/demo.py
-                       messages=messages, cache_control={"type": "ephemeral"})  # caches system + messages
+client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
+                       messages=messages, cache_control={"type": "ephemeral"})
 ```
 
-- A cache write costs ~1.25x a base input token, a read ~0.1x: after the first call, the prefix re-reads at a tenth of the price.
-- Order is tools, then system, then messages; a change invalidates that level and everything after. So volatile content goes last: recalled memory rides in the message (section 9), busting only the messages cache.
-- Ephemeral, 5-minute sliding TTL (1-hour available). Under the per-model minimum (1024 tokens, 2048 for Haiku) nothing caches, so the tiny demo shows placement, not a live hit.
+Stable content should come before volatile content. If a changing value appears early, it can invalidate more of the cache.
 
-Claude Code adds an explicit breakpoint at `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` so a churning tail recomputes without rewriting its large static prefix; the two compose. The strip-down's prompt is small and stable, so one automatic breakpoint covers it.
+Claude Code also uses an explicit dynamic boundary. That protects a large static prefix when a smaller dynamic tail changes.
 
 ---
 
 ## Per system
 
-How the prompt is composed each turn, where it happens, and from what.
+How the prompt is composed each turn.
 
 | System | Assembly point | Sections | When built |
 | --- | --- | --- | --- |
-| **Claude Code** | `getSystemPrompt()` (`constants/prompts.ts`), via `QueryEngine.ts` | 7 static + 7 dynamic (`systemPromptSection`), split at `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` | Per turn from live state; CLAUDE.md + date go in a separate `<system-reminder>` |
-| *(more soon)* | | | |
+| **Claude Code** | `getSystemPrompt()`. | Static and dynamic sections. | Per turn from live state. |
 
 ### Claude Code
 
-- **Output.** Assembly returns a `string[]`, one element per section.
-- **Tool guidance tracks reality.** `getUsingYourToolsSection(enabledTools)` writes from the registered set, so the prompt names only tools that exist.
-- **Dynamic sections are memoized.** `resolveSystemPromptSections` caches each `compute()` in `STATE.systemPromptSectionCache` until `/clear` or `/compact` calls `clearSystemPromptSections`.
-- **MCP opts out.** `mcp_instructions` uses `DANGEROUS_uncachedSystemPromptSection`: servers connect and disconnect between turns, so it must recompute.
-- **Context is separate.** CLAUDE.md and `currentDate` are not in the array; `getUserContext` returns them, `utils/api.ts` wraps them in a `<system-reminder>` message, and `getSystemContext` adds `gitStatus`.
+- `getSystemPrompt()` returns a `string[]`, one element per section.
+- Tool guidance is built from the enabled tool set.
+- Dynamic sections are memoized until `/clear` or `/compact`.
+- MCP instructions opt out of caching because servers can change.
+- CLAUDE.md, date, and git status are injected as context messages, not prompt sections.
+- `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` separates a stable prefix from a changing tail.
 
-> **Trade-off:** splitting the prompt into state-driven sections behind a cache boundary buys cheap edits, no token waste on absent features, and a stable cacheable prefix. It costs real machinery (a section registry, a cache, a boundary marker, ordering rules) and the discipline to mark volatile sections explicitly so one changing value does not bust the whole prefix.
+> **Trade-off:** Section-based assembly avoids stale or irrelevant instructions. It adds a section registry, cache invalidation rules, and ordering discipline.
 
 ---
 
 ## Failure modes
 
-- **Cache-busting volatility.** A volatile section before the breakpoint rewrites the whole prefix at 1.25x. Mitigation: keep it in the tail, marked `DANGEROUS_uncachedSystemPromptSection` (section 8).
-- **Stale section cache.** Memoized sections keep returning old values after state changes. Mitigation: invalidate on `/clear` and `/compact` (`clearSystemPromptSections`).
-- **Tool text without the tool.** Naming a tool the session never enabled confuses the model. Mitigation: gate guidance on the live `enabledTools` set (section 2).
-- **Context vs prompt confusion.** CLAUDE.md or git status in the system prompt busts the shared prefix every project and day. Mitigation: inject it as a `<system-reminder>` message instead (section 9).
-- **Mode collisions.** Override, agent, and custom prompts all fight to replace the default. Mitigation: one resolver (`buildEffectiveSystemPrompt`) sets the priority order (section 6).
+- **Volatile text busts the cache.** Put changing content late or outside the prompt prefix.
+- **Stale section cache.** Clear memoized sections when session state changes.
+- **Prompt names missing tools.** Generate tool text from the live enabled-tool set.
+- **Context mixed into prompt.** Put project files, date, and git status in context messages when they change often.
+- **Prompt overrides conflict.** Use one resolver to define priority.
 
 ---
 
@@ -132,9 +133,9 @@ How the prompt is composed each turn, where it happens, and from what.
 
 [`src/`](src/) carries 09 forward and adds:
 
-- [`prompt.py`](src/prompt.py): `Section`s (static or `compute(state) -> str | None`) and `assemble` (run each, drop `None`s, join).
+- [`prompt.py`](src/prompt.py): `Section`, `static`, and `assemble`.
 - [`loop.py`](src/loop.py): re-assembles the prompt each turn.
-- [`demo.py`](src/demo.py): adds a top-level `cache_control` to cache the prompt with the growing messages.
+- [`demo.py`](src/demo.py): adds top-level `cache_control`.
 - [`test.py`](src/test.py): checks state-driven inclusion.
 
 ```bash
@@ -147,5 +148,5 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 ## Sources
 
 - Claude Code source: `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
-- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): `cache_control` breakpoints, pricing, TTLs, token minimums.
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache breakpoints, TTLs, pricing, and token minimums.
 - learn-claude-code · s10_system_prompt: section framing.

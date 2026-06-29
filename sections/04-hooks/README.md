@@ -1,16 +1,23 @@
 # 4 · Hooks
 
-> Hook around the loop, never rewrite the loop.
+> Hooks add behavior at fixed points around the loop.
 
-Hooks are user-configured callbacks that fire at fixed points in the agent cycle: before a tool runs, after it runs, when a prompt is submitted, when the session starts or stops. They let you log, gate, modify, or inject without touching the `while` (section 1): the loop stays a stable core, extensions clip onto the outside. Every new behavior you want (log each bash call, auto `git add` after edits, validate input, block a dangerous command) is otherwise a temptation to edit the loop body. Do that a few times and the loop is unrecognizable: permission checks, logging, and notifications all tangled into the four numbered steps. The thing you wanted to extend was the agent's behavior, but the thing you changed was the loop itself.
+Hooks are user-configured callbacks. They can run before a tool call, after a tool call, when a prompt is submitted, or when a session starts or stops.
 
-Leave hooks out and there is no way to extend the agent except by forking the loop, so every site that wants a side effect rewrites the core.
+Use hooks for logging, validation, notifications, and small policy checks. Without hooks, each new behavior requires editing the loop or forking it.
+
+Hooks keep the loop small. The loop exposes fixed events. Extensions attach to those events.
 
 ---
 
 ## Mechanism
 
-A small `Hooks` object maps event names to callback lists. The loop never calls a check directly; `_dispatch` calls `fire_pre` before the gate and `fire_post` after a run, and the callbacks decide what happens. A PreToolUse callback can block the call or rewrite its input.
+A `Hooks` object maps event names to callback lists. The loop does not call custom checks directly. Instead, `_dispatch` fires named events.
+
+For tool execution, there are two important points:
+
+- `PreToolUse` runs before the permission gate. It can block the call or rewrite the input.
+- `PostToolUse` runs after a successful tool call. It can observe the result.
 
 ### New: hooks
 
@@ -26,11 +33,15 @@ class Hooks:                                     # src/hooks.py
         for fn in self._hooks["PostToolUse"]: fn(name, args, result)
 ```
 
-- `on(event, fn)` registers a callback; `fire_pre` runs the PreToolUse list (one returning `{'deny': True}` blocks, `{'updated_args': ...}` rewrites); `fire_post` runs the PostToolUse observers.
+- `on(event, fn)` registers a callback.
+- `fire_pre` runs the `PreToolUse` callbacks.
+- A pre-hook can return `{"deny": True}` to block.
+- A pre-hook can return `{"updated_args": ...}` to rewrite input.
+- `fire_post` runs observers after execution.
 
 ### How it integrates
 
-Two fire points are the only change to `_dispatch` ([`src/loop.py`](src/loop.py)) vs section 3: PreToolUse before the gate, PostToolUse after a successful run.
+Two calls are added to `_dispatch`:
 
 ```python
 # src/loop.py _dispatch
@@ -42,12 +53,14 @@ out = res(run_tool(tool, args))                          # 2 · execute -> tool_
 hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 ```
 
-- A blocked or denied call never reaches `run_tool` or PostToolUse.
-- Hooks compose with the gate, they do not replace it. A PreToolUse hook can tighten the decision (`deny` or `ask`) but never loosen it: a hook's `allow` cannot override a rule-based `deny`/`ask` (Claude Code reconciles the two in `resolveHookPermissionDecision`). The demo's PreToolUse hook blocks `rm -rf` even under `bypassPermissions`.
+- A blocked or denied call never reaches `run_tool`.
+- `PostToolUse` runs only after a successful run.
+- Hooks can tighten the permission result, but they should not loosen it.
+- In Claude Code, `resolveHookPermissionDecision` reconciles hook output with rule-based permissions.
 
-Claude Code's lifecycle hooks are config-driven (`.claude/settings.json`), not source edits. The event set lives in `HOOK_EVENTS` (`entrypoints/sdk/coreTypes.ts`, 27 events). A hook returns a `HookResult` (`types/hooks.ts`) whose fields decide the outcome: `permissionBehavior` (`allow`/`deny`/`ask`/`passthrough`), `updatedInput` (rewrite the tool's arguments), `additionalContext` (inject text), `preventContinuation` (stop the loop gracefully), `blockingError` (feed an error back so the model self-corrects).
+The demo uses a `PreToolUse` hook to block `rm -rf` even under `bypassPermissions`.
 
-Note the distinction: this section is the *lifecycle* hook system. The many React render hooks in the `hooks/` folder (e.g. `costHook.ts`'s `useCostSummary`) are unrelated UI plumbing that happen to share the word.
+This section covers lifecycle hooks. React render hooks in a `hooks/` folder are unrelated UI code that share the same word.
 
 ---
 
@@ -55,28 +68,30 @@ Note the distinction: this section is the *lifecycle* hook system. The many Reac
 
 How each agent exposes interception points around the loop.
 
-| System | Hook events | Fire point | Can block / modify? |
+| System | Hook events | Fire point | Can block or modify? |
 | --- | --- | --- | --- |
-| **Claude Code** | 27 in `HOOK_EVENTS` (`coreTypes.ts`) | config-driven from `.claude/settings.json`, snapshotted at startup; `PreToolUse` fires before the permission gate | yes · `HookResult` (`types/hooks.ts`): `permissionBehavior`, `updatedInput`, `preventContinuation`, `blockingError` |
-| *(more soon)* | | | |
+| **Claude Code** | Fixed lifecycle events. | Config from settings. `PreToolUse` runs before the gate. | Yes. Deny, ask, update input, add context, or stop. |
 
 ### Claude Code
 
-- **Events.** 27 in `HOOK_EVENTS` (`coreTypes.ts`): `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmit`, `SessionStart`, `SessionEnd`, `Stop`, `SubagentStart`/`SubagentStop`, `PreCompact`/`PostCompact`, `Setup`, and more.
-- **Config-driven, frozen.** Loaded from `.claude/settings.json`, snapshotted once via `captureHooksConfigSnapshot()` (`setup.ts`), not source edits.
-- **Fire order.** `toolExecution.ts` runs `runPreToolUseHooks` then `resolveHookPermissionDecision`, so `PreToolUse` lands before the permission gate (section 3).
+- `HOOK_EVENTS` defines 27 lifecycle events.
+- Important events include tool, prompt, session, stop, subagent, compact, and setup events.
+- Hooks are loaded from `.claude/settings.json`.
+- `captureHooksConfigSnapshot()` freezes the active hook set at startup.
+- `toolExecution.ts` runs `runPreToolUseHooks` before permission resolution.
+- `HookResult` can include `permissionBehavior`, `updatedInput`, `additionalContext`, `preventContinuation`, and `blockingError`.
 
-> **Trade-off:** config-driven hooks fired at fixed points buy extension without forking the loop (anyone can add a gate or a side effect via `settings.json`), but the fixed event set is the ceiling. You can only intercept where a hook event exists, and a hook returning `allow` still cannot override a `deny`/`ask` rule (`resolveHookPermissionDecision` in `toolHooks.ts` enforces that hooks never widen permission). Power within the seams, none outside them.
+> **Trade-off:** Hooks let users extend behavior without editing the loop. The fixed event list is also the limit. A hook can only intercept where the system exposes an event.
 
 ---
 
 ## Failure modes
 
-- **Hook used to bypass permissions.** A `PreToolUse` hook returns `allow` for a tool the user denied. Mitigation: `resolveHookPermissionDecision` (`toolHooks.ts`) still runs `checkRuleBasedPermissions`, so a hook `allow` cannot defeat a `deny`/`ask` rule (section 3).
-- **Stop hook never lets the agent stop.** A `Stop` hook that always returns a `blockingError` makes the model self-correct, which retriggers the hook forever. Mitigation: the `stopHookActive` flag (`query/stopHooks.ts`) carries forward so it does not fire twice.
-- **Hidden hook swapped mid-session.** A process edits `settings.json` after launch to inject a callback. Mitigation: `captureHooksConfigSnapshot` (`setup.ts`) freezes the active hook set once at startup.
-- **Slow or hung hook stalls the loop.** A hook shells out to a slow command and the agent waits. Mitigation: `HookCallback.timeout` (`types/hooks.ts`) bounds each hook, which can also run `async`.
-- **PostToolUse silently halts work.** A `PostToolUse` hook returning `preventContinuation: true` looks like the agent quitting early. Mitigation: it stops the loop gracefully via a `hook_stopped_continuation` attachment (`toolHooks.ts`), distinct from a crash (section 1).
+- **Hook bypasses permissions.** A hook may try to allow a denied action. Resolve hook output against rule-based permissions.
+- **Stop hook loops forever.** A `Stop` hook can block, trigger self-correction, and fire again. Track that the stop hook is already active.
+- **Hook config changes mid-session.** A process may edit settings after startup. Snapshot the hook config once.
+- **Slow hook stalls the loop.** A hook can shell out to slow work. Add a timeout.
+- **PostToolUse stops unexpectedly.** If a post-hook returns `preventContinuation`, surface it as a graceful stop, not a crash.
 
 ---
 
@@ -84,9 +99,9 @@ How each agent exposes interception points around the loop.
 
 [`src/`](src/) carries 03 forward and adds:
 
-- [`hooks.py`](src/hooks.py): the `Hooks` object · `fire_pre` (block or rewrite the call) and `fire_post` (observe).
-- [`loop.py`](src/loop.py): `_dispatch` fires PreToolUse before the gate and PostToolUse after a run.
-- [`test.py`](src/test.py): a PreToolUse hook blocks `rm -rf` even under `bypassPermissions`.
+- [`hooks.py`](src/hooks.py): the `Hooks` object with `fire_pre` and `fire_post`.
+- [`loop.py`](src/loop.py): `_dispatch` fires `PreToolUse` before the gate and `PostToolUse` after a run.
+- [`test.py`](src/test.py): a pre-hook blocks `rm -rf` even under `bypassPermissions`.
 
 ```bash
 python sections/04-hooks/src/test.py         # offline checks, no key

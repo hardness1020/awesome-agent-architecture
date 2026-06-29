@@ -1,16 +1,20 @@
 # 6 · Subagents
 
-> Big tasks split small, each subtask gets a clean context.
+> Run a focused child loop and return only its result.
 
-A subagent is the agent loop (section 1) run again inside a tool call: the parent spawns a child with a fresh `messages[]`, the child runs its own loop to completion, and only its final answer comes back, never the exploration that produced it. Without that, a single loop accumulates everything. To fix one bug the agent reads 30 files and chats 60 turns; `messages[]` swells to 120 entries, most of them the trace, not the goal. That noise crowds the window, the model drifts, and it forgets the original task (this is why context management, section 8, exists).
+A subagent is the agent loop run inside a tool call. The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.
 
-The human move is to open a second terminal, do the side investigation there, jot the result, and return to the first terminal to keep working. An agent needs the same: a clean child process with its own message list, focused on one thing, whose intermediate steps you can throw away. Leave it out and every digression permanently pollutes the main thread.
+This keeps side investigations out of the parent context. The parent does not need every file read or command result from the child. It usually needs the conclusion.
+
+Without subagents, every investigation stays in the main transcript. Long runs become noisy, expensive, and harder for the model to follow.
 
 ---
 
 ## Mechanism
 
-A `task` style tool spawns a child agent. The child gets a fresh `messages[]` seeded only with a prompt, runs its own loop to a stop, and returns just the text of its last message. The transcript is discarded; filesystem side effects (writes, edits, commands) persist in the working directory.
+An `Agent` tool starts a child agent. The child has its own session and message list. It runs the same loop as the parent.
+
+Only the child's final text comes back. Its transcript is discarded. File writes and shell side effects still happen in the working directory.
 
 ### New: the Agent tool
 
@@ -24,48 +28,56 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
     return Tool("Agent", spawn, is_read_only=True)
 ```
 
-- `agent_tool` ([`src/subagents.py`](src/subagents.py)) returns an ordinary `Tool`. Its `run` calls `run_turn()` from section 1, the same loop, with a brand-new `Session` and a `messages[]` seeded only by the description.
-- The child returns the text of its last message (`run_turn()` already returns exactly that), so the parent receives a conclusion, never the child's transcript.
+- `agent_tool` returns a normal tool.
+- Its handler calls `run_turn()` with a new `Session`.
+- The child's `messages[]` starts with only the child prompt.
+- The child returns the text that `run_turn()` returns.
 
 ### How it integrates
 
-No loop change. A subagent is the section-1 loop invoked inside a tool call, so [`src/loop.py`](src/loop.py) is byte-identical to section 5. Three properties fall out of that:
+The loop does not change. A subagent is just another tool handler that calls the loop.
 
-- **Fresh context:** the child's `messages[]` is local to its `run_turn()` call and discarded on return, so the parent's history cannot distract the child and the child's history cannot bloat the parent.
-- **Inherited authority:** the child `Session` copies the parent's `mode` and `allow_rules`, so the child's own calls still hit the section-3 gate. Isolating context does not isolate permission.
-- **Recursion fenced:** `child_registry` omits the `Agent` tool, so a child cannot spawn another. (Claude Code fences the same risk with `isInForkChild`.)
+Three properties matter:
+
+- **Fresh context.** The child does not inherit the parent's transcript. The parent does not inherit the child's trace.
+- **Inherited authority.** The child copies the parent's permission mode and allow rules. Context isolation is not permission isolation.
+- **Recursion limit.** The demo omits `Agent` from the child registry, so a child cannot spawn another child.
 
 ---
 
 ## Per system
 
-How a parent isolates a subproblem and gets the answer back.
+How each agent isolates a subproblem and returns the result.
 
-| System                | Spawn primitive                                                                            | Context isolation                                       | Result return                                              | Resume?                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Claude Code** | `Agent` tool (`AGENT_TOOL_NAME`, legacy `Task`); `subagent_type` + `description` | child loop in`runAgent.ts`, fresh `initialMessages` | `extractTextContent` of last message (`AgentTool.tsx`) | yes,`resumeAgent.ts` for addressable agents; `Explore`/`Plan` are one-shot |
-| *(more soon)*       |                                                                                            |                                                         |                                                            |                                                                                  |
+| System | Spawn primitive | Context isolation | Result return | Resume |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | `Agent` tool. | Fresh child messages. | Last child message text. | Most agents can resume. |
 
 ### Claude Code
 
-- **Spawn primitive.** The `Agent` tool in `tools/AgentTool/AgentTool.tsx` (`AGENT_TOOL_NAME = 'Agent'`, addressable under the legacy wire name `Task`).
-- **Personas.** `subagent_type` selects one; `getBuiltInAgents()` (`builtInAgents.ts`) registers `GENERAL_PURPOSE_AGENT`, `EXPLORE_AGENT`, `PLAN_AGENT`, `STATUSLINE_SETUP_AGENT`, `CLAUDE_CODE_GUIDE_AGENT`, `VERIFICATION_AGENT` (each under `built-in/`).
-- **Same loop.** The child runs the parent's loop in `runAgent.ts` with a fresh `initialMessages`; the parent receives only `extractTextContent` of the last message.
-- **Recursion fenced.** `isInForkChild` (`forkSubagent.ts`) rejects a fork child already carrying `FORK_BOILERPLATE_TAG`.
-- **Sync or async.** `run_in_background` returns `status: 'async_launched'`, tracked as a `LocalAgentTask` (`tasks/LocalAgentTask/`).
-- **Resume.** Most agents stay addressable via `SendMessage` and continue through `resumeAgent.ts`; one-shot `Explore`/`Plan` report once and skip the resume trailer.
+- The tool lives in `tools/AgentTool/AgentTool.tsx`.
+- The legacy wire name is `Task`.
+- `subagent_type` selects a built-in persona.
+- Built-ins include general-purpose, explore, plan, status-line setup, guide, and verification agents.
+- The child loop runs in `runAgent.ts` with fresh `initialMessages`.
+- `extractTextContent` returns the last message to the parent.
+- `isInForkChild` prevents recursive fork spawning.
+- Background subagents become `LocalAgentTask`s.
+- Most agents can continue through `SendMessage` and `resumeAgent.ts`.
 
-> **Trade-off:** a fresh `messages[]` per child buys focus and a clean parent thread, but the parent loses all visibility into how the answer was reached. If the summary is wrong or thin, the parent cannot inspect the steps; it can only re-delegate. You trade debuggability and shared learning for context hygiene.
+> **Trade-off:** A child context keeps the parent focused.
+> The parent also loses the details of how the child reached its answer.
+> If the summary is thin, the parent must ask again or read files the child wrote.
 
 ---
 
 ## Failure modes
 
-- **Lossy summary.** The child compresses a long investigation into one message; the parent acts on a thin conclusion it cannot inspect. Mitigation: have the child write findings to disk for the parent to read, not just return prose.
-- **Runaway recursion.** A child that can spawn children fans out without bound, exploding depth and cost. Mitigation: omit `Agent` from `child_registry` and fence forks with `isInForkChild` checking `FORK_BOILERPLATE_TAG` (`forkSubagent.ts`).
-- **No stop in the child.** The child runs its own loop, inheriting the halting risk (section 1), so one delegation can burn the whole budget. Mitigation: a `MAX_TURNS` or token ceiling per child.
-- **Assumed permission isolation.** Context isolation is not authority isolation; skipping gates "because it is just a subagent" reopens every side-effect risk. Mitigation: route the child's tool calls through the same permission pipeline (section 3).
-- **Orphaned async children.** A backgrounded spawn (`run_in_background`) outlives its turn; a dropped completion notification leaves the parent waiting forever. Mitigation: track it via the `LocalAgentTask` record (sections 12, 13).
+- **Lossy summary.** The child may compress too much. Ask it to write important findings to disk.
+- **Runaway recursion.** Children spawning children can grow without bound. Omit the `Agent` tool from child registries or enforce a depth limit.
+- **No child stop.** The child has the same halt risks as the parent. Give each child its own turn or token limit.
+- **Assumed permission isolation.** A child still needs the normal permission gate. Do not skip it because the context is separate.
+- **Orphaned async child.** A background child can finish after the parent moves on. Track it with a task record.
 
 ---
 
@@ -73,10 +85,10 @@ How a parent isolates a subproblem and gets the answer back.
 
 [`src/`](src/) carries 05 forward and adds:
 
-- [`subagents.py`](src/subagents.py): the `Agent` tool, whose `run` calls `run_turn()` (section 1) with a fresh `Session` and `messages[]`.
-- [`loop.py`](src/loop.py): byte-identical to section 5, because a subagent is that loop run again.
-- [`demo.py`](src/demo.py): the parent delegates counting the python files to a child; only the child's conclusion returns.
-- [`test.py`](src/test.py): offline checks of fresh context, inherited authority, and recursion fencing.
+- [`subagents.py`](src/subagents.py): the `Agent` tool.
+- [`loop.py`](src/loop.py): unchanged from section 5.
+- [`demo.py`](src/demo.py): the parent delegates a count to a child.
+- [`test.py`](src/test.py): checks fresh context, inherited authority, and recursion fencing.
 
 ```bash
 python sections/06-subagents/src/test.py         # offline checks, no key

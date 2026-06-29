@@ -1,21 +1,28 @@
 # 2 · Tool runtime
 
-> Adding a tool means adding one handler. The loop never moves.
+> Adding a capability means registering a tool. The loop stays the same.
 
-The agent loop (section 1) can only act through tools. A model can ask to "read a file" or "run a command," but a model call only emits structured `tool_use` blocks with a `name` and an `input`; something has to map that name to code, check the input is well formed, execute it, and return a result the model can read. That plumbing is the tool runtime, and capability grows by registering handlers, not by editing the loop. So the runtime must:
+The agent loop can only act through tools. The model emits a structured `tool_use` block with a `name` and an `input`.
 
-1. Tell the model which tools exist and what arguments each takes (schemas).
-2. Route a `tool_use` block by `name` to the right handler (dispatch).
-3. Run multiple calls in one turn without serializing safe ones needlessly (parallelism).
-4. Keep the catalog usable as it grows past what fits in one prompt (discovery).
+The harness maps that name to code. It validates the input, runs the handler, and returns a result.
 
-Leave it out and the model can reason about acting but has no way to act. Hard-wire one tool (just `bash`) and every new capability becomes a string-templating chore, with no per-tool validation, permissions, or parallelism.
+The runtime must:
+
+1. Tell the model which tools exist.
+2. Describe each tool's input schema.
+3. Route each `tool_use` by name.
+4. Run safe calls in parallel when possible.
+5. Keep large tool catalogs discoverable.
+
+Without this layer, the model can ask to act but nothing can execute the action.
+
+With only one `bash` tool, every capability becomes string handling. There is no per-tool validation or permission logic.
 
 ---
 
 ## Mechanism
 
-A tool is a small self-describing object: a `name`, a `run` handler, and predicates the runtime queries (`is_read_only`, `is_concurrency_safe`, `is_edit`). A `Registry` collects them by name, and dispatch is a dict lookup, not a `switch`.
+A tool is a small object with a name, a handler, a schema, and a few predicates. A registry stores tools by name. Dispatch is a lookup.
 
 ### New: the tool runtime
 
@@ -36,12 +43,16 @@ class Registry:                              # src/tools.py
     def schemas(self):        ...             # the tools list handed to the model
 ```
 
-- A tool is a dataclass; the registry is `name -> tool`; `register` is one line. Adding a capability is registering a handler.
-- `run_concurrently` ([`src/tools.py`](src/tools.py)) batches the safe calls: `safe = [i for i, t in enumerate(tools) if t and t.is_concurrency_safe]` run in one `ThreadPoolExecutor`, the rest in order, so reads parallelize but writes stay sequenced.
+- A tool is a dataclass.
+- The registry is `name -> tool`.
+- Adding a capability means registering one handler.
+- `schemas()` returns the tool list advertised to the model.
+- `run_concurrently` batches tools marked `is_concurrency_safe`.
+- Unsafe calls stay in order, so writes do not race.
 
 ### How it integrates
 
-Section 1 ran tools from an inline `HANDLERS` dict. The loop now takes a `registry` and routes each `tool_use` block through `_dispatch`:
+Section 1 used an inline `HANDLERS` dict. Section 2 passes a `registry` into the loop and routes each `tool_use` through `_dispatch`:
 
 ```python
 def run_turn(messages, model, registry, max_steps=10): # src/loop.py (now takes a registry)
@@ -56,41 +67,45 @@ def _dispatch(block, registry):              # resolve, run, wrap as a tool_resu
     return {"type": "tool_result", "tool_use_id": block.id, "content": content}
 ```
 
-- The loop body is otherwise unchanged from section 1; only the dispatch step is now a registry lookup.
-- `_dispatch` is the seam sections 3 and 4 grow: the gate and the hooks splice into exactly this function.
+The loop body is otherwise unchanged. Only the dispatch step now uses the registry.
 
-The bare loop dispatches sequentially for clarity; `run_concurrently` is the batching primitive a real runtime applies. When a catalog grows large, Claude Code also ships most tools as names only and fetches schemas on demand (`ToolSearchTool`); the demo keeps every tool in hand.
+`_dispatch` is the next extension point. Section 3 adds the permission gate there. Section 4 adds hooks there.
+
+The demo dispatches sequentially for clarity. Real runtimes batch safe calls and load large tool schemas on demand.
 
 ---
 
 ## Per system
 
-How each agent defines a tool, routes a call, parallelizes, and keeps a large catalog discoverable.
+How each agent defines tools, routes calls, handles parallelism, and exposes a large catalog.
 
 | System | Tool definition | Dispatch | Parallel calls | Discovery |
 | --- | --- | --- | --- | --- |
-| **Claude Code** | `buildTool({...})`: `name`, `inputSchema` (Zod), `call()`, predicates (`Tool.ts`) | `findToolByName` over the `getAllBaseTools()` registry (`toolExecution.ts`) | `partitionToolCalls` batches `isConcurrencySafe` runs, cap 10 (`CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`); unsafe run serially | deferred tools ship as names (`shouldDefer`); model pulls schemas via `ToolSearchTool` (`select:` or keyword + `searchHint`) |
-| *(more soon)* | | | | |
+| **Claude Code** | Schema, handler, and predicates. | Name lookup with aliases. | Safe calls batch. Unsafe calls are serial. | Names first. Schemas on request. |
 
 ### Claude Code
 
-- **Safe defaults.** `buildTool` fills them: `isConcurrencySafe` and `isReadOnly` default to `false`, `checkPermissions` to allow.
-- **One source of truth.** `getAllBaseTools()` lists `BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, `AgentTool`, and the rest; `getTools()` and `assembleToolPool()` filter by permission rules and merge in MCP tools.
-- **Dispatch.** `findToolByName` resolves by `name`, also matching `aliases`.
-- **Parallel batching.** `partitionToolCalls` walks calls in order, groups concurrency-safe runs into a parallel batch (`runToolsConcurrently`), and breaks the batch at any unsafe call so it runs alone.
-- **Lazy discovery.** Tools marked `shouldDefer` ship with `defer_loading: true` (names only); the model calls `ToolSearchTool` to pull full schemas, by exact name (`select:A,B`) or keyword scored against each tool's `searchHint` and description.
+- `buildTool` sets safe defaults. `isConcurrencySafe` and `isReadOnly` default to `false`.
+- `getAllBaseTools()` lists built-in tools such as `BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, and `AgentTool`.
+- `getTools()` and `assembleToolPool()` filter tools by permissions and merge MCP tools.
+- `findToolByName` resolves by `name` and `aliases`.
+- `partitionToolCalls` groups concurrency-safe calls and runs them through `runToolsConcurrently`.
+- Unsafe calls break the batch and run alone.
+- Tools marked `shouldDefer` ship as names first. `ToolSearchTool` loads full schemas by exact name or keyword.
 
-> **Trade-off:** a schema-per-tool object model with predicates buys per-tool validation, permission hooks, parallel-safe batching, and lazy discovery, but every tool now carries a contract (schema, concurrency predicate, permission check, render methods). A single `bash` tool has none of that overhead and nothing to register, at the cost of no validation, no parallelism, and no way to gate a destructive command differently from a read.
+> **Trade-off:** A per-tool object model gives validation, permissions, safe parallelism, and lazy discovery.
+> It also makes every tool carry a contract.
+> A single `bash` tool is smaller, but it cannot validate inputs or gate actions separately.
 
 ---
 
 ## Failure modes
 
-- **Unknown tool name.** The model emits a `name` with no registered handler (typo, disabled, or a deferred tool never loaded). Mitigation: error back as a `tool_result` instead of crashing the loop; Claude Code retries `findToolByName` against the full base set.
-- **Schema drift.** The advertised `inputSchema` and what `call()` expects diverge, so valid-looking input fails at runtime. Mitigation: validate against the schema before dispatch (Zod parse), returning a model-readable error.
-- **Unsafe parallelism.** Two writes to the same file run concurrently and corrupt state. Mitigation: conservative `isConcurrencySafe` (default `false`, and `false` on any parse failure) so only provably independent calls batch (section 3).
-- **Catalog overflow.** Dozens of MCP tools blow the token budget and degrade tool selection. Mitigation: deferred loading plus `ToolSearchTool` keeps only names in-context until a tool is needed (section 8).
-- **Oversized results.** A tool returns megabytes and floods the context window. Mitigation: each tool sets `maxResultSizeChars`; over-cap results persist to disk and the model gets a preview plus a path (`Infinity` for `FileReadTool` avoids a read-persist-read loop).
+- **Unknown tool name.** The model names a missing or disabled tool. Return a `tool_result` error instead of crashing the loop.
+- **Schema drift.** The schema says one thing and the handler expects another. Validate before dispatch.
+- **Unsafe parallelism.** Two writes can corrupt the same file. Default to serial execution unless a tool is known to be safe.
+- **Catalog overflow.** Too many tool schemas can crowd the prompt. Defer full schemas until needed.
+- **Oversized results.** Large outputs can fill the context window. Cap results, persist the full output, and return a preview plus a path.
 
 ---
 
@@ -98,10 +113,10 @@ How each agent defines a tool, routes a call, parallelizes, and keeps a large ca
 
 [`src/`](src/) carries 01 forward and adds:
 
-- [`tools.py`](src/tools.py): `Tool`, `Registry`, and `run_concurrently` (batch the concurrency-safe calls).
-- [`loop.py`](src/loop.py): dispatches each `tool_use` through the `Registry` (`_dispatch`); the model advertises `registry.schemas()`.
-- [`demo.py`](src/demo.py): live entry; registers a `ReadFile` tool and runs the loop against the API.
-- [`test.py`](src/test.py): offline checks for dispatch, the unknown-tool error, and parallel batching.
+- [`tools.py`](src/tools.py): `Tool`, `Registry`, and `run_concurrently`.
+- [`loop.py`](src/loop.py): dispatches each `tool_use` through the `Registry`.
+- [`demo.py`](src/demo.py): registers a `ReadFile` tool and runs the loop against the API.
+- [`test.py`](src/test.py): checks dispatch, unknown-tool errors, and parallel batching.
 
 ```bash
 python sections/02-tool-runtime/src/test.py         # offline checks, no key
