@@ -41,31 +41,22 @@ flowchart TB
 
 Read the loop (section 1) as the spine. Hanging off it: a tool runtime that dispatches actions (2), a permission layer that gates them (3), hooks that intercept (4), context and memory that feed the model (8, 9), the system prompt assembled each turn (10), and the long-running, multi-agent, and extension layers beyond. None of these change the `while`. They feed it, gate it, or persist it.
 
-In Claude Code the split is visible in the tree. The model is reached through one `QueryEngine.ts`; everything else is harness:
-
-- `tools/`: 40 `*Tool` directories (`BashTool`, `FileEditTool`, `AgentTool`, `SkillTool`, `TaskCreateTool`, ...), each conforming to the `Tool.ts` contract (`name`, `inputSchema`, `isEnabled()`, `checkPermissions()`, `prompt()`).
-- `hooks/`: interception.
-- `skills/`, `memdir/`: knowledge.
-- `tasks/`, `coordinator/`: long-running and multi-agent.
-- `plugins/`, `services/`: extension and integration.
-
-One file calls the model; dozens of folders are the chassis.
-
 ---
 
 ## Per system
 
 What the model decides versus what the surrounding code builds, and how heavy that code is.
 
-| System | What the model owns | What the harness owns | Harness footprint |
-| --- | --- | --- | --- |
-| **Claude Code** | Reasoning, tool selection, when to stop (`tool_use` vs `end_turn`) | Loop, dispatch, gating, knowledge, persistence: `QueryEngine.ts`, `tools/`, `hooks/`, `skills/`, `memdir/`, `tasks/`, `coordinator/` | 40 `*Tool` dirs · 85 hook files · 36 services · 329 `utils/` dirs; one engine file reaches the model |
-| *(more soon)* | | | |
+| System                | What the model owns                                                    | What the harness owns                                                                                                                             | Harness footprint                                                                                          |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Claude Code** | Reasoning, tool selection, when to stop (`tool_use` vs `end_turn`) | Loop, dispatch, gating, knowledge, persistence:`QueryEngine.ts`, `tools/`, `hooks/`, `skills/`, `memdir/`, `tasks/`, `coordinator/` | 40`*Tool` dirs · 85 hook files · 36 services · 329 `utils/` dirs; one engine file reaches the model |
+| *(more soon)*       |                                                                        |                                                                                                                                                   |                                                                                                            |
 
 ### Claude Code
 
-- **One binary, almost no model.** The model is an API call behind `QueryEngine.ts`; the rest of `src/` is harness.
-- **`Tool.ts` is the seam.** Each tool declares its schema, `isEnabled()`, and `checkPermissions()`, so the harness dispatches and gates uniformly.
+- **One binary, almost no model.** The model is reached through one `QueryEngine.ts`; everything else in `src/` is harness, and the split is visible in the tree.
+- **The tree is the decomposition.** `tools/` is action, `hooks/` interception, `skills/` and `memdir/` knowledge, `tasks/` and `coordinator/` long-running and multi-agent, `plugins/` and `services/` extension and integration.
+- **`Tool.ts` is the seam.** Each of 40 `*Tool` dirs (`BashTool`, `FileEditTool`, `AgentTool`, `SkillTool`, `TaskCreateTool`, ...) declares the same contract (`name`, `inputSchema`, `isEnabled()`, `checkPermissions()`, `prompt()`), so the harness dispatches and gates uniformly.
 - **The model sees only names and results.** It never touches dispatch or gating.
 
 > **Trade-off:** Pouring engineering into the harness buys discipline (gated side effects, durable tasks, isolated subagents, on-demand skills) and lets one harness ride model upgrades for free. The cost is surface: a large codebase to maintain, where most bugs and most behavior live in code, not in the model. A thin harness (a one-file bash loop) is trivial to audit but cannot gate, persist, or coordinate.
