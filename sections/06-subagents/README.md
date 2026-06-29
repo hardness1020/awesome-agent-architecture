@@ -2,13 +2,7 @@
 
 > Big tasks split small, each subtask gets a clean context.
 
-A subagent is the agent loop (section 1) run again inside a tool call. The parent spawns a child with a fresh `messages[]`, the child runs its own loop to completion, and only its final answer comes back. The exploration that produced that answer never enters the parent's context.
-
----
-
-## Problem
-
-A single loop accumulates everything. To fix one bug the agent reads 30 files and chats 60 turns; `messages[]` swells to 120 entries, most of them the trace, not the goal. That noise crowds the window, the model drifts, and it forgets the original task (this is why context management, section 8, exists).
+A subagent is the agent loop (section 1) run again inside a tool call: the parent spawns a child with a fresh `messages[]`, the child runs its own loop to completion, and only its final answer comes back, never the exploration that produced it. Without that, a single loop accumulates everything. To fix one bug the agent reads 30 files and chats 60 turns; `messages[]` swells to 120 entries, most of them the trace, not the goal. That noise crowds the window, the model drifts, and it forgets the original task (this is why context management, section 8, exists).
 
 The human move is to open a second terminal, do the side investigation there, jot the result, and return to the first terminal to keep working. An agent needs the same: a clean child process with its own message list, focused on one thing, whose intermediate steps you can throw away. Leave it out and every digression permanently pollutes the main thread.
 

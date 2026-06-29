@@ -2,15 +2,7 @@
 
 > Set boundaries first, then grant freedom. A gate between the model's request and the world.
 
-The model asks to run a tool; this section decides whether it may. It sits on step 3 of the loop (section 1), between the tool request and execution, classifying each call as allow, ask, or deny, and optionally running side effects inside a sandbox so a mistake is contained.
-
----
-
-## Problem
-
-A tool runtime that runs whatever the model emits is a remote shell with no operator. The model can hallucinate, get prompt injected, or simply be wrong, and a single `Bash` call can delete files, leak secrets, or push to prod. Trust in the model is not a safety boundary; code is.
-
-So something must:
+The model asks to run a tool; this section decides whether it may. A tool runtime that runs whatever the model emits is a remote shell with no operator: the model can hallucinate, get prompt injected, or simply be wrong, and a single `Bash` call can delete files, leak secrets, or push to prod. Trust in the model is not a safety boundary; code is. So sitting on step 3 of the loop (section 1), between the tool request and execution, something must:
 
 1. Inspect each tool call before it runs.
 2. Decide allow, ask, or deny from rules plus context.

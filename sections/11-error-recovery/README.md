@@ -2,13 +2,7 @@
 
 > Errors aren't the end, they're the start of a retry.
 
-A long agent run spans dozens of model calls, and each call can fail: the API is overloaded, the output gets truncated, the prompt no longer fits. Error recovery is the layer that wraps the model call so transient failures retry, recoverable ones adapt (more tokens, less context, a different model), and only the truly fatal ones surface to the user.
-
----
-
-## Problem
-
-The agent loop (section 1) is a `while` around one model call. That call lives over a network, against a shared service, with a hard token budget on both ends. In production, failure is the common case, not the exception:
+A long agent run spans dozens of model calls, and the loop (section 1) is a `while` around each one. That call lives over a network, against a shared service, with a hard token budget on both ends, and any call can fail: the API is overloaded, the output gets truncated, the prompt no longer fits. In production, failure is the common case, not the exception:
 
 1. **Transient capacity.** 429 rate limit, 529 overload, dropped connection.
 2. **Truncated output.** The model hits `max_tokens` mid-answer.

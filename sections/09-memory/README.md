@@ -2,15 +2,7 @@
 
 > Remember what matters, forget what doesn't.
 
-An agent's `messages[]` (section 1) is the memory of one run. It dies when the run ends, and it gets lossy the moment context is compacted (section 8). Memory is the separate, durable layer: a small store of facts the agent writes during a run, keeps across runs, and pulls back in when relevant. It is what lets the agent learn your preferences once instead of every session.
-
----
-
-## Problem
-
-The model has no persistent state. Everything it knows lives in the context window, and the window is finite and lossy. Compaction (section 8) summarizes old turns, so a precise constraint like "use tabs, never spaces" degrades to "user has a style preference," then vanishes. Open a fresh session and even the summary is gone.
-
-So something must:
+An agent's `messages[]` (section 1) is the memory of one run: it dies when the run ends, and the model has no persistent state beyond it. Everything it knows lives in the context window, which is finite and lossy. Compaction (section 8) summarizes old turns, so a precise constraint like "use tabs, never spaces" degrades to "user has a style preference," then vanishes; open a fresh session and even the summary is gone. Memory is the separate, durable layer that lets the agent learn your preferences once instead of every session. So something must:
 
 1. Decide what is worth keeping (selection on the way in).
 2. Write it somewhere outside the conversation (a store).

@@ -2,13 +2,7 @@
 
 > Context always fills up. Have a way to make room.
 
-`messages[]` only grows (section 1). Every file read, command output, and tool result piles up until the context window is full and the API rejects the next call with `prompt_too_long`. Context management is the set of strategies that keep a long session under the window: drop stale turns, stub old tool results, persist huge outputs to disk, and as a last resort summarize the whole history into one message.
-
----
-
-## Problem
-
-An agent that does real work reads dozens of files and runs dozens of commands in one session. Each result is appended and never removed, so the prompt grows monotonically. The context window is finite. When it fills:
+`messages[]` only grows (section 1). An agent that does real work reads dozens of files and runs dozens of commands in one session, and each result is appended and never removed, so the prompt grows monotonically toward a finite context window. Context management is the set of strategies that keep a long session under that window: drop stale turns, stub old tool results, persist huge outputs to disk, and as a last resort summarize the whole history into one message. When the window fills:
 
 1. The API rejects the request outright (`prompt_too_long`).
 2. Even before that, a bloated prompt is slow, expensive, and dilutes the model's attention with stale content.

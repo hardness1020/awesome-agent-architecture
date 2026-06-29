@@ -2,15 +2,7 @@
 
 > Agency comes from the model. The harness gives agency a place to land.
 
-This is the premise the whole repo rests on. Capability (reasoning, tool choice, when to stop) lives in the model. Everything else, the loop, tools, memory, permissions, and interfaces around it, is engineering you build. That surrounding engineering is the **harness**, and it is where nearly all the code lives.
-
----
-
-## Problem
-
-A model on its own is a one-shot text function: messages in, one response out. It can decide to act but has no way to act, no memory between calls, no gate on side effects, no way to reach a file or a shell or another tool. Hand it raw capability and nothing happens.
-
-So something around the model must:
+Capability (reasoning, tool choice, when to stop) lives in the model; everything else, the loop, tools, memory, permissions, and interfaces around it, is engineering you build. That surrounding engineering is the **harness**, and it is where nearly all the code lives. A model on its own is a one-shot text function: messages in, one response out, able to decide to act but with no way to act, no memory between calls, no gate on side effects, no way to reach a file or a shell. So something around the model must:
 
 1. Give the action a place to run (tools, dispatch, execution).
 2. Give the model something to see (results, knowledge, context).
@@ -27,16 +19,13 @@ The mechanism of this section is not one data structure. It is the **decompositi
 
 ```mermaid
 flowchart TB
-    subgraph Harness
-      direction TB
-      K[knowledge: memory · skills · prompt] --> M
-      O[observation: tool results · context] --> M
-      M{{model}} -->|tool_use| A[actions: tool runtime · dispatch]
-      A --> P[permissions: gate side effects]
-      P --> A
-      A --> O
-      M -->|end_turn| D([reply])
-    end
+    K[knowledge: memory · skills · prompt] --> M
+    O[observation: tool results · context] --> M
+    M{{model}} -->|tool_use| A[actions: tool runtime · dispatch]
+    A --> P[permissions: gate side effects]
+    P --> A
+    A --> O
+    M -->|end_turn| D([reply])
 ```
 
 Read the loop (section 1) as the spine. Hanging off it: a tool runtime that dispatches actions (2), a permission layer that gates them (3), hooks that intercept (4), context and memory that feed the model (8, 9), the system prompt assembled each turn (10), and the long-running, multi-agent, and extension layers beyond. None of these change the `while`. They feed it, gate it, or persist it.

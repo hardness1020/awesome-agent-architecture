@@ -2,15 +2,7 @@
 
 > One loop, and almost nothing else. Everything in this repo hangs off this branch.
 
-The model decides; the loop lets it keep deciding. Strip the branding from any agent and you find the same `while`: call the model, and if it asked for a tool, run it, feed the result back, call again. The same `messages[]` carries across user turns, so each new question is asked with everything before it still in view.
-
----
-
-## Problem
-
-A raw model call is one-shot. You send messages, you get one response, it stops. That is a chatbot, not an agent. An agent has to act, see what happened, and decide again, possibly many times, with no human pressing enter between steps.
-
-So something must:
+The model decides; the loop lets it keep deciding. A raw model call is one-shot: send messages, get one response, it stops. That is a chatbot. An agent has to act, see what happened, and decide again, many times, with no human pressing enter between steps. Strip the branding from any agent and you find the same `while`: call the model, run any tool it asked for, feed the result back, call again, all over one `messages[]` that persists across turns. So something must:
 
 1. Carry the conversation state across turns.
 2. Detect when the model wants to act versus when it is done.

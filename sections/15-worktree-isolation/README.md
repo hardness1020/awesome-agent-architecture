@@ -2,15 +2,7 @@
 
 > Each agent works in its own directory, so parallel work cannot clobber a shared tree.
 
-When two agents (or one session and its subagents) touch the same files at once, their edits collide and you cannot tell whose change is whose. Worktree isolation hands each unit of work its own checkout of the same repo on its own branch. They diverge in private and merge (or get discarded) at the end.
-
----
-
-## Problem
-
-A single working directory is one shared mutable surface. Run two agents against it and they race: Alice writes `config.py`, Bob writes `config.py`, one overwrites the other, and the diff is now a tangle nobody can untangle or roll back cleanly. The task system (section 12) decides *who does what* and subagents (section 6) decide *how the work fans out*, but neither answers *where* the writes land.
-
-So something must:
+A single working directory is one shared mutable surface. Run two agents against it and they race: Alice writes `config.py`, Bob writes `config.py`, one overwrites the other, and the diff is now a tangle nobody can untangle or roll back cleanly. The task system (section 12) decides *who does what* and subagents (section 6) decide *how the work fans out*, but neither answers *where* the writes land. Worktree isolation hands each unit of work its own checkout of the same repo on its own branch, so they diverge in private and merge (or get discarded) at the end. So something must:
 
 1. Give each unit of work a private checkout, separate from the shared tree.
 2. Bind that unit's file and shell tools to its own directory, even while siblings run at the same time.

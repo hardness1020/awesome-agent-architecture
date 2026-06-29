@@ -2,13 +2,7 @@
 
 > An agent without a plan drifts. List the steps first, then execute.
 
-Big work needs decomposition. Two mechanisms cover it: a todo list the model writes to itself to track steps, and a plan mode that gates execution until a written plan is approved. Both keep a long task on course by making the plan a first-class artifact the loop carries forward.
-
----
-
-## Problem
-
-Hand a model a 10-step refactor and it starts well, then drifts. Tool results pile into the context and dilute the original instruction, so by step 4 the model is improvising and steps 5 through 10 are gone from its attention. Two distinct failures hide here:
+Big work needs decomposition. Hand a model a 10-step refactor and it starts well, then drifts: tool results pile into the context and dilute the original instruction, so by step 4 the model is improvising and steps 5 through 10 are gone from its attention. The fix is to make the plan a first-class artifact the loop carries forward, a todo list the model writes to itself plus a plan mode that gates execution until a written plan is approved. Two distinct failures hide here:
 
 1. **Mid-task drift.** No running checklist, so completed work is forgotten and remaining work is dropped.
 2. **Premature action.** The model edits files before it understands the codebase, then has to undo damage.

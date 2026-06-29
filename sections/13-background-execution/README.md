@@ -2,15 +2,7 @@
 
 > Slow ops go background, the agent keeps thinking.
 
-Some operations are slow: a build, an install, a test suite, a memory-consolidation pass, or a whole subagent (section 6) running its own loop. If the loop (section 1) blocks on each one, the agent sits idle while the model meter runs. Background execution moves slow work off the main loop, lets the agent keep acting, and feeds the result back through a notification when it finishes.
-
----
-
-## Problem
-
-The agent loop is sequential: it calls the model, runs the requested tools, and only re-invokes the model once every tool returns. A 10-minute `npm install` therefore stalls the whole loop for 10 minutes. The model has nothing to do but wait, and nothing else can run.
-
-Reading a file is milliseconds, so blocking is fine. A build is minutes. So something must:
+Some operations are slow: a build, an install, a test suite, a memory-consolidation pass, or a whole subagent (section 6) running its own loop. The agent loop (section 1) is sequential: it calls the model, runs the requested tools, and only re-invokes the model once every tool returns. A 10-minute `npm install` therefore stalls the whole loop for 10 minutes, the model idle while the meter runs and nothing else able to run. Reading a file is milliseconds, so blocking is fine; a build is minutes. So something must:
 
 1. Decide which operations should not block.
 2. Start them off the loop and return immediately with a handle.

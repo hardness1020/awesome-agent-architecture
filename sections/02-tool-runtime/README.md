@@ -2,15 +2,7 @@
 
 > Adding a tool means adding one handler. The loop never moves.
 
-The agent loop (section 1) can only act through tools. The tool runtime is the plumbing that turns a model-emitted `tool_use` block into a real action: it advertises what tools exist, validates and routes each call to its handler, runs independent calls in parallel, and feeds the result back. Capability grows by registering handlers, not by editing the loop.
-
----
-
-## Problem
-
-A model can ask to "read a file" or "run a command," but a model call only emits structured `tool_use` blocks with a `name` and an `input`. Something has to map that name to code, check the input is well formed, execute it, and return a result the model can read.
-
-So the runtime must:
+The agent loop (section 1) can only act through tools. A model can ask to "read a file" or "run a command," but a model call only emits structured `tool_use` blocks with a `name` and an `input`; something has to map that name to code, check the input is well formed, execute it, and return a result the model can read. That plumbing is the tool runtime, and capability grows by registering handlers, not by editing the loop. So the runtime must:
 
 1. Tell the model which tools exist and what arguments each takes (schemas).
 2. Route a `tool_use` block by `name` to the right handler (dispatch).

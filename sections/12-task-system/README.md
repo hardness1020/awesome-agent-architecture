@@ -2,15 +2,7 @@
 
 > Big goals break into small tasks, ordered, persisted to disk.
 
-A turn-scoped checklist dies when the turn ends. A task system promotes work into durable records: each task is a file on disk, with a status, an owner, and dependency edges to other tasks. Work now outlives a single loop turn (section 1), survives a crash, and can be picked up by another agent later.
-
----
-
-## Problem
-
-An agent hands a multi-step project (`set up schema`, then `write the API`, then `add tests`) only has the in-memory message list to track progress. If the loop turn ends, the process exits, or a second agent joins, that progress is gone. Worse, nothing enforces order: the agent can start the API before the schema exists, then backtrack.
-
-So something must:
+A turn-scoped checklist dies when the turn ends. Give an agent a multi-step project (`set up schema`, then `write the API`, then `add tests`) and the only place it tracks progress is the in-memory message list. If the loop turn ends, the process exits, or a second agent joins, that progress is gone. Worse, nothing enforces order: the agent can start the API before the schema exists, then backtrack. A task system promotes work into durable records that outlive a single loop turn (section 1), so something must:
 
 1. Record each unit of work as a durable object, not a transient line in the prompt.
 2. Express ordering as data (`task X is blocked by task Y`).

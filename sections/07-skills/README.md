@@ -2,15 +2,7 @@
 
 > A skill is a manifest plus instructions, loaded into context only when invoked.
 
-Skills are capabilities you add on demand. Each is a folder with a `SKILL.md`: frontmatter metadata plus a body of instructions. The agent always sees a one-line catalog of what exists, but pays for the full body only when it judges a skill relevant and invokes it. This is the opposite of stuffing every guideline into the system prompt (section 10).
-
----
-
-## Problem
-
-You want the agent to follow your React conventions, your SQL style guide, and your PDF workflow. The naive fix is to paste all of it into the system prompt. Now every model call, even one that edits a CSS color, carries thousands of tokens of irrelevant instructions. The cost is paid on every turn and the signal-to-noise drops.
-
-So something must:
+Skills are capabilities you add on demand, each a folder with a `SKILL.md`: frontmatter metadata plus a body of instructions. Say you want the agent to follow your React conventions, your SQL style guide, and your PDF workflow. The naive fix is to paste all of it into the system prompt (section 10); now every model call, even one that edits a CSS color, carries thousands of tokens of irrelevant instructions, paid on every turn as the signal-to-noise drops. So something must:
 
 1. Tell the agent what capabilities exist, cheaply, on every turn.
 2. Load the full instructions only when a capability is actually needed.

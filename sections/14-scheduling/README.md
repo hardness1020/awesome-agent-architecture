@@ -2,15 +2,7 @@
 
 > An alarm clock for the agent. It fires the loop on a schedule, with no human pressing enter.
 
-Background work (section 13) still waits for a human to start it. Scheduling cuts that last string: a clock decides when the loop runs. "Run the tests every morning at 9", "check CI every 30 minutes", "remind me at 2pm" become standing instructions that the agent acts on by itself, at the right time, while you sleep.
-
----
-
-## Problem
-
-Every other section assumes a human kicks things off. The user types, the loop turns. But many real tasks are periodic or deferred: a nightly report, a poll every five minutes, a one-shot reminder. Requiring a person to press enter at the exact moment defeats the point.
-
-So something must:
+Background work (section 13) still waits for a human to start it, and so does every other section: the user types, the loop turns. But many real tasks are periodic or deferred: a nightly report, a poll every five minutes, a one-shot reminder. Requiring a person to press enter at the exact moment defeats the point. Scheduling cuts that last string, a clock decides when the loop runs, so something must:
 
 1. Hold a schedule (a cron expression or a future instant) separate from any one turn.
 2. Watch a clock independently of whether the loop is currently running.

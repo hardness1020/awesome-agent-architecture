@@ -2,13 +2,7 @@
 
 > The prompt is built, not written. Each turn concatenates sections chosen from live state.
 
-An agent's system prompt is its standing instructions: who it is, what tools it has, what the project looks like. None of that is a single hardcoded string. It is assembled at runtime from independent sections, each one switched on or off by the real state of the session (which tools are enabled, whether a memory file exists, which mode is active).
-
----
-
-## Problem
-
-A one-string prompt does not survive contact with a real agent. Once the harness has tools, memory, output styles, and MCP servers, the prompt has to describe whatever is actually live this run.
+An agent's system prompt is its standing instructions: who it is, what tools it has, what the project looks like. None of that survives as a single hardcoded string. A one-string prompt does not survive contact with a real agent: once the harness has tools, memory, output styles, and MCP servers, the prompt has to describe whatever is actually live this run, assembled from independent sections each switched on or off by the real state of the session (which tools are enabled, whether a memory file exists, which mode is active).
 
 1. **Drift.** Hand-editing one giant string means new capability text collides with old instructions, and nobody knows which lines are load-bearing.
 2. **Waste.** Shipping every clause every turn burns tokens on sections the current session does not use (no MCP server connected, no memory file present).

@@ -2,13 +2,7 @@
 
 > Hook around the loop, never rewrite the loop.
 
-Hooks are user-configured callbacks that fire at fixed points in the agent cycle: before a tool runs, after it runs, when a prompt is submitted, when the session starts or stops. They let you log, gate, modify, or inject without touching the `while` (section 1). The loop stays a stable core; extensions clip onto the outside.
-
----
-
-## Problem
-
-Every new behavior you want (log each bash call, auto `git add` after edits, validate input, block a dangerous command) is a temptation to edit the loop body. Do that a few times and the loop is unrecognizable: permission checks, logging, and notifications all tangled into the four numbered steps. The thing you wanted to extend was the agent's behavior, but the thing you changed was the loop itself.
+Hooks are user-configured callbacks that fire at fixed points in the agent cycle: before a tool runs, after it runs, when a prompt is submitted, when the session starts or stops. They let you log, gate, modify, or inject without touching the `while` (section 1): the loop stays a stable core, extensions clip onto the outside. Every new behavior you want (log each bash call, auto `git add` after edits, validate input, block a dangerous command) is otherwise a temptation to edit the loop body. Do that a few times and the loop is unrecognizable: permission checks, logging, and notifications all tangled into the four numbered steps. The thing you wanted to extend was the agent's behavior, but the thing you changed was the loop itself.
 
 Leave hooks out and there is no way to extend the agent except by forking the loop, so every site that wants a side effect rewrites the core.
 
