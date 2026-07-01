@@ -14,6 +14,12 @@ recipient draining its own inbox and folding new messages into its next turn
 requests ride the same channel: a teammate sends a permission_request, the lead
 routes it to a human, and the verdict returns as a permission_response.
 
+The lead does not hand-start teammates. It calls SpawnTeammate, and the harness
+runs each teammate's serve_mailbox loop on a background thread (section 13). A
+teammate pulls its own inbox and acts, so the script drives no one. There is no
+graceful stop yet, the thread is a daemon; section 17 adds the shutdown
+handshake, and section 18 adds pulling tasks off a shared board.
+
 ponytail: one fcntl lock around the whole team (proper-lockfile's analog); split
 to per-inbox locks only if a large roster makes that one lock a bottleneck.
 """
@@ -21,8 +27,11 @@ from __future__ import annotations
 
 import fcntl
 import json
+import time
 from contextlib import contextmanager
 from pathlib import Path
+
+from tools import Tool
 
 
 class Team:
@@ -78,6 +87,12 @@ class Team:
             f.close()
 
 
+def _fold(chat):
+    """Render chat messages as one prompt block, the wire format a teammate reads.
+    One definition so fold_inbox and serve_mailbox cannot drift."""
+    return "\n".join(f"<message from={m['from']!r}>{m['content']}</message>" for m in chat)
+
+
 def fold_inbox(messages, team, name):
     """Drain `name`'s inbox and surface chat (string) messages on its next turn,
     so a teammate folds peers' messages in between turns instead of blocking on
@@ -87,9 +102,31 @@ def fold_inbox(messages, team, name):
     drained = team.drain(name)
     chat = [m for m in drained if isinstance(m["content"], str)]
     if chat and messages and isinstance(messages[-1].get("content"), str):
-        note = "\n".join(f"<message from={m['from']!r}>{m['content']}</message>" for m in chat)
-        messages[-1]["content"] = note + "\n\n" + messages[-1]["content"]
+        messages[-1]["content"] = _fold(chat) + "\n\n" + messages[-1]["content"]
     return drained
+
+
+def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):
+    """A teammate's own loop, spawned on a background thread (section 13): pull the
+    inbox, act, repeat. Each pass drains `me`'s inbox; chat messages fold into one
+    prompt and run `work(prompt)` (one inner loop, section 1), and an empty inbox
+    just sleeps and polls again. So a teammate reacts on its own thread instead of
+    the script driving it. No graceful stop yet: the thread is a daemon that dies
+    with the process. Section 17 adds the shutdown handshake; section 18 adds
+    claiming tasks off a board when the inbox is empty. max_idle_polls bounds the
+    idle wait so a demo or test ends; None runs until the process does. Returns
+    'idle' when a bounded loop gives up."""
+    idle = 0
+    while True:
+        chat = [m for m in team.drain(me) if isinstance(m["content"], str)]
+        if chat:
+            idle = 0
+            work(_fold(chat))                           # one inner loop on the folded message
+            continue
+        idle += 1
+        if max_idle_polls is not None and idle >= max_idle_polls:
+            return "idle"
+        time.sleep(poll)
 
 
 def bubbling_approver(team, me, lead, human):
@@ -106,3 +143,66 @@ def bubbling_approver(team, me, lead, human):
                      if isinstance(m["content"], dict) and m["content"].get("kind") == "permission_response"]
         return bool(responses and responses[-1]["ok"])
     return approve
+
+
+def _send_tool(get_team, me):
+    """The SendMessage tool, shared by message_tools and team_tools. `me` is bound
+    by the harness, not the model, so a teammate cannot spoof another. get_team()
+    returns the team at call time, so one implementation serves both a teammate
+    with a fixed team and a lead whose team exists only after TeamCreate (None
+    until then). Mirrors Claude Code's SendMessageTool."""
+    def send(a):
+        team = get_team()
+        if team is None:
+            return "no team yet: call TeamCreate with the member names first"
+        team.send(me, a["to"], a["message"])
+        return f"sent to {a['to']}"
+
+    return Tool("SendMessage", send,
+                description="Send a message to a teammate by name. Use 'lead' to reach the team lead.",
+                input_schema={"type": "object",
+                              "properties": {"to": {"type": "string"}, "message": {"type": "string"}},
+                              "required": ["to", "message"]})
+
+
+def message_tools(team, me):
+    """SendMessage over an existing team: the model decides to message a teammate,
+    and the harness delivers it over the inbox channel."""
+    return [_send_tool(lambda: team, me)]
+
+
+def team_tools(root, me, formed):
+    """Forming the team is the model's decision, not the script's. TeamCreate
+    materializes the inboxes under `root` into `formed`; the shared SendMessage
+    stays inert until then, so the lead creates the team before it can talk to it.
+    `formed` is a one-slot holder the harness reads back to hand the same Team to
+    teammates that join (ponytail: an in-process stand-in for a team registry;
+    back it with a roster file on disk to let a teammate in another process join)."""
+    def create(a):
+        members = list(dict.fromkeys([me, *a["members"]]))   # the creator joins its own team
+        formed["team"] = Team(root, members)                 # the tool call brings the team into being
+        return f"team created: {', '.join(members)}"
+
+    return [Tool("TeamCreate", create,
+                 description="Create the team with a list of member names. Call this before messaging.",
+                 input_schema={"type": "object",
+                               "properties": {"members": {"type": "array", "items": {"type": "string"}}},
+                               "required": ["members"]}),
+            _send_tool(lambda: formed["team"], me)]          # SendMessage, late-bound on the formed team
+
+
+def teammate_tools(runtime, spawn_worker):
+    """SpawnTeammate as a tool: the lead's model decides to add a teammate, and the
+    harness starts its loop on a background thread (section 13's runtime).
+    `spawn_worker(name)` is the app-supplied thunk that runs that teammate's loop
+    (serve_mailbox here; an autonomy loop from section 18). Whether to spawn is the
+    model's call, not the script's. Mirrors Claude Code spawning an
+    InProcessTeammateTask."""
+    def spawn(a):
+        runtime.start(lambda: spawn_worker(a["name"]))
+        return f"spawned teammate {a['name']}; it runs on its own thread and pulls its own work"
+
+    return [Tool("SpawnTeammate", spawn, is_read_only=True,
+                 description="Spawn a teammate by name; it runs on its own thread and pulls its own work.",
+                 input_schema={"type": "object", "properties": {"name": {"type": "string"}},
+                               "required": ["name"]})]

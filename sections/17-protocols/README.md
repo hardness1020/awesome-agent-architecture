@@ -54,7 +54,34 @@ The approval can also carry the permission mode the work runs under, so the verd
 
 ### New: the protocol tracker
 
-`protocols.py` is one `Protocol` per agent over the section-16 channel. It records each request as pending and resolves the matching reply once:
+`protocols.py` is one `Protocol` per agent over the section-16 channel. A request mints a correlation id and records itself pending; the reply echoes that id back:
+
+```python
+def request(self, to, kind, **fields):                 # src/protocols.py
+    self._n += 1
+    rid = f"{self.me}-{self._n}"                        # per-sender id: unique, deterministic
+    self.pending[rid] = {"kind": kind, "state": PENDING}
+    self.team.send(self.me, to, {"type": kind, "request_id": rid, **fields})
+    return rid
+
+def reply(self, msg, kind, **fields):                  # echo the id back, do not mint a new one
+    req = msg["content"]
+    self.team.send(self.me, msg["from"], {"type": kind, "request_id": req["request_id"], **fields})
+```
+
+- `request` numbers each id `me-N`, so ids are unique per sender and never collide across agents.
+- `reply` reuses the request's `request_id`. That echo is the whole trick: it is how the sender later matches a reply to what it answers.
+
+A small table names which reply kinds may answer each request, and the verdict each one implies:
+
+```python
+_REPLIES = {                                           # src/protocols.py
+    "shutdown_request": {"shutdown_approved": APPROVED, "shutdown_rejected": REJECTED},
+    "plan_approval_request": {"plan_approval_response": None},   # None: the verdict rides an `approved` field
+}
+```
+
+`resolve` reads that table to reject a mismatched reply and to record the verdict, exactly once:
 
 ```python
 def resolve(self, msg):                                # src/protocols.py
@@ -72,25 +99,55 @@ def resolve(self, msg):                                # src/protocols.py
     return state
 ```
 
-- `request` sends a typed message, stores it `pending`, and returns the `request_id`.
-- `reply` echoes that id back, so a response correlates to one request.
-- `resolve` is idempotent: a duplicate or stray reply returns `None`.
-- `_REPLIES` maps each request kind to the reply kinds that may answer it.
+- `resolve` is idempotent: a duplicate or stray reply hits the `state != PENDING` or unknown-id guard and returns `None`.
+- The `verdicts` lookup is the type-confusion guard: a `plan_approval_response` cannot resolve a `shutdown_request`, because that type is not in the shutdown row.
+- Shutdown splits its verdict across two reply kinds; plan approval uses one kind carrying a bool. Both land in the same `pending` to `approved` or `rejected` state.
+- `protocol_tools` exposes the handshake initiations as tools (`ExitPlanMode`, `ApprovePlan`, `StopTeammate`).
+- Confirming a shutdown is not a tool; the teammate's `run_teammate` loop replies automatically (harness-driven reception).
+
+### New: the teammate loop
+
+`run_teammate` is section 16's `serve_mailbox` with the shutdown handshake folded in. A spawned teammate now stops on a request instead of dying with its daemon thread:
+
+```python
+def run_teammate(team, me, lead, work, *, poll=0.05, max_idle_polls=None):   # src/protocols.py
+    proto = Protocol(team, me)
+    while True:
+        inbox = team.drain(me)
+        shutdown = next((m for m in inbox if _is_shutdown(m)), None)
+        if shutdown is not None:
+            proto.reply(shutdown, "shutdown_approved")     # confirm, then stop
+            return "shutdown"
+        chat = [m for m in inbox if isinstance(m["content"], str)]
+        if chat:
+            work(_fold(chat)); continue                    # section 16: fold and run
+        time.sleep(poll)                                   # empty: poll again
+```
+
+- Shutdown is checked before chat, so peer traffic cannot starve a stop.
+- Initiation is model-driven (the lead's `StopTeammate`); reception is harness-driven (the loop confirms), matching the reference's split.
+- The loop returns `"shutdown"`, so the spawning runtime (section 13) reports the clean stop.
+- Section 18 adds one more branch: claim a task off a shared board when the inbox is empty.
 
 ### How it integrates
 
-Protocols wrap a turn from outside, like coordination (section 16):
+The demo runs one main agent. The lead spawns a teammate, delegates, and stops it in one turn; the teammate confirms on its own thread:
 
 ```python
-worker.request("lead", "plan_approval_request", plan=plan)   # src/demo.py
-ask = next(m for m in team.drain("lead") if m["content"]["type"] == "plan_approval_request")
-lead.reply(ask, "plan_approval_response", approved=True, permissionMode="acceptEdits")
-state = next(filter(None, (worker.resolve(m) for m in team.drain("worker"))), None)
+def spawn_worker(name, team, model):                   # src/demo.py, module level
+    ...                                                 # build the teammate's tools
+    return run_teammate(team, name, "lead", work)       # serve_mailbox plus the shutdown handshake
+
+run_turn([...goal...], model, lead_reg, session)        # the one agent call in demo(): the lead
+state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   # -> approved
+                           if isinstance(m["content"], dict))), None)
 ```
 
-- The loop and the subagent path do not change.
-- A request and its reply both ride the inbox channel.
-- The verdict travels with the permission mode the work runs under (section 3).
+- `demo()` runs one `run_turn`, the lead's. It calls `SpawnTeammate`, `SendMessage`, then `StopTeammate`.
+- `StopTeammate` sends a `shutdown_request`; the teammate's `run_teammate` confirms it and returns. The stop is a handshake, not a kill.
+- The lead resolves the echoed `shutdown_approved` to `approved`. The main process only waits.
+- The plan-approval flow is the symmetric inverse (`ExitPlanMode` then `ApprovePlan`), driven by the same tools and proven in test.py.
+- The loop does not change. Protocols wrap a turn by shaping requests and resolving replies on the channel.
 
 ---
 
@@ -98,9 +155,9 @@ state = next(filter(None, (worker.resolve(m) for m in team.drain("worker"))), No
 
 How one design shapes requests, gates plans, and stops agents cleanly.
 
-| System | Message shape | Plan approval | Shutdown |
-| --- | --- | --- | --- |
-| **Claude Code** | Typed union on `type`, with a `request_id`. | Teammate requests, lead approves. | Request, confirm, then kill. |
+| System                | Message shape                                  | Plan approval                     | Shutdown                     |
+| --------------------- | ---------------------------------------------- | --------------------------------- | ---------------------------- |
+| **Claude Code** | Typed union on`type`, with a `request_id`. | Teammate requests, lead approves. | Request, confirm, then kill. |
 
 ### Claude Code
 
@@ -132,9 +189,9 @@ How one design shapes requests, gates plans, and stops agents cleanly.
 
 [`src/`](src/) carries 16 forward and adds:
 
-- [`protocols.py`](src/protocols.py): a per-agent request tracker with typed variants, correlation ids, and an idempotent state machine.
-- [`test.py`](src/test.py): checks the shutdown and plan flows, the type-confusion guard, duplicate replies, and unanswered requests.
-- [`demo.py`](src/demo.py): runs a plan-approval round trip and a shutdown handshake over the channel.
+- [`protocols.py`](src/protocols.py): the request tracker (typed variants, correlation ids, state machine), the handshake tools, and the `run_teammate` loop.
+- [`test.py`](src/test.py): checks the shutdown and plan flows, the guards, a tool-driven handshake, and a self-running teammate stopped by the handshake.
+- [`demo.py`](src/demo.py): one lead turn spawns a teammate, delegates, and stops it with StopTeammate; the teammate confirms on its own thread.
 
 The loop and subagent path are unchanged. Protocols wrap a turn by shaping requests and resolving replies on the channel.
 

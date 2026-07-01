@@ -1,34 +1,62 @@
-"""Section 17 demo: two protocol round trips over the section-16 channel. The
-worker uses the model to draft a one-line plan, then asks the lead to approve it
-before any work starts; the lead approves and pins the permission mode the work
-runs under. With the plan gated, the lead stops the worker with a shutdown
-handshake: it asks, the worker flushes and confirms, and the lead resolves the
-stop cleanly instead of killing the thread mid-flight.
+"""Section 17 demo: one main agent, one run_turn, and a graceful stop. The lead is
+a normal loop with tools. It spawns a self-running teammate (section 16), delegates
+a one-line task with SendMessage, then asks the teammate to stop cleanly with
+StopTeammate. The teammate is not killed: its run_teammate loop confirms the
+shutdown_request with shutdown_approved and returns, so the stop is a handshake
+(section 17), not a daemon dying with the process.
 
-The loop and the subagent path are unchanged (section 16 kept them too):
-protocols layer typed request/reply on the channel, so the model only writes the
-plan text; protocols.py shapes, correlates, and resolves the exchanges. The state
-machine and its guards are proven offline in test.py. Runs in a throwaway temp
-dir, so it never touches this repo.
+There is a single run_turn in demo(), the lead's. The teammate's own run_turn
+lives in spawn_worker (module level), reached only through the lead's spawn tool
+call. The lead decides to spawn, delegate, and stop; the teammate confirms the
+stop on its own thread. The plan-approval handshake is the symmetric inverse (the
+teammate requests, the lead approves) and is proven offline in test.py, along with
+the correlation and state-machine logic. Runs in a throwaway temp dir.
 
     uv run python sections/17-protocols/src/demo.py    (needs ANTHROPIC_API_KEY; see root README)
 """
 import os
+import subprocess
 import tempfile
+import time
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+import background
 import mailbox
-import protocols
 from loop import Session, run_turn
-from tools import Registry
+from permissions import DEFAULT
+from protocols import Protocol, protocol_tools, run_teammate
+from tools import Registry, Tool
 
 load_dotenv(override=True)
 
 MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-SYSTEM = ("You are 'worker', a teammate on a small agent team. Reply with one short line only, "
-          "no preamble.")
+LEAD_SYSTEM = ("You are the team lead. Spawn a teammate, delegate a one-line task with SendMessage, "
+               "then ask the teammate to stop cleanly with StopTeammate. Be brief.")
+WORKER_SYSTEM = "You are a teammate. Do the task in your inbox using the shell in one line. Be brief."
+IDLE_STOP = 200   # backstop: the teammate stops on the handshake; this only bounds a demo where no stop arrives
+
+
+def sh(a):
+    return subprocess.run(a["command"], shell=True, capture_output=True, text=True, timeout=60).stdout.strip()
+
+
+def spawn_worker(name, team, model):
+    """One teammate: pull the mailbox and do each task, but stop on the lead's
+    shutdown handshake (run_teammate, section 17). This is the teammate's own
+    run_turn, reached only when the lead calls SpawnTeammate, so demo() runs only
+    the lead."""
+    reg = Registry()
+    reg.register(Tool("Bash", sh, description="Run a shell command.",
+                      input_schema={"type": "object", "properties": {"command": {"type": "string"}},
+                                    "required": ["command"]}))
+
+    def work(prompt):
+        run_turn([{"role": "user", "content": prompt}], lambda m, r, s: model(m, r, WORKER_SYSTEM), reg,
+                 Session(mode=DEFAULT, allow_rules={"Bash"}))
+
+    return run_teammate(team, name, "lead", work, max_idle_polls=IDLE_STOP)
 
 
 def demo():
@@ -39,35 +67,39 @@ def demo():
     client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
 
     def model(messages, registry, system):
-        return client.messages.create(model=MODEL, system=system or SYSTEM, messages=messages,
-                                       tools=registry.schemas(), max_tokens=256)
+        return client.messages.create(model=MODEL, system=system, messages=messages,
+                                       tools=registry.schemas(), max_tokens=512)
 
     with tempfile.TemporaryDirectory() as root:
-        team = mailbox.Team(root, ["lead", "worker"])
-        lead = protocols.Protocol(team, "lead")
-        worker = protocols.Protocol(team, "worker")
+        team = mailbox.Team(root, ["lead", "worker-1"])    # roster is config; section 16 shows the model forming it
+        runtime = background.Runtime()
+        lead_proto = Protocol(team, "lead")                # the lead's request tracker (StopTeammate uses it)
 
-        # the worker drafts a plan with the model (no tools needed: it is just text)
-        messages = [{"role": "user",
-                     "content": "Propose in one line how you would rename the function foo to bar across a repo."}]
-        plan = run_turn(messages, model, Registry(), Session())
-        print("17 protocols: worker plan:", plan)
+        # lead config: the handshake tools, SendMessage to delegate, and SpawnTeammate.
+        lead_reg = Registry()
+        for t in protocol_tools(lead_proto, lead="lead"):
+            lead_reg.register(t)
+        for t in mailbox.message_tools(team, "lead"):
+            lead_reg.register(t)
+        for t in mailbox.teammate_tools(runtime, lambda name: spawn_worker(name, team, model)):
+            lead_reg.register(t)
 
-        # plan approval: the worker requests, the lead approves before work starts
-        worker.request("lead", "plan_approval_request", plan=plan)
-        ask = next(m for m in team.drain("lead") if m["content"]["type"] == "plan_approval_request")
-        print("17 protocols: lead reviews the plan; approving (acceptEdits)")
-        lead.reply(ask, "plan_approval_response", approved=True, permissionMode="acceptEdits")
-        state = next(filter(None, (worker.resolve(m) for m in team.drain("worker"))), None)
-        print("17 protocols: plan", state)                  # -> approved
+        # The one agent call in demo(): the lead spawns a teammate, delegates, and stops it.
+        goal = ("Spawn a teammate named worker-1. Send it a one-line task with SendMessage: run the "
+                "`date` command. Then ask worker-1 to stop cleanly with StopTeammate.")
+        run_turn([{"role": "user", "content": goal}], lambda m, r, s: model(m, r, LEAD_SYSTEM), lead_reg,
+                 Session(mode=DEFAULT, allow_rules={"SendMessage"}))   # StopTeammate/SpawnTeammate are read-only
 
-        # shutdown: the lead asks, the worker flushes and confirms, the lead resolves
-        lead.request("worker", "shutdown_request", reason="task done")
-        req = next(m for m in team.drain("worker") if m["content"]["type"] == "shutdown_request")
-        print("17 protocols: worker flushing state, then confirming stop")
-        worker.reply(req, "shutdown_approved")
-        stop = next(filter(None, (lead.resolve(m) for m in team.drain("lead"))), None)
-        print("17 protocols: shutdown", stop)               # -> approved, a clean stop
+        # The teammate ran itself and confirmed the stop on its own thread. Resolve
+        # the lead's side of the handshake from its inbox. The main process only waits.
+        state = None
+        for _ in range(600):
+            state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")
+                                       if isinstance(m["content"], dict))), None)
+            if state:
+                break
+            time.sleep(0.05)
+        print("17 protocols: worker stop ->", state)       # -> approved
 
 
 if __name__ == "__main__":
