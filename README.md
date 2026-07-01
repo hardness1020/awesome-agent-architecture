@@ -4,7 +4,7 @@
 [![Systems: 1+](https://img.shields.io/badge/systems-1%2B-0a7bbb)](#systems-under-study)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> How modern AI agents are built around the model.
+> Learn how modern AI agents are built around the LLM.
 
 The model provides reasoning. The harness provides action, state, and limits.
 
@@ -123,14 +123,14 @@ awesome-agent-architecture/
 
 Each section folder is `NN-name/` and contains a `README.md`.
 
-Sections 1 to 19 also carry a runnable `src/`. The code accumulates section by section.
+Sections 1 to 20 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 ---
 
 ## Running the Demos
 
-Sections 1 to 19 ship runnable demos. Set up once from the repo root:
+Sections 1 to 20 ship runnable demos. Set up once from the repo root:
 
 ```bash
 uv venv
