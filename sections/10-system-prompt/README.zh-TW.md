@@ -1,6 +1,6 @@
 # 10 · System prompt assembly
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 每一輪都從即時狀態組出 prompt。
 

@@ -1,6 +1,6 @@
 # 5 · Planning & todos
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Store the plan before doing multi-step work.
 

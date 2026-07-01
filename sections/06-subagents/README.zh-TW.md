@@ -1,6 +1,6 @@
 # 6 · Subagents
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 執行一個聚焦的子迴圈，只回傳它的結果。
 

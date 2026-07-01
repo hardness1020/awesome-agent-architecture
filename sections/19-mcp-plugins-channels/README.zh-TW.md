@@ -1,6 +1,6 @@
 # 19 · MCP / plugins / channels
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 能力不夠？插進更多。harness 透過一套標準協定伸手觸及外面的世界。
 
@@ -175,4 +175,3 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 - Claude Code MCP config and channels：`config.ts`（precedence）、`channelNotification.ts`（`CHANNEL_TAG`），加上 `McpAuthTool`、`ListMcpResourcesTool`、`ReadMcpResourceTool`。
 - Claude Code plugins：`plugins/builtinPlugins.ts`、`plugins/bundled/`、`types/plugin.ts`，加上 `remote/` 與 `bridge/`。
 - 章節定位：learn-claude-code · s19_mcp_plugin。
-</content>

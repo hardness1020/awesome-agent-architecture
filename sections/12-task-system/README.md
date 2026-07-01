@@ -1,6 +1,6 @@
 # 12 · Task system
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Store work as durable tasks with dependencies.
 

@@ -1,6 +1,6 @@
 # 13 · Background execution
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Start slow work off the main loop and report back later.
 

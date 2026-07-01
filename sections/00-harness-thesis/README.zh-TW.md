@@ -1,6 +1,6 @@
 # 0 · Harness thesis
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 模型決定要做什麼。harness 提供工具、狀態與限制。
 

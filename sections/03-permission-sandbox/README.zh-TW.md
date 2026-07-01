@@ -1,6 +1,6 @@
 # 3 · Permission & sandbox
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 在每個動作抵達系統之前先做檢查。
 

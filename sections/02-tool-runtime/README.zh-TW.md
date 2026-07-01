@@ -1,6 +1,6 @@
 # 2 · Tool runtime
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 新增一項能力，就是註冊一個工具。迴圈維持不變。
 

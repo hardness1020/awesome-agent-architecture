@@ -1,6 +1,6 @@
 # 20 · Observability & evaluation
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 你無法修好你看不見的東西，也無法信任你從未量測過的東西。
 
@@ -168,4 +168,3 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
 - Claude Code cost and diagnostics：`cost-tracker.ts`、`utils/modelCost.ts`、`costHook.ts`（`formatTotalCost`）、`diagnosticTracking.ts`、`upstreamproxy/relay.ts`。
 - evaluation 不在這份原始碼裡。eval harness、SWE-bench 風格的套件，以及 LLM-as-judge，均以重建與一般做法描述。
 - 章節定位：learn-claude-code · s20_comprehensive。
-</content>

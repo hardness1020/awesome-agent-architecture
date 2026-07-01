@@ -1,6 +1,6 @@
 # 16 · Coordination
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > lead 依任務規模組出一個團隊，把隊友各自 spawn 到獨立的 thread 上，大家透過共用的 inbox 交談。
 

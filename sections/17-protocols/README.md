@@ -1,6 +1,6 @@
 # 17 · Protocols
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Give messages a contract: approve before acting, confirm before stopping.
 

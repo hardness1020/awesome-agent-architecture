@@ -1,6 +1,6 @@
 # 11 · Error recovery
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 先分類失敗，再重試、調整，或停止。
 

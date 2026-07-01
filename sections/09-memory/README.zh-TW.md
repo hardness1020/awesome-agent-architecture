@@ -1,6 +1,6 @@
 # 9 · Memory
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 把持久的事實儲存在對話之外。
 

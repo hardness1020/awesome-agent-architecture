@@ -1,6 +1,6 @@
 # 10 · System prompt assembly
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Build the prompt from live state each turn.
 

@@ -1,6 +1,6 @@
 # 1 · Agent Loop
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > One loop keeps calling the model until it answers or asks for a tool.
 

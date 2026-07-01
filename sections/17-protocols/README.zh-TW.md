@@ -1,6 +1,6 @@
 # 17 · Protocols
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 給訊息一份契約：行動前先審核，停止前先確認。
 

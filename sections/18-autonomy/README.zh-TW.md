@@ -1,6 +1,6 @@
 # 18 · Autonomy
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 在沒有人類 prompt 的情況下跑 loop：閒置時掃描看板，認領一個就緒的 task，然後動工。
 
@@ -218,5 +218,3 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
 - Claude Code autonomy：`utils/swarm/inProcessRunner.ts`（`runInProcessTeammate`、`waitForNextPromptOrShutdown`、`findAvailableTask`、`tryClaimNextTask`、`sendIdleNotification`）。
 - Claude Code claim and watch：`utils/tasks.ts`（`proper-lockfile` 之下的 `claimTask`、`claimTaskWithBusyCheck`）、`hooks/useTaskListWatcher.ts`、`coordinator/coordinatorMode.ts`。
 - learn-claude-code · s17 autonomous agents：章節定位。
-</content>
-</invoke>

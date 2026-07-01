@@ -1,6 +1,6 @@
 # 8 · Context management
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 讓長時間的 session 維持在 context limit 以內。
 

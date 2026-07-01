@@ -1,6 +1,6 @@
 # 13 · Background execution
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 把慢工作移出主 loop 開始執行，稍後再回報。
 

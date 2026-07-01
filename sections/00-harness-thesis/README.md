@@ -1,6 +1,6 @@
 # 0 · Harness thesis
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > The model decides what to do. The harness gives it tools, state, and limits.
 

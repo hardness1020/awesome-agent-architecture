@@ -1,6 +1,6 @@
 # 15 · Worktree isolation
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 給平行運作的 agent 各自獨立的工作目錄。
 

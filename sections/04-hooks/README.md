@@ -1,6 +1,6 @@
 # 4 · Hooks
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Hooks add behavior at fixed points around the loop.
 

@@ -1,6 +1,6 @@
 # 11 · Error recovery
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Classify failures, then retry, adjust, or stop.
 

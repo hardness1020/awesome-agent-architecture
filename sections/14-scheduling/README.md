@@ -1,6 +1,6 @@
 # 14 · Scheduling
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Start agent turns from a clock, not only from user input.
 

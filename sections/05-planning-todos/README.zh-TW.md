@@ -1,6 +1,6 @@
 # 5 · Planning & todos
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 在進行多步驟工作之前，先把計畫存起來。
 

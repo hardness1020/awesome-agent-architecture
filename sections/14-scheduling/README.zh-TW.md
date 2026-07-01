@@ -1,6 +1,6 @@
 # 14 · Scheduling
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 讓 agent 的 turn 由時鐘啟動，而不只是由 user 輸入啟動。
 

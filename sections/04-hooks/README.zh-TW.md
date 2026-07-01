@@ -1,6 +1,6 @@
 # 4 · Hooks
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > hook 在迴圈周圍的固定點加入行為。
 

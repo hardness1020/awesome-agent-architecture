@@ -1,6 +1,6 @@
 # 1 · Agent Loop
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 一個迴圈不斷呼叫模型，直到它給出答案或要求使用工具。
 

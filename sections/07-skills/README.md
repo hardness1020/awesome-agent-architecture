@@ -1,6 +1,6 @@
 # 7 · Skills
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > A skill is a self-contained bundle of expertise, instructions plus any scripts and files, loaded only when a task needs it.
 
