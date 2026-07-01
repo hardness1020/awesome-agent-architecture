@@ -57,7 +57,7 @@ The loop is small. Most engineering is around it: dispatch tools, gate side effe
 
 ---
 
-## Method
+## How to learn
 
 Every section is self-contained and uses the same four-part lens:
 
@@ -65,7 +65,6 @@ Every section is self-contained and uses the same four-part lens:
 2. **Mechanism.** The general design and control flow.
 3. **Per system.** How real systems implement it.
 4. **Failure modes.** What breaks and how to mitigate it.
-
 
 To learn from this repo:
 
