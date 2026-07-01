@@ -32,6 +32,7 @@ SAFE_FIELDS = {"event", "tool", "model", "duration_ms", "ok", "tokens", "cost_us
 # Per-model price per token (input, output) in USD; illustrative, not current.
 PRICES = {
     "claude-opus-4-8":   (15e-6, 75e-6),
+    "claude-sonnet-5":   (3e-6, 15e-6),
     "claude-sonnet-4-6": (3e-6, 15e-6),
     "claude-haiku-4-5":  (0.8e-6, 4e-6),
 }
