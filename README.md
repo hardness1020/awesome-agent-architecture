@@ -15,20 +15,12 @@
   <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
 </p>
 
+The model reasons. The harness gives it action, state, and limits: it runs tools, keeps state across calls, gates side effects, and coordinates loops, none of which a model call does by itself.
 
-The model provides reasoning. The harness provides action, state, and limits.
+This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces. Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
-A model call can produce text or request a tool.
-It cannot run the tool, remember state across calls, gate side effects, or coordinate other loops by itself.
-The harness does that work.
-
-This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
-Each section teaches one mechanism and compares it with real systems.
-
-Learn the harness once and you can read many agents. A coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
-
-**Contents:** [Systems](#systems-under-study) · [Loop](#the-agent-loop) · [Sections](#sections) ·
-[Method](#method) · [Structure](#repository-structure) · [Running](#running-the-demos)
+**Contents:** [Systems](#systems-under-study) · [Loop](#the-agent-loop) · [Method](#method) ·
+[Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
 
 ---
 
@@ -62,6 +54,24 @@ flowchart LR
 ```
 
 The loop is small. Most engineering is around it: dispatch tools, gate side effects, manage context, persist state, and coordinate other loops.
+
+---
+
+## Method
+
+Every section is self-contained and uses the same four-part lens:
+
+1. **Opening.** What problem this layer solves.
+2. **Mechanism.** The general design and control flow.
+3. **Per system.** How real systems implement it.
+4. **Failure modes.** What breaks and how to mitigate it.
+
+
+To learn from this repo:
+
+- **Read the sections in order. Each builds on the layer before it**.
+- For a runnable section, read `src/loop.py`, then run its `test.py` and `demo.py`.
+- Diff a section's `src/` against the section before it. The diff is the one mechanism that section adds.
 
 ---
 
@@ -99,19 +109,6 @@ Seven layers, from the basic loop to a multi-agent harness. Each row links to on
 | | **Layer 6 · Extension & Integration** | | |
 | 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/) | How does the harness reach the world? | Transports, channels, tool pool assembly |
 | 20 | [Observability & evaluation](sections/20-observability/) | How do we know it works? | Tracing, metrics, evals, failure analysis |
-
----
-
-## Method
-
-Every section uses the same lens:
-
-1. **Opening.** What problem this layer solves.
-2. **Mechanism.** The general design and control flow.
-3. **Per system.** How real systems implement it.
-4. **Failure modes.** What breaks and how to mitigate it.
-
-Mechanisms should be named and verifiable. Diagrams and small code snippets are preferred over vague description.
 
 ---
 
