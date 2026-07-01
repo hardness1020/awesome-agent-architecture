@@ -3,14 +3,18 @@
 Introduced in section 7, then carried forward unchanged.
 
 A skill reveals itself in three levels, each loaded only when needed:
-  L1 metadata  : name + description (frontmatter), always in the catalog (cheap).
-  L2 body      : the SKILL.md instructions, read on invoke (skill_tool).
-  L3 resources : files bundled in the skill folder. The body points to them and
-                 the agent reads them with its normal file tools (Read / Bash),
-                 not a skill-specific tool, on demand.
-load_skills() scans the dir and keeps only L1; skill_tool reads L2 from disk on
-invoke. Mirrors Claude Code's loadSkillsDir (scans .claude/skills) + SkillTool;
-L3 reads go through the agent's Read tool, path-scoped by resolveSkillFilePath.
+  L1 metadata  : name + description (frontmatter), always in the system prompt (cheap).
+  L2 body      : the SKILL.md instructions, read on demand with the normal file tool.
+  L3 resources : files bundled in the skill folder, read with the same file tool.
+
+No skill-specific tool is needed. Once the catalog (name, description, path) sits
+in the system prompt, the agent loads a skill by reading its SKILL.md with the same
+Read tool it uses for any file. L2 (body) and L3 (resources) both go through that
+one tool. load_skills() scans the dir and keeps only L1; catalog_prompt() renders
+the L1 block for the system prompt. Mirrors Claude Code's loadSkillsDir (scans
+.claude/skills) and its system-prompt skill listing. Claude Code wraps body-loading
+in a SkillTool because its skills also fork and scope tools; the plain mechanism
+here does not need one, so a normal path-scoped Read does the job.
 """
 from __future__ import annotations
 
@@ -21,10 +25,10 @@ from tools import Tool
 
 MAX_LISTING_DESC_CHARS = 80   # per-entry cap keeps the catalog cheap (Claude Code uses 250)
 
-NAME_SCHEMA = {
+PATH_SCHEMA = {
     "type": "object",
-    "properties": {"name": {"type": "string"}},
-    "required": ["name"],
+    "properties": {"path": {"type": "string"}},
+    "required": ["path"],
 }
 
 
@@ -46,24 +50,29 @@ def load_skills(skills_dir) -> list[Skill]:
     return skills
 
 
-def catalog(skills) -> str:
-    """L1: one line per skill, name + (truncated) description. Always-on, cheap."""
-    return "\n".join(f"- {s.name}: {s.description[:MAX_LISTING_DESC_CHARS]}" for s in skills)
+def catalog_prompt(skills, base_dir) -> str:
+    """L1: the skills block injected into the system prompt at startup, so the model
+    knows which skills exist and where to read each one. Name + description + path
+    only, never the body. The agent reads the path with its normal Read tool."""
+    base = Path(base_dir)
+    lines = [f"- {s.name}: {s.description[:MAX_LISTING_DESC_CHARS]} (read {s.path.relative_to(base)})"
+             for s in skills]
+    return "Available skills (read a skill's path with the Read tool to load it):\n" + "\n".join(lines)
 
 
-def skill_tool(skills) -> Tool:
-    """L2: read one skill's body from disk into the conversation on invoke."""
-    by_name = {s.name: s for s in skills}
+def read_tool(base_dir) -> Tool:
+    """The normal file tool. Loads a skill body (L2) or a bundled resource (L3) by
+    path. Scoped to base_dir so a skill name can never escape into the filesystem."""
+    base = Path(base_dir).resolve()
 
-    def load(a):
-        skill = by_name.get(a["name"])
-        if skill is None:
-            raise KeyError(f"no skill {a['name']!r}")   # invoke by registered name, never a raw path
-        _meta, body = _split(skill.path.read_text())
-        return body                                       # tool result -> enters messages[]
+    def read(a):
+        target = (base / a["path"]).resolve()
+        if not target.is_relative_to(base):          # reject path traversal (../../etc/passwd)
+            raise ValueError(f"path {a['path']!r} escapes the skills dir")
+        return target.read_text()                     # tool result -> enters messages[]
 
-    description = "Load a skill body by name. Available:\n" + catalog(skills)
-    return Tool("Skill", load, description=description, input_schema=NAME_SCHEMA, is_read_only=True)
+    return Tool("Read", read, description="Read a file by its path.",
+                input_schema=PATH_SCHEMA, is_read_only=True)
 
 
 def _split(text):

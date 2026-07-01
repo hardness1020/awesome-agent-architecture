@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from loop import Session, run_turn
 from permissions import DEFAULT
-from skills import load_skills, skill_tool
+from skills import catalog_prompt, load_skills, read_tool
 from tools import Registry
 
 load_dotenv(override=True)
@@ -28,12 +28,15 @@ def demo():
 
     client = Anthropic(base_url=os.environ.get("ANTHROPIC_BASE_URL") or None)
 
+    skills = load_skills(SKILLS_DIR)
+    system = SYSTEM + "\n\n" + catalog_prompt(skills, SKILLS_DIR)   # L1 catalog rides in the system prompt
+
     def model(messages, registry):
-        return client.messages.create(model=MODEL, system=SYSTEM, messages=messages,
+        return client.messages.create(model=MODEL, system=system, messages=messages,
                                        tools=registry.schemas(), max_tokens=1024)
 
     reg = Registry()
-    reg.register(skill_tool(load_skills(SKILLS_DIR)))   # L2; the agent's Read tool would do L3
+    reg.register(read_tool(SKILLS_DIR))                 # one file tool serves L2 (SKILL.md) and L3 (resources)
     
     answer = run_turn([{"role": "user", "content": "Use the pdf-fill skill and tell me step 1."}], model, reg, Session(mode=DEFAULT))
     print("07 skills ->", answer)

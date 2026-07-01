@@ -1,10 +1,15 @@
 # 7 · Skills
 
-> A skill is a named instruction bundle loaded only when needed.
+**English** · [繁體中文](README.zh-TW.md)
 
-Skills let an agent use extra instructions without putting all of them in the system prompt.
+> A skill is a self-contained bundle of expertise, instructions plus any scripts and files, loaded only when a task needs it.
 
-Each skill is a folder with a `SKILL.md` file. The frontmatter describes the skill. The body contains the instructions.
+A skill turns a general agent into a specialist for one job.
+It packages a workflow: the instructions to follow, plus any scripts to run and reference files to consult.
+The agent loads a skill only when a task calls for it, so one agent can reach many specialized capabilities without carrying them all up front.
+
+Each skill is a folder with a `SKILL.md` file. The frontmatter names and describes the skill.
+The body holds the instructions, and the folder can bundle extra scripts and reference files that load only when the skill uses them.
 
 The agent needs to know that skills exist, but it should not pay for every skill body on every turn.
 
@@ -23,28 +28,31 @@ Without this layer, the prompt is either too large or the agent cannot find its 
 
 Skills use progressive disclosure. The model sees only enough information to decide whether to load more.
 
-1. **Metadata.** `name` and `description` from frontmatter. This cheap catalog is visible every turn.
-2. **Instructions.** The `SKILL.md` body. It is loaded only when the model invokes the skill.
-3. **Resources.** Extra files in the skill folder. They are read only when the instructions point to them.
+1. **Metadata.** `name` and `description` from frontmatter, plus the skill's path. This cheap catalog rides in the system prompt every turn.
+2. **Instructions.** The `SKILL.md` body. The model reads the file only when a task needs the skill.
+3. **Resources.** Extra files in the skill folder. The model reads them with the same file tool when the instructions point to them.
+
+No skill-specific tool is needed. Once the catalog names each skill and its path,
+the agent loads a skill by reading its file with the normal Read tool. L2 and L3 are both just file reads.
 
 ```mermaid
 flowchart LR
-    D["scan dirs · name + description"] --> C["catalog in context"]
+    D["scan dirs · name + description + path"] --> C["catalog in system prompt"]
     C --> M{{model call}}
-    M -->|invoke Skill| L["load SKILL.md body"]
+    M -->|Read SKILL.md| L["skill body enters messages[]"]
     L --> M
-    M -->|body cites a file| R["read resource file"]
+    M -->|body cites a file| R["Read resource file"]
     R --> M
 ```
 
-### New: scan and the Skill tool
+### New: scan the skills and list them in the prompt
 
 ```python
 @dataclass
 class Skill:                                   # src/skills.py
     name: str
     description: str                           # L1: frontmatter -> the catalog
-    path: Path                                # SKILL.md; the body is read on invoke
+    path: Path                                # SKILL.md; the body is read on demand
 
 def load_skills(skills_dir) -> list[Skill]:    # L1: scan <dir>/<name>/SKILL.md at startup
     skills = []
@@ -53,24 +61,21 @@ def load_skills(skills_dir) -> list[Skill]:    # L1: scan <dir>/<name>/SKILL.md 
         skills.append(Skill(meta["name"], meta["description"], sub / "SKILL.md"))
     return skills
 
-def skill_tool(skills) -> Tool:                # L2: read the body from disk on invoke
-    by_name = {s.name: s for s in skills}
-    def load(a):
-        _, body = _split(by_name[a["name"]].path.read_text())
-        return body                            # tool result -> enters messages[]
-    return Tool("Skill", load, is_read_only=True)
+def catalog_prompt(skills, base_dir) -> str:   # L1: the block added to the system prompt
+    lines = [f"- {s.name}: {s.description} (read {s.path.relative_to(base_dir)})" for s in skills]
+    return "Available skills (read a skill's path with the Read tool):\n" + "\n".join(lines)
 ```
 
 - `load_skills` scans `SKILL.md` files and keeps only frontmatter for the catalog.
-- `skill_tool` reads the selected body on demand.
-- Resources are not a separate skill mechanism. The loaded instructions point to files, and the normal file tool reads them.
-- Skills load by registered name, not by arbitrary path.
+- `catalog_prompt` renders that catalog into the system prompt, one line per skill, with the path to read.
+- The body and the resources are plain files. The normal Read tool loads them on demand, so there is no skill-specific tool.
+- The Read tool is scoped to the skills directory, so a skill name can never escape into the filesystem.
 
 ### How it integrates
 
-The loop does not change. A skill is a tool result that enters `messages[]`.
+The loop does not change. Reading a skill returns a tool result that enters `messages[]`.
 
-The catalog belongs in the prompt. The full body belongs in the conversation only after invocation. Resource files are read later only if needed.
+The catalog belongs in the system prompt. The body enters the conversation only after the model reads the file. Resource files are read later only if needed.
 
 Because loaded skill text lives in `messages[]`, it can be compacted like any other message. Keep skill bodies short and point to files for large references.
 
@@ -93,6 +98,7 @@ How each agent describes, triggers, and finds skills.
 - `context: 'fork'` runs the skill in a forked subagent.
 - `paths` can activate skills when matching files are touched.
 - MCP-served skills and legacy `.claude/commands/` use the same machinery.
+- A skill that only loads instructions needs no dedicated tool. Claude Code uses `SkillTool.ts` because its skills also fork and scope tools.
 
 > **Trade-off:** A cheap catalog keeps context small. It also depends on good descriptions. If the description is vague, the model may never load the skill.
 
@@ -102,8 +108,8 @@ How each agent describes, triggers, and finds skills.
 
 - **Skill never fires.** The description is too vague. Write trigger-shaped descriptions.
 - **Catalog gets too large.** Too many skills can crowd the prompt. Keep skills focused and let the loader trim.
-- **Body is lost after compaction.** Re-invoke the skill or keep the body short.
-- **Path traversal.** Do not load by raw path. Resolve resources inside the registered skill directory.
+- **Body is lost after compaction.** Re-read the skill file or keep the body short.
+- **Path traversal.** The catalog hands the model a path. Scope the Read tool to the skills directory so `../` cannot escape it.
 - **Forked skill loses live context.** Use forked skills only for self-contained work.
 
 ---
@@ -112,10 +118,10 @@ How each agent describes, triggers, and finds skills.
 
 [`src/`](src/) carries 06 forward and adds:
 
-- [`skills.py`](src/skills.py): catalog scan and the `Skill` tool.
+- [`skills.py`](src/skills.py): catalog scan, the system-prompt listing, and a path-scoped `Read` tool.
 - `skills/<name>/SKILL.md`: sample skills, including one with a resource file.
-- [`loop.py`](src/loop.py): unchanged because a skill is just another tool.
-- [`test.py`](src/test.py): checks catalog scan, body load, and bundled files.
+- [`loop.py`](src/loop.py): unchanged because loading a skill is just a file read.
+- [`test.py`](src/test.py): checks catalog scan, the prompt listing, file loads, and path-traversal rejection.
 
 ```bash
 python sections/07-skills/src/test.py         # offline checks, no key
