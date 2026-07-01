@@ -1,10 +1,20 @@
-# Awesome Agent Architecture
+<h1 align="center" style="margin-top: 0;">Awesome Agent Architecture</h1>
 
-[![Focus: Harness Engineering](https://img.shields.io/badge/focus-harness%20engineering-6e40c9)](#sections)
-[![Systems: 1+](https://img.shields.io/badge/systems-1%2B-0a7bbb)](#systems-under-study)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center">
+  <strong>Learn how modern AI agents are built around the LLM.</strong><br>
+</p>
 
-> Learn how modern AI agents are built around the LLM.
+<p align="center">
+  <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
+  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-1+-0a7bbb?style=for-the-badge" alt="Systems"></a>
+  <a href="#sections"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
+</p>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
+</p>
+
 
 The model provides reasoning. The harness provides action, state, and limits.
 
