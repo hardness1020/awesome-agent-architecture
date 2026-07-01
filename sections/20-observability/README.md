@@ -1,5 +1,7 @@
 # 20 · Observability & evaluation
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > You cannot fix what you cannot see, and you cannot trust what you never measured.
 
 An agent runs unattended, takes side effects, and spends money. A model call is a black box: it burns tokens and triggers real actions.

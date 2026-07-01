@@ -1,5 +1,7 @@
 # 12 · Task system
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Store work as durable tasks with dependencies.
 
 A turn-scoped checklist disappears when the turn or process ends. It also does not enforce ordering.

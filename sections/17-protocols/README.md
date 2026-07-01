@@ -1,5 +1,7 @@
 # 17 · Protocols
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Give messages a contract: approve before acting, confirm before stopping.
 
 Coordination (section 16) gives agents a channel, but a channel only moves text. Text alone has no contract.

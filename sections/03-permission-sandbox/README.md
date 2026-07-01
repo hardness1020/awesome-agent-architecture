@@ -1,5 +1,7 @@
 # 3 · Permission & sandbox
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Check each action before it reaches the system.
 
 The model can ask to run any enabled tool. The permission layer decides whether that call may run.

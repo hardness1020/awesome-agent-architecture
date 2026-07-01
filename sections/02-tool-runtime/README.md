@@ -1,5 +1,7 @@
 # 2 · Tool runtime
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Adding a capability means registering a tool. The loop stays the same.
 
 The agent loop can only act through tools. The model emits a structured `tool_use` block with a `name` and an `input`.

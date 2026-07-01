@@ -1,5 +1,7 @@
 # 15 · Worktree isolation
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Give parallel agents separate working directories.
 
 A single working directory is shared mutable state. If two agents write the same file at the same time, one can overwrite the other's work.

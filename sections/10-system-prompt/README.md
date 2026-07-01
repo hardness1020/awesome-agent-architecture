@@ -1,5 +1,7 @@
 # 10 · System prompt assembly
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Build the prompt from live state each turn.
 
 The system prompt is the agent's standing instruction set. It describes identity, rules, tools, project context, and active features.

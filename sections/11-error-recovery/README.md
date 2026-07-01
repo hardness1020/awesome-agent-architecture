@@ -1,5 +1,7 @@
 # 11 · Error recovery
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Classify failures, then retry, adjust, or stop.
 
 An agent run can span many model calls. Any call can fail because of network issues, overload, rate limits, output limits, or context overflow.

@@ -1,5 +1,7 @@
 # 9 · Memory
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Store durable facts outside the conversation.
 
 `messages[]` is memory for one run. It ends with the run and can be compacted during the run.

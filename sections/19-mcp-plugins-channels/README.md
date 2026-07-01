@@ -1,5 +1,7 @@
 # 19 · MCP / plugins / channels
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Not enough capability? Plug in more. The harness reaches the world through one standard protocol.
 
 A harness can only do what its tools let it do, and every built-in tool is hand written: input schema, execution, error handling, all of it.

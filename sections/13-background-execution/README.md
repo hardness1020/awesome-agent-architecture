@@ -1,5 +1,7 @@
 # 13 · Background execution
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Start slow work off the main loop and report back later.
 
 Some operations take a long time: installs, builds, test suites, memory consolidation, or a subagent running its own loop.

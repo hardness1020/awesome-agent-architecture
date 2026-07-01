@@ -1,5 +1,7 @@
 # 16 · Coordination
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > A lead forms a team sized to the task, spawns teammates on their own threads, and they talk over a shared inbox.
 
 One agent has one context window and one active line of work. Large jobs often need several agents working at once.

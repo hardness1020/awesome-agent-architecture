@@ -1,5 +1,7 @@
 # 1 · Agent Loop
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > One loop keeps calling the model until it answers or asks for a tool.
 
 A raw model call is one-shot. You send messages and get one response.
@@ -21,9 +23,15 @@ Without this loop, the model can reason about actions but cannot act. If the loo
 
 There are two loops over one `messages[]`.
 
-The inner loop is one user turn. It calls the model, checks `stop_reason`, runs tools if needed, appends results, and repeats.
+Picture a chat window. You ask "What is the weather in Taipei? Should I take an umbrella?"
+The model may first call a weather tool, then call a rain-chance tool once it sees the result, and only then reply.
+**So within one turn the model is often called several times, with tool calls in between.**
+That whole stretch, from your question to the final answer, is the inner loop: one user turn.
+It calls the model, checks `stop_reason`, runs tools if needed, appends results, and repeats until the model gives its answer for this turn.
 
-The outer loop is the conversation. Each new user turn is appended to the same `messages[]`, so later turns see earlier turns.
+Then you ask "What about tomorrow?" in the same window. That is a new turn.
+The outer loop is what strings turn after turn into one conversation.
+Each new turn is appended to the same `messages[]`, so when the model answers "tomorrow" it still sees that you asked about Taipei.
 
 ```mermaid
 flowchart LR

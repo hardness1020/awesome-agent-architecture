@@ -1,5 +1,7 @@
 # 0 · Harness thesis
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > The model decides what to do. The harness gives it tools, state, and limits.
 
 The model owns reasoning, tool choice, and when to stop. The harness is the code around the model: the loop, tools, memory, permissions, and interfaces.

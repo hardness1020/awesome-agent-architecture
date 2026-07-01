@@ -1,5 +1,7 @@
 # 8 · Context management
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Keep long sessions under the context limit.
 
 `messages[]` grows during a run. Each tool result, assistant reply, and user turn adds more text. A long session will eventually reach the model's context limit.

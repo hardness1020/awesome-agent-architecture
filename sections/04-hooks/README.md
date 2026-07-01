@@ -1,5 +1,7 @@
 # 4 · Hooks
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Hooks add behavior at fixed points around the loop.
 
 Hooks are user-configured callbacks. They can run before a tool call, after a tool call, when a prompt is submitted, or when a session starts or stops.

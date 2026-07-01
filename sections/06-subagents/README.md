@@ -1,5 +1,7 @@
 # 6 · Subagents
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Run a focused child loop and return only its result.
 
 A subagent is the agent loop run inside a tool call. The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.

@@ -15,6 +15,10 @@
   <img src="https://github.com/user-attachments/assets/472d8152-5e46-4e39-9f09-e77dcd07936a" alt="Awesome Agent Architecture">
 </p>
 
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-TW.md">繁體中文</a>
+</p>
+
 The model reasons. The harness gives it action, state, and limits: it runs tools, keeps state across calls, gates side effects, and coordinates loops, none of which a model call does by itself.
 
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces. Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.

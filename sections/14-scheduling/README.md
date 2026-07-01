@@ -1,5 +1,7 @@
 # 14 · Scheduling
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Start agent turns from a clock, not only from user input.
 
 Background work still needs someone or something to start it. Many tasks should run later or repeat: a report, a reminder, or a polling task.

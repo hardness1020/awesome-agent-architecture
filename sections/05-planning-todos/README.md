@@ -1,5 +1,7 @@
 # 5 · Planning & todos
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Store the plan before doing multi-step work.
 
 Large tasks need a visible plan. If the model only keeps the plan in the prompt, it can lose track after many tool results.
