@@ -14,6 +14,9 @@ a plugin contributes servers alongside user and project config.
 
 wrap_channel() turns a server push into a tagged message folded into the next
 turn, so Slack, Discord, or SMS ride the same protocol as a two-way surface.
+gate_inbound() runs that push through gates first: an inbound channel message is
+untrusted input, so a gate may drop or rewrite it before the loop ever sees it
+(Hermes' pre_gateway_dispatch hook, fired before auth on every incoming message).
 
 Mirrors Claude Code services/mcp/: buildMcpToolName namespaces each tool,
 normalizeNameForMCP sanitizes it, the readOnlyHint annotation drives the
@@ -86,3 +89,20 @@ def wrap_channel(source: str, payload: str) -> str:
     """A server push (notifications/claude/channel) becomes a tagged message the
     loop folds into the next turn (section 13's queue, section 16's inbox)."""
     return f'<{CHANNEL_TAG} source="{source}">{payload}</{CHANNEL_TAG}>'
+
+
+def gate_inbound(source: str, payload: str, gates=()) -> str | None:
+    """Run an inbound channel message through gates before it becomes a turn.
+
+    Each gate(source, payload) may return {'drop': True} to discard the message
+    or {'rewrite': str} to replace its payload; anything else passes it through.
+    Returns the tagged message for the loop, or None when a gate dropped it.
+    A channel is an open door, so the gate runs before the model ever reads the
+    text (Hermes: pre_gateway_dispatch, skip / rewrite / allow)."""
+    for gate in gates:
+        out = gate(source, payload) or {}
+        if out.get("drop"):
+            return None
+        if out.get("rewrite") is not None:
+            payload = out["rewrite"]
+    return wrap_channel(source, payload)
