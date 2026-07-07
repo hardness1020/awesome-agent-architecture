@@ -12,15 +12,25 @@ extraction that writes new files at run end. Four operations, never conflated:
   extraction   : write-only, at run end. append new files.
   consolidation: rare, background (section 13). dedupe + prune. not shown here.
 Mirrors Claude Code's memdir (findRelevantMemories, memoryScan) + extractMemories.
+
+A second recall path searches raw history instead of extracted facts (Hermes
+Agent's session_search over state.db, SQLite FTS5): log_run() appends each run's
+text to a searchable session log, and search_sessions() returns actual past
+messages, ranked, with no model call. Extraction keeps distilled facts; the log
+keeps everything, so a fact extraction missed is still findable.
 """
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from tools import Tool
+
 TYPES = ("user", "feedback", "project", "reference")   # non-derivable only; the rest is grep's job
 RECALL_K = 5                                            # cap injected memories (precision over recall)
+SEARCH_K = 3                                            # cap returned past messages, same reason
 
 
 @dataclass
@@ -76,19 +86,81 @@ def extract(memory_dir, messages, extractor) -> list[Path]:
     return written
 
 
+def log_run(db_path, session_id, messages) -> int:
+    """Run end: append the run's text to the searchable session log. Everything
+    with text lands, not just what extraction kept (Hermes indexes all session
+    messages into state.db). ponytail: FTS5 ships in CPython's sqlite3."""
+    rows = [(session_id, m["role"], t) for m in messages if (t := _text_of(m))]
+    con = _db(db_path)
+    con.executemany("INSERT INTO session_log VALUES (?, ?, ?)", rows)
+    con.commit()
+    con.close()
+    return len(rows)
+
+
+def search_sessions(db_path, query, k=SEARCH_K) -> list[tuple]:
+    """Recall actual past messages by keyword, best match first (bm25), zero model
+    cost. Returns (session_id, role, content) rows; [] when nothing matches."""
+    words = _words(query)
+    if not words or not Path(db_path).exists():
+        return []
+    con = _db(db_path)
+    rows = con.execute("SELECT session_id, role, content FROM session_log "
+                       "WHERE session_log MATCH ? ORDER BY rank LIMIT ?",
+                       (" OR ".join(sorted(words)), k)).fetchall()
+    con.close()
+    return rows
+
+
+def search_tool(db_path) -> Tool:
+    """SessionSearch: the model-facing handle for search_sessions, so the agent
+    decides when past sessions are worth consulting (Hermes' session_search)."""
+    def search(a):
+        rows = search_sessions(db_path, a["query"])
+        if not rows:
+            return "no past sessions match"
+        return "\n".join(f"[session {sid} · {role}] {content}" for sid, role, content in rows)
+
+    return Tool("SessionSearch", search, is_read_only=True,
+                description="Search past session transcripts by keywords; returns matching messages.",
+                input_schema={"type": "object", "properties": {"query": {"type": "string"}},
+                              "required": ["query"]})
+
+
 @dataclass
 class Store:
     """The handle threaded into the loop (loop.py): recall before the run, extract
-    after. `selector` / `extractor` are the live LLM hooks; both optional."""
+    after. `selector` / `extractor` are the live LLM hooks; both optional. With a
+    `db`, run end also logs the transcript for cross-session search."""
     root: Path
     selector: Callable | None = None
     extractor: Callable | None = None
+    db: Path | None = None
+    session_id: str = "session"
 
     def recall(self, query, k=RECALL_K) -> str:
         return recall_block(load_index(self.root), query, k, self.selector)
 
     def write(self, messages) -> list[Path]:
+        if self.db is not None:
+            log_run(self.db, self.session_id, messages)
         return extract(self.root, messages, self.extractor) if self.extractor else []
+
+
+def _db(path):
+    con = sqlite3.connect(path)
+    con.execute("CREATE VIRTUAL TABLE IF NOT EXISTS session_log "
+                "USING fts5(session_id, role, content)")
+    return con
+
+
+def _text_of(message) -> str:
+    """The searchable text of one message: a plain string, or the text blocks of
+    an API response. Tool-use blocks carry no text and are skipped."""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    return "\n".join(t for b in content if (t := getattr(b, "text", "")))
 
 
 def _overlap(query, mem) -> int:

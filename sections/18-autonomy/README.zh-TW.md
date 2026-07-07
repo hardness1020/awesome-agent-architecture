@@ -149,7 +149,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - lead 只做一個主動步驟：它呼叫工具建立團隊與工作，然後就結束了。
 - `TeamCreate` 與 `SpawnTeammate` 是第 16 章的工具；`TaskCreate` 把 task 貼上看板（第 12 章）。
 - `SpawnTeammate` 就是 `runtime.start(...)`（第 13 章）：lead 的工具呼叫會在一條執行緒上啟動一個 worker 的自主 loop。
-- spawn 之後，拉取工作與決定何時停止都是每個 worker 自己的事，不是 lead 或腳本的事。主行程只是等待 worker 收工。
+- spawn 之後，拉取工作與決定何時停止都是每個 worker 自己的事，lead 和外層程式都不介入。主行程只是等待 worker 收工。
 - 組建團隊、spawn、貼看板都是模型的決定（第 16 章與第 12 章）；自主認領則是第 18 章新增的部分。
 
 ---
