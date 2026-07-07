@@ -15,15 +15,27 @@ the L1 block for the system prompt. Mirrors Claude Code's loadSkillsDir (scans
 .claude/skills) and its system-prompt skill listing. Claude Code wraps body-loading
 in a SkillTool because its skills also fork and scope tools; the plain mechanism
 here does not need one, so a normal path-scoped Read does the job.
+
+The store also evolves (Hermes Agent's skill evolution):
+  use    : reading a SKILL.md bumps a usage record (.usage.json), the way Hermes
+           bumps view/use counts on every skill_view call.
+  write  : WriteSkill lets the agent distill a finished workflow into a new
+           skill, so the next run loads instructions instead of rediscovering them.
+  curate : stale_skills() reports skills unused past a cutoff; Hermes runs a
+           background curator agent on this signal (archive, consolidate, pin).
 """
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from tools import Tool
 
 MAX_LISTING_DESC_CHARS = 80   # per-entry cap keeps the catalog cheap (Claude Code uses 250)
+USAGE_FILE = ".usage.json"    # per-store usage record; Hermes keeps the same file per skills root
+STALE_AFTER = 30 * 86400      # unused this long (or never used) counts as stale
 
 PATH_SCHEMA = {
     "type": "object",
@@ -69,10 +81,64 @@ def read_tool(base_dir) -> Tool:
         target = (base / a["path"]).resolve()
         if not target.is_relative_to(base):          # reject path traversal (../../etc/passwd)
             raise ValueError(f"path {a['path']!r} escapes the skills dir")
+        if target.name == "SKILL.md":                # loading a skill counts as use (Hermes bumps
+            record_use(base, target.parent.name)     # .usage.json on every skill_view)
         return target.read_text()                     # tool result -> enters messages[]
 
     return Tool("Read", read, description="Read a file by its path.",
                 input_schema=PATH_SCHEMA, is_read_only=True)
+
+
+def record_use(skills_dir, name, now=None) -> dict:
+    """Bump `name`'s usage record: uses count plus last_used_at. The curator's
+    stale timer keys off last_used_at (Hermes: agent/curator.py)."""
+    path = Path(skills_dir) / USAGE_FILE
+    usage = json.loads(path.read_text()) if path.exists() else {}
+    entry = usage.setdefault(name, {"uses": 0})
+    entry["uses"] += 1
+    entry["last_used_at"] = now if now is not None else time.time()
+    path.write_text(json.dumps(usage))
+    return entry
+
+
+def stale_skills(skills_dir, skills, now=None, stale_after=STALE_AFTER) -> list[str]:
+    """The curator's input: names unused for stale_after (never used counts too).
+    ponytail: a report, not an action; Hermes archives these via a background
+    curator agent, with pins protecting skills from auto-archive."""
+    path = Path(skills_dir) / USAGE_FILE
+    usage = json.loads(path.read_text()) if path.exists() else {}
+    now = now if now is not None else time.time()
+    return [s.name for s in skills
+            if now - usage.get(s.name, {}).get("last_used_at", 0) >= stale_after]
+
+
+def write_skill(skills_dir, name, description, body) -> Path:
+    """The agent distills a finished workflow into a new skill on disk. The next
+    load_skills() scan catalogs it, so the store grows from the agent's own work."""
+    base = Path(skills_dir).resolve()
+    target = (base / name / "SKILL.md").resolve()
+    if not target.is_relative_to(base):              # a name can never escape the skills dir
+        raise ValueError(f"skill name {name!r} escapes the skills dir")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(f"---\nname: {name}\ndescription: {description}\n---\n{body}\n")
+    return target
+
+
+def write_tool(base_dir) -> Tool:
+    """WriteSkill: the model-facing handle for write_skill. A side effect, so the
+    gate (section 3) asks unless a rule pre-approves it. Hermes goes further and
+    can stage skill writes for async human approval (write_approval.py)."""
+    def write(a):
+        write_skill(base_dir, a["name"], a["description"], a["body"])
+        return f"skill {a['name']!r} saved; the next catalog scan lists it"
+
+    return Tool("WriteSkill", write,
+                description="Save a reusable skill (name, description, body) for future runs.",
+                input_schema={"type": "object",
+                              "properties": {"name": {"type": "string"},
+                                             "description": {"type": "string"},
+                                             "body": {"type": "string"}},
+                              "required": ["name", "description", "body"]})
 
 
 def _split(text):
