@@ -32,11 +32,11 @@ This repo explains the harness section by section: loop, tools, memory, permissi
 
 Each system is a worked example for the sections below.
 
-| System | Maintainer | License | Models | Surface | Read it for |
-| --- | --- | --- | --- | --- | --- |
-| **Claude Code** | Anthropic | Proprietary | Claude only | CLI, IDE, web | Permissions, subagents, skills |
-| **Hermes Agent** | Nous Research | MIT | Model-agnostic | CLI, desktop, web, messaging | Memory, skill evolution, always-on channels |
-| *(more soon)* | | | | | |
+| System | Maintainer | Sections | Read it for |
+| --- | --- | --- | --- |
+| **Claude Code** | Anthropic | 0 to 20 (all) | The full harness, start here |
+| **Hermes Agent** | Nous Research | 7, 9, 14, 16, 19 | Memory, skill evolution, always-on channels |
+| *(more soon)* | | | |
 
 > More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 
@@ -127,8 +127,6 @@ awesome-agent-architecture/
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
 │   └── 20-observability/
-├── systems/                   # per-system deep dives
-├── patterns/                  # shared patterns and failure modes
 └── references/                # primary sources and prior art
 ```
 

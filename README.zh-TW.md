@@ -32,11 +32,11 @@
 
 每個系統都是下面各章節的實作範例。
 
-| 系統 | 維護者 | 授權 | 模型 | 使用介面 | 值得看的地方 |
-| --- | --- | --- | --- | --- | --- |
-| **Claude Code** | Anthropic | 專有 | 只支援 Claude | CLI、IDE、網頁 | Permissions, subagents, skills |
-| **Hermes Agent** | Nous Research | MIT | 模型無關 | CLI、桌面、網頁、通訊平台 | Memory, skill evolution, always-on channels |
-| *(更多陸續加入)* | | | | | |
+| 系統 | 維護者 | 覆蓋章節 | 值得看的地方 |
+| --- | --- | --- | --- |
+| **Claude Code** | Anthropic | 0 到 20（全部） | 完整 harness，從這裡讀起 |
+| **Hermes Agent** | Nous Research | 7、9、14、16、19 | Memory, skill evolution, always-on channels |
+| *(更多陸續加入)* | | | |
 
 > 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
 
@@ -127,8 +127,6 @@ awesome-agent-architecture/
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可執行的程式碼鏈從這裡開始
 │   └── 20-observability/
-├── systems/                   # 各系統深入研究
-├── patterns/                  # 共用模式與失效模式
 └── references/                # 原始出處與前人成果
 ```
 
