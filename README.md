@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
-  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-1+-0a7bbb?style=for-the-badge" alt="Systems"></a>
+  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
   <a href="#sections"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
@@ -35,9 +35,10 @@ Each system is a worked example for the sections below.
 | System | Maintainer | License | Models | Surface | Read it for |
 | --- | --- | --- | --- | --- | --- |
 | **Claude Code** | Anthropic | Proprietary | Claude only | CLI, IDE, web | Permissions, subagents, skills |
+| **Hermes Agent** | Nous Research | MIT | Model-agnostic | CLI, desktop, web, messaging | Memory, skill evolution, always-on channels |
 | *(more soon)* | | | | | |
 
-> More systems can be added later, including Hermes Agent, OpenClaw, aider, and mini-swe-agent.
+> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 
 ---
 
@@ -181,4 +182,5 @@ Favor named, verifiable mechanisms over speculation. Cite sources.
 | Source | What it offers |
 | --- | --- |
 | [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Claude Code source backup used for mechanism names and implementation paths. |
+| [hermes-agent](https://github.com/NousResearch/hermes-agent) | Open-source agent harness (MIT) used as the second system under study. |
 | [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | Code-first harness reconstruction and section framing. |
