@@ -78,6 +78,14 @@ def test():
         deny = mailbox.bubbling_approver(team, "bob", "lead", human=lambda n, a: False)
         assert deny("Bash", {"command": "rm -rf /"}) is False
 
+        # no human in the loop at all: an answer already waiting in the inbox is
+        # honored; an unanswered request times out to deny (never a stall or a yes)
+        team.drain("bob")
+        team.send("lead", "bob", {"kind": "permission_response", "tool": "Bash", "ok": True})
+        waited = mailbox.bubbling_approver(team, "bob", "lead", timeout=0.3)
+        assert waited("Bash", {"command": "ls"}) is True     # the async verdict arrived
+        assert waited("Bash", {"command": "ls"}) is False    # nobody answered: default deny
+
         # SendMessage tool: the model-facing handle that drives the channel. The
         # sender is bound to `me`, so the model only chooses the recipient and text.
         send = mailbox.message_tools(team, "alice")[0]

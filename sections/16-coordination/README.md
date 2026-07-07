@@ -26,7 +26,7 @@ Without this layer, large work either stays serial or splits into workers that c
 
 Each agent owns an inbox. Sending a message means writing to the recipient's inbox. Delivery happens when the recipient drains its inbox.
 
-The roster is the lead's choice, not the script's. The lead calls `TeamCreate` to size and form the team for the task, then spawns each member.
+The team's size and names are decided at run time by the lead's model, not hard-coded in the script. The lead calls `TeamCreate` to form the team for the task, then spawns each member.
 
 The lead does not hand-start teammates. It calls `SpawnTeammate`, and the harness runs the teammate's loop on a background thread (section 13).
 The teammate then pulls its own inbox and acts, so the script drives no one.
@@ -122,14 +122,20 @@ def send(self, frm, to, content):                      # src/mailbox.py
 Permission bubbling is an approver implementation. It moves a gated call to a human over the same channel:
 
 ```python
-def bubbling_approver(team, me, lead, human):           # approver for an agent with no human UI
-    def approve(name, args):
+def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
+    def approve(name, args):                            # approver for an agent with no human UI
         team.send(me, lead, {"kind": "permission_request", "tool": name, "args": args})
-        verdict = human(name, args)                     # the lead routes it to its approval UI
-        team.send(lead, me, {"kind": "permission_response", "tool": name, "ok": verdict})
-        resp = [m["content"] for m in team.drain(me)
-                if isinstance(m["content"], dict) and m["content"].get("kind") == "permission_response"]
-        return bool(resp and resp[-1]["ok"])
+        if human is not None:                           # the lead routes it to its approval UI
+            team.send(lead, me, {"kind": "permission_response", "tool": name, "ok": human(name, args)})
+        deadline = time.time() + timeout
+        while True:
+            resp = [m["content"] for m in team.drain(me)
+                    if isinstance(m["content"], dict) and m["content"].get("kind") == "permission_response"]
+            if resp:
+                return bool(resp[-1]["ok"])
+            if time.time() >= deadline:
+                return False                            # nobody answered in time: default deny
+            time.sleep(poll)
     return approve
 ```
 
@@ -140,6 +146,10 @@ def bubbling_approver(team, me, lead, human):           # approver for an agent 
 5. The teammate reads that response and returns allow or deny to the gate.
 
 The gate still calls `approver(name, args)` and does not change. The answer arrives as an inbox message, not a direct call, so escalation reuses the same channel.
+
+Without `human`, the answer must come from elsewhere (a lead on another thread, a person on a chat platform).
+The approver polls its inbox up to `timeout` and then denies: an unanswered permission is a no, never a stall or a yes.
+This mirrors Hermes' clarify gateway, where `wait_for_response` blocks the agent thread until a chat adapter answers or the timeout fires.
 
 ### How it integrates
 
@@ -173,6 +183,7 @@ How one design spawns cooperating agents and spreads work across them.
 | System | Teammates | Channel | Shared memory | Permission bubbling |
 | --- | --- | --- | --- | --- |
 | **Claude Code** | In-process or remote; each on its own loop. | Inbox messages, memory or disk. | Team task list and memory dir. | Remote requests route to local UI. |
+| **Hermes Agent** | Delegated children on threads. | Completion queue plus gateway RPCs. | Shared session DB with lineage markers. | Clarify requests route to the user's chat. |
 
 ### Claude Code
 
@@ -185,6 +196,18 @@ How one design spawns cooperating agents and spreads work across them.
 - A team owns a task list. Team memory lives under `memdir/teamMemPaths.ts`.
 - `remotePermissionBridge.ts` turns remote permission requests into local approval prompts.
 - Coordinator mode drains inboxes and folds messages between turns.
+
+### Hermes Agent
+
+- No peer inboxes. Coordination stays parent to child: `delegate_task` spawns children, and results return only to the parent (section 6 covers the spawn).
+- Async children post results to `process_registry.completion_queue`; the parent folds them into a new turn when idle.
+- `_active_subagents` tracks live children. Gateway RPCs `delegation.pause`, `delegation.status`, and `subagent.interrupt` control them from any connected surface.
+- `set_spawn_paused` is a global pause flag the TUI or gateway can flip mid-run to stop new spawns.
+- Interrupts are per-thread (`tools/interrupt.py`), so stopping one session does not kill tools in concurrent sessions.
+- Permission bubbling targets a human on chat, not a lead agent. `register()` in `clarify_gateway.py` queues the question and `wait_for_response()` blocks the agent thread.
+- The platform adapter answers via `resolve_gateway_clarify()`, which unblocks the waiting tool call.
+- Children get auto-deny or auto-approve permission callbacks (`delegation.subagent_auto_approve`), logged for audit.
+- Parents and children share `state.db`; `_delegate_from` markers record lineage for cascade cleanup.
 
 > **Trade-off:** File inboxes are durable and can cross process or machine boundaries. They add polling and lock cost. In-memory inboxes are fast, but they die with the process.
 
@@ -206,8 +229,8 @@ How one design spawns cooperating agents and spreads work across them.
 
 [`src/`](src/) carries 15 forward and adds:
 
-- [`mailbox.py`](src/mailbox.py): named inboxes with locking, folding, the `serve_mailbox` loop, bubbling, and the `TeamCreate`, `SendMessage`, `SpawnTeammate` tools.
-- [`test.py`](src/test.py): checks addressing, broadcast, concurrent send, folding, bubbling, the mailbox loop, and the `TeamCreate`, `SendMessage`, and `SpawnTeammate` tools.
+- [`mailbox.py`](src/mailbox.py): named inboxes with locking, folding, the `serve_mailbox` loop, bubbling with timeout and default deny, and the team tools.
+- [`test.py`](src/test.py): checks addressing, broadcast, concurrent send, folding, bubbling (inline, async, and timeout-deny), the mailbox loop, and the team tools.
 - [`demo.py`](src/demo.py): the lead takes one step (`TeamCreate`, `SpawnTeammate`, `SendMessage`); each teammate pulls its inbox, runs a gated shell task, and reports back.
 
 The loop and subagent path are unchanged. Coordination wraps a turn by spawning teammates, draining inboxes, and passing an approver.
@@ -223,4 +246,5 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 
 - Claude Code tools and inboxes: `tools/SendMessageTool/`, `tools/TeamCreateTool/`, `utils/mailbox.ts`, `utils/teammateMailbox.ts`.
 - Claude Code teammates: `tasks/InProcessTeammateTask/`, `tasks/RemoteAgentTask/`, `remote/remotePermissionBridge.ts`, `memdir/teamMemPaths.ts`.
+- Hermes Agent source: `tools/delegate_tool.py`, `tools/async_delegation.py`, `tools/clarify_gateway.py`, `tools/interrupt.py`.
 - learn-claude-code · s15_agent_teams: section framing.
