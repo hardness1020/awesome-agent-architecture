@@ -108,7 +108,7 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 - **Pattern-match bypass。** 字串式的 deny 清單會漏掉 shell 的各種變體。優先採用行為檢查與沙箱化，而不是原始的子字串比對。
 - **Mode 開得太寬。** 一條範圍過大的 allow 規則或 bypass mode，可能讓後續的高風險呼叫悄悄執行。限縮 bypass 的範圍，並讓目前的 mode 顯示出來。
 - **核准疲勞。** 每次呼叫都詢問，會訓練使用者不看內容就核准。預先核准低風險的類別，但讓破壞性動作維持明確詢問。
-- **subagent 內的無聲拒絕。** 子 agent 可能沒有終端機可以詢問。應把提示往上冒泡給父 agent，而不是無聲失敗。
+- **subagent 內的無聲拒絕。** 子 agent 可能沒有終端機可以詢問。應把提示往上轉給父 agent 代問，而不是無聲失敗。
 - **沙箱被停用。** 若一個被允許的指令在沙箱外執行，permission 提示就是最後一道檢查。任何未沙箱化的路徑都要用政策擋在後面。
 
 ---
