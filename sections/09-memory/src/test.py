@@ -39,6 +39,22 @@ def test():
     assert written and written[0].name == "wants-brief.md"
     assert "wants-brief" in {m.name for m in memory.load_index(root)}
 
+    # session log: raw history is searchable across runs, no model call
+    db = root / "state.db"
+    assert memory.log_run(db, "mon", [{"role": "user", "content": "staging db password rotates tuesdays"},
+                                      {"role": "assistant", "content": []}]) == 1   # empty blocks skipped
+    memory.log_run(db, "tue", [{"role": "user", "content": "the deploy pipeline uses blue-green"}])
+    rows = memory.search_sessions(db, "when does the password rotate?")
+    assert rows and rows[0][0] == "mon" and "tuesdays" in rows[0][2]    # best match first
+    assert memory.search_sessions(db, "zzz qqq xyzzy") == []            # no match, no noise
+
+    # the model-facing tool renders rows; Store(db=...) logs at run end
+    tool = memory.search_tool(db)
+    assert "tuesdays" in tool.run({"query": "password rotate"})
+    store = memory.Store(root=root, db=db, session_id="wed")
+    store.write([{"role": "user", "content": "rollback is one click in argo"}])
+    assert memory.search_sessions(db, "argo rollback")[0][0] == "wed"
+
     print("09 memory: ok")
 
 
