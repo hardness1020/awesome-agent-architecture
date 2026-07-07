@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 from loop import Session, run_turn
 from permissions import DEFAULT
-from scheduler import Scheduler
+from scheduler import Scheduler, deliver
 from tools import Registry, Tool
 
 load_dotenv(override=True)
@@ -47,10 +47,12 @@ def demo():
                                     "required": ["command"]}))
     session = Session(mode=DEFAULT, allow_rules={"Bash"})
 
+    channels = {"console": lambda text: print("14 scheduling · [console] <-", text)}
     sched = Scheduler()                                    # local clock, no durability for the demo
     sched.run()                                            # start the 1s tick thread
-    sched.create("Count the files in the current directory with the shell, then report the number.",
-                 due=time.time() + 1)                      # fires ~1s from now, no human input
+    sched.create("Count the files in the current directory with the shell, then report the "
+                 "number. If somehow there are zero files, start your reply with [SILENT].",
+                 due=time.time() + 1, channel="console")   # fires ~1s from now, no human input
     print("14 scheduling: scheduled a one-shot, waiting for the clock to fire it...")
 
     fired = []
@@ -65,9 +67,11 @@ def demo():
         print("14 scheduling: nothing fired (clock never advanced?)")
         return
 
-    for prompt in fired:                                   # the driver: each fired prompt is a new turn
-        messages = [{"role": "user", "content": prompt}]
-        print("14 scheduling -> fired turn:", run_turn(messages, model, reg, session))
+    for task in fired:                                     # the driver: each fired task is a new turn
+        messages = [{"role": "user", "content": task["prompt"]}]
+        answer = run_turn(messages, model, reg, session)
+        if not deliver(channels, task, answer):            # no human asked, so the answer must route out
+            print("14 scheduling -> fired turn (undelivered):", answer)
 
 
 if __name__ == "__main__":
