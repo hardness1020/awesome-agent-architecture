@@ -215,13 +215,13 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 
 ## 失效模式
 
-- **遺失訊息的競態。** 兩個 sender 同時寫一個 inbox。用 lock 保護 read-modify-write。
-- **對等 deadlock。** agent 互相等待。把訊息排入佇列並在 turn 之間 drain，而不是用會 block 的傳送。
-- **權限卡住。** 隊友沒有人類 UI。把請求往上轉給 lead 代問。
-- **create 之前就 spawn。** lead 在 `TeamCreate` 之前就 spawn 或傳訊息，於是沒有名單。讓兩者在團隊存在之前都保持無作用。
-- **孤兒隊友。** 被 spawn 的隊友在工作做完後還一直輪詢。為閒置等待設上界，或用第 17 章的 handshake 停止它。
-- **含糊的跨 agent 訊息。** 隊友看不到 lead 的對話。讓訊息自成一體。
-- **把 chat 當 memory 用。** 耐久的共用事實屬於 team memory。
+- **遺失訊息的競態：**兩個 sender 同時寫一個 inbox。用 lock 保護 read-modify-write。
+- **對等 deadlock：**agent 互相等待。把訊息排入佇列並在 turn 之間 drain，而不是用會 block 的傳送。
+- **權限卡住：**隊友沒有人類 UI。把請求往上轉給 lead 代問。
+- **create 之前就 spawn：**lead 在 `TeamCreate` 之前就 spawn 或傳訊息，於是沒有名單。讓兩者在團隊存在之前都保持無作用。
+- **孤兒隊友：**被 spawn 的隊友在工作做完後還一直輪詢。為閒置等待設上界，或用第 17 章的 handshake 停止它。
+- **含糊的跨 agent 訊息：**隊友看不到 lead 的對話。讓訊息自成一體。
+- **把 chat 當 memory 用：**耐久的共用事實屬於 team memory。
 
 ---
 

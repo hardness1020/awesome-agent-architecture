@@ -75,11 +75,11 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
 
 ## 失效模式
 
-- **摘要遗漏信息。** child 可能压缩过头。要求它把重要发现写到磁盘上。
-- **失控递归。** child 生 child 可能无上限地增长。从 child registry 省略 `Agent` tool，或强制设一个深度上限。
-- **child 停不下来。** child 和 parent 有一样的停止风险。给每个 child 自己的 turn 或 token 上限。
-- **误以为有权限隔离。** child 仍然需要正常的 permission gate。不要因为情境是分开的就跳过它。
-- **孤儿异步 child。** 一个后台 child 可能在 parent 已经往前走之后才结束。用一条 task 记录来追踪它。
+- **摘要遗漏信息：**child 可能压缩过头。要求它把重要发现写到磁盘上。
+- **失控递归：**child 生 child 可能无上限地增长。从 child registry 省略 `Agent` tool，或强制设一个深度上限。
+- **child 停不下来：**child 和 parent 有一样的停止风险。给每个 child 自己的 turn 或 token 上限。
+- **误以为有权限隔离：**child 仍然需要正常的 permission gate。不要因为情境是分开的就跳过它。
+- **孤儿异步 child：**一个后台 child 可能在 parent 已经往前走之后才结束。用一条 task 记录来追踪它。
 
 ---
 

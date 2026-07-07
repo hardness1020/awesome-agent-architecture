@@ -126,11 +126,11 @@ background.drain_into(messages, runtime)               # src/loop.py
 
 ## 失效模式
 
-- **交互式提示卡住（Interactive prompt stalls）。** 某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非交互方式重跑。
-- **完成消息丢失（Lost completion）。** 某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
-- **配对错误的 notification（Mispaired notification）。** 重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
-- **并发太多（Too much concurrency）。** 太多后台 task 会耗尽资源。加上 kill 路径和上限。
-- **退出时的 process 泄漏（Process leak on exit）。** 后台工作可能活得比 session 还久。注册清理机制。
+- **交互式提示卡住（Interactive prompt stalls）：**某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非交互方式重跑。
+- **完成消息丢失（Lost completion）：**某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
+- **配对错误的 notification（Mispaired notification）：**重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
+- **并发太多（Too much concurrency）：**太多后台 task 会耗尽资源。加上 kill 路径和上限。
+- **退出时的 process 泄漏（Process leak on exit）：**后台工作可能活得比 session 还久。注册清理机制。
 
 ---
 

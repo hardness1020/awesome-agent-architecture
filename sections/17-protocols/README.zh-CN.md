@@ -179,11 +179,11 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 ## 失效模式
 
-- **用硬 kill 取代 handshake。** 杀掉队友的 thread 会丢掉进行中的工作，并让它的 task 记录变孤儿。改用先请求再确认、并把 task 标记为 `notified` 的流程。
-- **孤儿请求。** 一条永远不到的回复会让一条请求永远停在 `pending`，于是 sender 一直 block。加上一个 timeout 或闲置检查，把卡住的请求浮上来。
-- **类型混淆。** 只靠 id 对应回复，会让一条 shutdown 回复解析掉一条 plan 请求。检查回复的 variant 是否符合记录下的请求类型。
-- **审核却不强制。** 一个被审核通过的计划，仍需要权限层来为执行设闸门（第 3 章）。在响应里携带 `permissionMode`。
-- **重复回复。** 一条重发的回复可能翻转一个已解析的状态。把任何针对非 pending id 的回复当作 no op。
+- **用硬 kill 取代 handshake：**杀掉队友的 thread 会丢掉进行中的工作，并让它的 task 记录变孤儿。改用先请求再确认、并把 task 标记为 `notified` 的流程。
+- **孤儿请求：**一条永远不到的回复会让一条请求永远停在 `pending`，于是 sender 一直 block。加上一个 timeout 或闲置检查，把卡住的请求浮上来。
+- **类型混淆：**只靠 id 对应回复，会让一条 shutdown 回复解析掉一条 plan 请求。检查回复的 variant 是否符合记录下的请求类型。
+- **审核却不强制：**一个被审核通过的计划，仍需要权限层来为执行设闸门（第 3 章）。在响应里携带 `permissionMode`。
+- **重复回复：**一条重发的回复可能翻转一个已解析的状态。把任何针对非 pending id 的回复当作 no op。
 
 ---
 

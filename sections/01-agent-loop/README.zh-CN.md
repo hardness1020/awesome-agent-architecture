@@ -111,10 +111,10 @@ for user_text in turns:                              # the outer loop: one itera
 
 ## 失效模式
 
-- **没有停止条件。** 一个 bug 或工具循环可能永远跑下去。用最大步数或 token 上限。
-- **循环中途 context 溢出。** `messages[]` 只会成长。第 8 章加上 context 管理。
-- **部分工具失败。** 失败的工具仍必须返回一个 `tool_result`，模型才能恢复。
-- **结果丢失。** 丢掉 assistant 的工具调用或工具结果任何一个，都会破坏 transcript。两者都要附加。
+- **没有停止条件：**一个 bug 或工具循环可能永远跑下去。用最大步数或 token 上限。
+- **循环中途 context 溢出：**`messages[]` 只会成长。第 8 章加上 context 管理。
+- **部分工具失败：**失败的工具仍必须返回一个 `tool_result`，模型才能恢复。
+- **结果丢失：**丢掉 assistant 的工具调用或工具结果任何一个，都会破坏 transcript。两者都要附加。
 
 ---
 

@@ -179,11 +179,11 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 ## 失效模式
 
-- **用硬 kill 取代 handshake。** 殺掉隊友的 thread 會丟掉進行中的工作，並讓它的 task 記錄變孤兒。改用先請求再確認、並把 task 標記為 `notified` 的流程。
-- **孤兒請求。** 一則永遠不到的回覆會讓一筆請求永遠停在 `pending`，於是 sender 一直 block。加上一個 timeout 或閒置檢查，把卡住的請求浮上來。
-- **型別混淆。** 只靠 id 對應回覆，會讓一則 shutdown 回覆解析掉一筆 plan 請求。檢查回覆的 variant 是否符合記錄下的請求型別。
-- **審核卻不強制。** 一個被審核通過的計畫，仍需要權限層來為執行設閘門（第 3 章）。在回應裡攜帶 `permissionMode`。
-- **重複回覆。** 一則重送的回覆可能翻轉一個已解析的狀態。把任何針對非 pending id 的回覆當作 no op。
+- **用硬 kill 取代 handshake：**殺掉隊友的 thread 會丟掉進行中的工作，並讓它的 task 記錄變孤兒。改用先請求再確認、並把 task 標記為 `notified` 的流程。
+- **孤兒請求：**一則永遠不到的回覆會讓一筆請求永遠停在 `pending`，於是 sender 一直 block。加上一個 timeout 或閒置檢查，把卡住的請求浮上來。
+- **型別混淆：**只靠 id 對應回覆，會讓一則 shutdown 回覆解析掉一筆 plan 請求。檢查回覆的 variant 是否符合記錄下的請求型別。
+- **審核卻不強制：**一個被審核通過的計畫，仍需要權限層來為執行設閘門（第 3 章）。在回應裡攜帶 `permissionMode`。
+- **重複回覆：**一則重送的回覆可能翻轉一個已解析的狀態。把任何針對非 pending id 的回覆當作 no op。
 
 ---
 

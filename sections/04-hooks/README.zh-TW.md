@@ -89,11 +89,11 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 ## 失效模式
 
-- **hook 繞過 permission。** hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照以規則為基礎的 permission 來解析。
-- **Stop hook 無限迴圈。** 一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
-- **hook 設定在 session 中途改變。** 某個程序可能在啟動後修改 settings。要對 hook 設定做一次快照。
-- **慢速 hook 卡住迴圈。** hook 可能 shell out 去做很慢的工作。要加上 timeout。
-- **PostToolUse 意外停止。** 若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
+- **hook 繞過 permission：**hook 可能試圖允許一個已被拒絕的動作。要把 hook 輸出對照以規則為基礎的 permission 來解析。
+- **Stop hook 無限迴圈：**一個 `Stop` hook 可能擋下、觸發自我修正，然後又再次觸發。要追蹤 stop hook 是否已經在運作中。
+- **hook 設定在 session 中途改變：**某個程序可能在啟動後修改 settings。要對 hook 設定做一次快照。
+- **慢速 hook 卡住迴圈：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
+- **PostToolUse 意外停止：**若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
 
 ---
 

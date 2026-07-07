@@ -147,11 +147,11 @@ for task in sched.drain():                            # src/demo.py · between t
 
 ## 失效模式
 
-- **重複 fire（Double fire）。** 一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
-- **許多 schedule 一起 fire。** 對週期性 task 加上具決定性的 jitter。
-- **durable 不等於永遠開機。** 本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
-- **cron 表達式有誤（Bad cron expression）。** 在 create 時驗證，並跳過無效的已載入項目。
-- **loop 正忙。** 把 prompt 放進 queue，並在 turn 之間排空它。
+- **重複 fire（Double fire）：**一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
+- **許多 schedule 一起 fire：**對週期性 task 加上具決定性的 jitter。
+- **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
+- **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
+- **loop 正忙：**把 prompt 放進 queue，並在 turn 之間排空它。
 
 ---
 

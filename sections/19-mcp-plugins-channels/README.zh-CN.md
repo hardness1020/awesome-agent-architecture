@@ -175,11 +175,11 @@ harness 如何伸手触及自身之外。
 
 ## 失效模式
 
-- **撞名（Name collisions）。** 两个 server 都公开 `search`。`mcp__server__tool` 命名空间避免了冲突；但一个名称含 `__` 的 server 仍会被解析错误，所以名称要保持简单。
-- **工具清单膨胀（Tool-list bloat）。** 太多 server 会造成庞大的工具清单，既花 token 又干扰选择（第 2 章）。缓解：截断描述并延后载入。
-- **connect 之后池过时。** 一个在 session 中途加入的 server 不在缓存的工具清单里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）。
-- **连接抖动（Connection churn）。** 一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
-- **被过度信任的副作用。** 一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
+- **撞名（Name collisions）：**两个 server 都公开 `search`。`mcp__server__tool` 命名空间避免了冲突；但一个名称含 `__` 的 server 仍会被解析错误，所以名称要保持简单。
+- **工具清单膨胀（Tool-list bloat）：**太多 server 会造成庞大的工具清单，既花 token 又干扰选择（第 2 章）。缓解：截断描述并延后载入。
+- **connect 之后池过时：**一个在 session 中途加入的 server 不在缓存的工具清单里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）。
+- **连接抖动（Connection churn）：**一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
+- **被过度信任的副作用：**一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
 
 ---
 

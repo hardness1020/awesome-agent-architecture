@@ -137,11 +137,11 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 
 ## 失效模式
 
-- **telemetry 落在热路径上。** 一个会阻塞或抛异常的 logging 调用会卡住 loop（第 1 章）。缓解：发射即忘，搭配 pre-sink 队列与每 sink killswitch。
-- **敏感数据泄漏到 log。** 代码、文件路径或 prompt 落进一个一般访问的 backend。缓解：白名单可记录字段，扇出前 scrub 掉其余。
-- **成本漂移没被察觉。** 一次模型替换或失控 loop 会让花费倍增。缓解：实时与退出时显示每模型总额，加上 loop 的步数上限（第 1 章）。
-- **没有 regression 信号。** 没有一套 eval，一次 prompt 或 harness 变更就上线，质量默默下滑。缓解：一组保留的 task 集按 build 评分，作为发布的闸门。
-- **eval 与正式环境不符。** 离线 task 漏掉了真实用法，于是套件通过而用户失败。缓解：从 scrub 过的 trace 播种 task，让两者共用同一个分布。
+- **telemetry 落在热路径上：**一个会阻塞或抛异常的 logging 调用会卡住 loop（第 1 章）。缓解：发射即忘，搭配 pre-sink 队列与每 sink killswitch。
+- **敏感数据泄漏到 log：**代码、文件路径或 prompt 落进一个一般访问的 backend。缓解：白名单可记录字段，扇出前 scrub 掉其余。
+- **成本漂移没被察觉：**一次模型替换或失控 loop 会让花费倍增。缓解：实时与退出时显示每模型总额，加上 loop 的步数上限（第 1 章）。
+- **没有 regression 信号：**没有一套 eval，一次 prompt 或 harness 变更就上线，质量默默下滑。缓解：一组保留的 task 集按 build 评分，作为发布的闸门。
+- **eval 与正式环境不符：**离线 task 漏掉了真实用法，于是套件通过而用户失败。缓解：从 scrub 过的 trace 播种 task，让两者共用同一个分布。
 
 ---
 

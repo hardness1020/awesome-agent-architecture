@@ -137,11 +137,11 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 
 ## 失效模式
 
-- **telemetry 落在熱路徑上。** 一個會阻塞或拋例外的 logging 呼叫會卡住 loop（第 1 章）。緩解：發射即忘，搭配 pre-sink 佇列與每 sink killswitch。
-- **敏感資料洩漏到 log。** 程式碼、檔案路徑或 prompt 落進一個一般存取的 backend。緩解：白名單可記錄欄位，扇出前 scrub 掉其餘。
-- **成本漂移沒被察覺。** 一次模型替換或失控 loop 會讓花費倍增。緩解：即時與退出時顯示每模型總額，加上 loop 的步數上限（第 1 章）。
-- **沒有 regression 訊號。** 沒有一套 eval，一次 prompt 或 harness 變更就上線，品質默默下滑。緩解：一組保留的 task 集按 build 評分，作為發佈的閘門。
-- **eval 與正式環境不符。** 離線 task 漏掉了真實用法，於是套件通過而使用者失敗。緩解：從 scrub 過的 trace 播種 task，讓兩者共用同一個分布。
+- **telemetry 落在熱路徑上：**一個會阻塞或拋例外的 logging 呼叫會卡住 loop（第 1 章）。緩解：發射即忘，搭配 pre-sink 佇列與每 sink killswitch。
+- **敏感資料洩漏到 log：**程式碼、檔案路徑或 prompt 落進一個一般存取的 backend。緩解：白名單可記錄欄位，扇出前 scrub 掉其餘。
+- **成本漂移沒被察覺：**一次模型替換或失控 loop 會讓花費倍增。緩解：即時與退出時顯示每模型總額，加上 loop 的步數上限（第 1 章）。
+- **沒有 regression 訊號：**沒有一套 eval，一次 prompt 或 harness 變更就上線，品質默默下滑。緩解：一組保留的 task 集按 build 評分，作為發佈的閘門。
+- **eval 與正式環境不符：**離線 task 漏掉了真實用法，於是套件通過而使用者失敗。緩解：從 scrub 過的 trace 播種 task，讓兩者共用同一個分布。
 
 ---
 
