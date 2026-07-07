@@ -129,9 +129,28 @@ def test_channel():
     print("19 mcp: channel ok")
 
 
+def test_gate_inbound():
+    # no gates: same tagged message wrap_channel produces
+    assert mcp.gate_inbound("slack", "deploy finished") == \
+        '<channel source="slack">deploy finished</channel>'
+
+    # a gate drops spam before the loop ever sees it; other messages pass
+    spam = lambda source, payload: {"drop": True} if "win a prize" in payload else None
+    assert mcp.gate_inbound("sms", "win a prize now!!", gates=[spam]) is None
+    assert mcp.gate_inbound("sms", "build is green", gates=[spam]) is not None
+
+    # a gate rewrites (redacts) the payload; gates run in order
+    redact = lambda source, payload: {"rewrite": payload.replace("hunter2", "[redacted]")}
+    out = mcp.gate_inbound("slack", "the password is hunter2", gates=[spam, redact])
+    assert out == '<channel source="slack">the password is [redacted]</channel>'
+
+    print("19 mcp: inbound gate ok")
+
+
 if __name__ == "__main__":
     test_connect()
     test_namespace()
     test_pool_and_gate()
     test_merge_servers()
     test_channel()
+    test_gate_inbound()

@@ -1,13 +1,14 @@
 """Section 14 offline checks: the clock fires due tasks, recurring re-arms,
-one-shots auto-delete, and durable tasks survive a restart. A fake clock makes
-it deterministic with no real waiting. No key, no network.
+one-shots auto-delete, durable tasks survive a restart, and a fired answer
+routes to its channel (or stays silent). A fake clock makes it deterministic
+with no real waiting. No key, no network.
 
     python sections/14-scheduling/src/test.py
 """
 import tempfile
 from pathlib import Path
 
-from scheduler import Scheduler
+from scheduler import SILENT, Scheduler, deliver
 
 
 def test():
@@ -24,7 +25,7 @@ def test():
     # advance past the recurring task's due time: it fires and re-arms, the one-shot still waits
     now[0] = 1003.0
     sched.tick()
-    assert sched.drain() == ["poll CI"]                    # fired = enqueued, not run inline
+    assert [f["prompt"] for f in sched.drain()] == ["poll CI"]   # fired = enqueued, not run inline
     assert len(sched.list()) == 2                          # recurring task is still registered
     next_due = {t["id"]: t["due"] for t in sched.list()}[rec]
     assert next_due == 1033.0                              # re-armed to now + every
@@ -36,7 +37,7 @@ def test():
     # advance past the one-shot: it fires once, then auto-deletes (recurring re-armed to 1033, not due)
     now[0] = 1006.0
     sched.tick()
-    assert sched.drain() == ["run the report"]
+    assert [f["prompt"] for f in sched.drain()] == ["run the report"]
     assert one not in {t["id"] for t in sched.list()}      # one-shot gone
     assert rec in {t["id"] for t in sched.list()}          # recurring stays
 
@@ -52,6 +53,20 @@ def test():
         reloaded = s2.list()
         assert len(reloaded) == 1 and reloaded[0]["prompt"] == "nightly backup"
         assert s2.create("x", due=2000.0) == 2              # _next resumed past the reloaded id
+
+    # delivery: a fired answer routes to its channel; [SILENT] and channel-less stay quiet
+    sent = []
+    channels = {"console": sent.append}
+    sched2 = Scheduler(clock=lambda: now[0])
+    sched2.create("daily digest", due=now[0], channel="console")
+    sched2.tick()
+    fired = sched2.drain()[0]
+    assert fired["channel"] == "console"                    # the channel rode along with the fire
+    assert deliver(channels, fired, "2 PRs merged") is True
+    assert sent == ["2 PRs merged"]
+    assert deliver(channels, fired, f"{SILENT} nothing new") is False   # checked, nothing to report
+    assert deliver(channels, {"prompt": "p", "channel": None}, "hi") is False
+    assert sent == ["2 PRs merged"]                         # neither silent nor channel-less delivered
 
     print("14 scheduling: ok")
 

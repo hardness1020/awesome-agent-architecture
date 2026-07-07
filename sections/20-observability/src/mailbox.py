@@ -129,19 +129,32 @@ def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):
         time.sleep(poll)
 
 
-def bubbling_approver(team, me, lead, human):
+def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
     """An approver (section 3) for a teammate with no human in its own loop: a
     gated call escalates to the lead. The request and the verdict both travel the
-    inbox channel; the lead's approval UI (`human`) decides. The teammate returns
-    on what it reads back from its own inbox, so the answer is an inbox message,
-    not a direct call. ponytail: synchronous round-trip; the real bus polls async."""
+    inbox channel; the teammate returns on what it reads back from its own inbox,
+    so the answer is an inbox message, not a direct call.
+
+    With `human`, the lead's approval UI answers inline (synchronous round-trip).
+    Without it, the answer must arrive from elsewhere (a lead on another thread, a
+    person on a chat platform), so the teammate polls its inbox up to `timeout`
+    and then DENIES: an unanswered permission is a no, never a stall or a yes.
+    Mirrors Hermes' clarify gateway (register / wait_for_response with timeout).
+    ponytail: the wait drains chat messages too; route drained non-responses if
+    teammates chat while a permission is pending."""
     def approve(name, args):
         team.send(me, lead, {"kind": "permission_request", "tool": name, "args": args})
-        verdict = human(name, args)                 # the lead routes it to its approval UI
-        team.send(lead, me, {"kind": "permission_response", "tool": name, "ok": verdict})
-        responses = [m["content"] for m in team.drain(me)
-                     if isinstance(m["content"], dict) and m["content"].get("kind") == "permission_response"]
-        return bool(responses and responses[-1]["ok"])
+        if human is not None:                       # the lead routes it to its approval UI
+            team.send(lead, me, {"kind": "permission_response", "tool": name, "ok": human(name, args)})
+        deadline = time.time() + timeout
+        while True:
+            responses = [m["content"] for m in team.drain(me)
+                         if isinstance(m["content"], dict) and m["content"].get("kind") == "permission_response"]
+            if responses:
+                return bool(responses[-1]["ok"])
+            if time.time() >= deadline:
+                return False                        # nobody answered in time: default deny
+            time.sleep(poll)
     return approve
 
 

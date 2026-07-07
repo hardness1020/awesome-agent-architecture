@@ -41,7 +41,7 @@ flowchart TD
 一共有四種操作：
 
 - **Selection** 決定要儲存什麼。只儲存那些無法靠 grep、git 或專案檔案再次推導出來的事實。
-- **Recall** 在查詢時執行。它對現有記憶排序，只注入被選中的內容。
+- **Recall** 在查詢時執行。它對現有記憶排序，把選中的內文注入這一輪的 `messages[]`：包成 `<system-reminder>` 區塊，接在 user 訊息前面。
 - **Extraction** 在執行結束時執行。它寫入新的記憶檔案。
 - **Consolidation** 很少執行。它合併重複項並清除過時項目。
 
@@ -89,7 +89,55 @@ def extract(memory_dir, messages, extractor) -> list[Path]:
     return written
 ```
 
-`Store` 是迴圈使用的把手。selector 和 extractor 都是選用的，所以測試可以離線執行。
+上面的記憶目錄放的是提煉過的事實，但它不是唯一的儲存區。原始對話歷史可以當第二個：把每次執行的文字記下來，之後用關鍵字搜回來。log 保留所有內容，所以 extraction 漏掉的事實仍然找得到。Hermes 的 `state.db` 就是這種設計。
+
+`log_run` 在執行結束時，把這次執行的文字附加到一個 SQLite FTS5 資料表：
+
+```python
+def log_run(db_path, session_id, messages) -> int:     # src/memory.py
+    rows = [(session_id, m["role"], t) for m in messages if (t := _text_of(m))]
+    con = _db(db_path)                                  # CREATE VIRTUAL TABLE ... USING fts5
+    con.executemany("INSERT INTO session_log VALUES (?, ?, ?)", rows)
+    con.commit()
+    con.close()
+    return len(rows)
+```
+
+- `_text_of` 把一則訊息攤平成可搜尋的文字：純字串直接通過，API 回應只保留 text block。tool-use block 沒有文字，會被略過。
+- 每一列是 `(session_id, role, content)`。session id 是 lineage 的 key，所以一筆命中可以說出它來自哪一次執行。
+- FTS5 內建在 CPython 的 `sqlite3` 裡，所以這份 log 不需要額外的相依套件。
+
+`search_sessions` 把 log 讀回來，排好序，完全不用呼叫模型：
+
+```python
+def search_sessions(db_path, query, k=SEARCH_K) -> list[tuple]:
+    words = _words(query)                               # the same tokenizer recall uses
+    if not words or not Path(db_path).exists():
+        return []
+    con = _db(db_path)
+    rows = con.execute("SELECT session_id, role, content FROM session_log "
+                       "WHERE session_log MATCH ? ORDER BY rank LIMIT ?",
+                       (" OR ".join(sorted(words)), k)).fetchall()
+    con.close()
+    return rows
+```
+
+- 查詢字詞以 `OR` 相連，任何一個字都能命中；`ORDER BY rank`（bm25）把最佳結果排在最前面。
+  這就是帶模糊排序的關鍵字回想，跟 Hermes `session_search` 的做法一樣。
+- `k` 限制回傳的列數，理由跟 `RECALL_K` 限制注入記憶一樣：精準度優先於數量。
+- `search_tool` 把它包成唯讀的 `SessionSearch` tool，所以要不要查過去的 session，是模型在 turn 進行中自己決定的。
+  抽取記憶的 recall 則是 harness 在 turn 開始前決定的。兩條路徑的差別在於由誰發動。
+
+`Store` 是迴圈使用的把手，現在它在執行結束時同時餵兩個儲存區：
+
+```python
+def write(self, messages) -> list[Path]:               # Store.write, called at run end
+    if self.db is not None:
+        log_run(self.db, self.session_id, messages)     # everything, searchable later
+    return extract(self.root, messages, self.extractor) if self.extractor else []   # the distilled few
+```
+
+selector、extractor 和 session db 都是選用的，所以測試可以離線執行。
 
 ### How it integrates
 
@@ -122,6 +170,7 @@ if response.stop_reason != "tool_use":
 | System | Store | Recall | Extraction | Consolidation |
 | --- | --- | --- | --- | --- |
 | **Claude Code** | 帶 frontmatter 的 Markdown 檔案。 | Selector 選出一小組。 | 分叉出的 agent 在執行結束時寫入記憶。 | 背景程序負責合併與清理。 |
+| **Hermes Agent** | 兩個 markdown 檔案加一份 SQLite 索引。 | prompt 快照加 session 搜尋。 | memory tool 寫入條目。 | 字元預算爆掉時由模型改寫。 |
 
 ### Claude Code
 
@@ -135,6 +184,18 @@ if response.stop_reason != "tool_use":
 - Extraction 在執行結束時以分叉出的 agent 執行。
 - Consolidation 是「Dream」背景任務，由時間、session 數量和一個 lock 控管。
 
+### Hermes Agent
+
+- 兩個檔案、兩個主題：`MEMORY.md` 放 agent 的觀察，`USER.md` 放使用者輪廓。條目以 `§` 分隔符切開（`ENTRY_DELIMITER`）。
+- 兩個檔案在 session 開始時凍結進 system prompt（`load_from_disk` 擷取一份快照）。
+- session 中途的寫入只落到磁碟、不動 prompt，讓 prompt cache 保持有效。
+- 預算以字元計，不是 token：記憶 2200 字元，使用者輪廓 1375。爆掉會觸發由模型執行的整併，並追蹤失敗。
+- `_scan_memory_content` 在條目進入 prompt 之前檢查注入模式。
+- 跨 session 的回想是另一條路：`session_search` tool 查詢 `state.db`（SQLite FTS5，`SessionDB`），回傳真正的過往訊息，不需要模型呼叫。
+- `session_search` 有三種模式：DISCOVERY 用查詢、SCROLL 繞著一則訊息、BROWSE 看最近的 session。
+- 排序會把 cron 來源的 session 壓到互動 session 之下（`_DEMOTED_SESSION_SOURCES`），並隱藏 subagent 和 tool 的 session。
+- 記憶寫入可以先暫存等待核准（`write_approval.py`），而不是直接落地。
+
 > **取捨：** 以 LLM 為基礎的 recall 在判斷相關性上比單純的關鍵字更準。
 > 它的代價是多一次模型呼叫。
 > 向量儲存在查詢時比較便宜，但它多了一份要維護的索引。
@@ -143,12 +204,12 @@ if response.stop_reason != "tool_use":
 
 ## 失效模式
 
-- **Recall 漏掉有用的記憶。** 調整 selector，並把描述寫得具體。
-- **Recall 灌爆這一輪。** 限制注入記憶的數量，並以精準度為優先。
-- **過時記憶被當成事實。** 帶上存在時間或新鮮度的中繼資料。
-- **儲存區變雜亂。** 合併重複項與相互矛盾的項目。
-- **儲存可推導的事實。** 不要儲存 grep、git 或原始碼檔案能回答得更好的事實。
-- **Extraction 漏掉細節。** 壓縮可能在 extraction 之前就移除了細微資訊。在接近執行結束時抽取，並把重要事實留在檔案裡。
+- **Recall 漏掉有用的記憶：**調整 selector，並把描述寫得具體。
+- **Recall 灌爆這一輪：**限制注入記憶的數量，並以精準度為優先。
+- **過時記憶被當成事實：**帶上存在時間或新鮮度的中繼資料。
+- **儲存區變雜亂：**合併重複項與相互矛盾的項目。
+- **儲存可推導的事實：**不要儲存 grep、git 或原始碼檔案能回答得更好的事實。
+- **Extraction 漏掉細節：**壓縮可能在 extraction 之前就移除了細微資訊。在接近執行結束時抽取，並把重要事實留在檔案裡。
 
 ---
 
@@ -156,9 +217,10 @@ if response.stop_reason != "tool_use":
 
 [`src/`](src/) 承接 08 並加入：
 
-- [`memory.py`](src/memory.py)：一個 `Store`、索引載入、recall 和 extraction。
+- [`memory.py`](src/memory.py)：一個 `Store`、索引載入、recall、extraction，以及 session log（`log_run`、`search_sessions`、`SessionSearch` tool）。
 - [`loop.py`](src/loop.py)：在開頭那一輪回想，並在執行結束時抽取。
-- [`test.py`](src/test.py)：在一個暫時的儲存區上走過這四種操作。
+- [`test.py`](src/test.py)：在一個暫時的儲存區上走過這四種操作，接著記錄並搜尋過去的 session。
+- [`demo.py`](src/demo.py)：agent 透過 `SessionSearch` 從某個過去 session 的原始歷史找出答案。
 
 ```bash
 python sections/09-memory/src/test.py         # offline checks, no key
@@ -171,4 +233,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 
 - Claude Code 原始碼：`memdir/findRelevantMemories.ts`、`memdir/memdir.ts`、`services/SessionMemory/sessionMemory.ts`。
 - Claude Code 記憶服務：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
+- Hermes Agent 原始碼：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
 - learn-claude-code · s09_memory：章節框架。

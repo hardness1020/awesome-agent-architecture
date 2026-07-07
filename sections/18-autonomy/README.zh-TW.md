@@ -149,7 +149,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - lead 只做一個主動步驟：它呼叫工具建立團隊與工作，然後就結束了。
 - `TeamCreate` 與 `SpawnTeammate` 是第 16 章的工具；`TaskCreate` 把 task 貼上看板（第 12 章）。
 - `SpawnTeammate` 就是 `runtime.start(...)`（第 13 章）：lead 的工具呼叫會在一條執行緒上啟動一個 worker 的自主 loop。
-- spawn 之後，拉取工作與決定何時停止都是每個 worker 自己的事，不是 lead 或腳本的事。主行程只是等待 worker 收工。
+- spawn 之後，拉取工作與決定何時停止都是每個 worker 自己的事，lead 和外層程式都不介入。主行程只是等待 worker 收工。
 - 組建團隊、spawn、貼看板都是模型的決定（第 16 章與第 12 章）；自主認領則是第 18 章新增的部分。
 
 ---
@@ -182,11 +182,11 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 ## 失效模式
 
-- **認領競爭（Claim race）。** 兩個 agent 把一個 task 讀成無人擁有並雙雙認領，丟掉了其中一個 agent 的工作。在一個 file lock 內做認領，讓檢查與寫入成為原子操作（第 12 章）。
-- **被閒聊餓死（Starvation by chatter）。** peer 閒聊淹沒了一個 shutdown 請求，於是一個該停止的 agent 繼續 poll。在一般訊息之前先檢查 shutdown（第 16 章）。
-- **過早認領被阻擋的工作。** 一個 agent 認領了相依項尚未完成的 task，然後卡住。跳過任何 `blockedBy` 仍含未解 id 的 task（第 12 章）。
-- **compaction 後身分遺失。** 一個長時間運行的 teammate 在執行途中被自動 compaction（第 8 章），忘了自己的角色。保留 system prompt，讓角色得以存續。
-- **卡在忙碌，或卡在閒置。** 一個永遠抵達不了 `end_turn` 的階段永遠不會釋放；一個沒有出口的 poll 會空轉。依 stop 訊號結束（第 1 章）；每次 poll 都檢查 abort。
+- **認領競爭（Claim race）：**兩個 agent 把一個 task 讀成無人擁有並雙雙認領，丟掉了其中一個 agent 的工作。在一個 file lock 內做認領，讓檢查與寫入成為原子操作（第 12 章）。
+- **被閒聊餓死（Starvation by chatter）：**peer 閒聊淹沒了一個 shutdown 請求，於是一個該停止的 agent 繼續 poll。在一般訊息之前先檢查 shutdown（第 16 章）。
+- **過早認領被阻擋的工作：**一個 agent 認領了相依項尚未完成的 task，然後卡住。跳過任何 `blockedBy` 仍含未解 id 的 task（第 12 章）。
+- **compaction 後身分遺失：**一個長時間運行的 teammate 在執行途中被自動 compaction（第 8 章），忘了自己的角色。保留 system prompt，讓角色得以存續。
+- **卡在忙碌，或卡在閒置：**一個永遠抵達不了 `end_turn` 的階段永遠不會釋放；一個沒有出口的 poll 會空轉。依 stop 訊號結束（第 1 章）；每次 poll 都檢查 abort。
 
 ---
 

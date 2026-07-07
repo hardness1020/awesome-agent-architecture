@@ -41,7 +41,7 @@ flowchart TD
 There are four operations:
 
 - **Selection** decides what to save. Save facts that cannot be derived again with grep, git, or project files.
-- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies.
+- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies into the turn's `messages[]`, as a `<system-reminder>` block ahead of the user text.
 - **Extraction** runs at run end. It writes new memory files.
 - **Consolidation** runs rarely. It merges duplicates and prunes stale entries.
 
@@ -89,7 +89,55 @@ def extract(memory_dir, messages, extractor) -> list[Path]:
     return written
 ```
 
-`Store` is the handle the loop uses. The selector and extractor are optional, so the tests can run offline.
+The memory dir above holds distilled facts, and it is not the only store. Raw history works as a second one: log each run's text, then search it back by keyword. The log keeps everything, so a fact extraction missed is still findable. This is the design behind Hermes's `state.db`.
+
+`log_run` appends each run's text to a SQLite FTS5 table at run end:
+
+```python
+def log_run(db_path, session_id, messages) -> int:     # src/memory.py
+    rows = [(session_id, m["role"], t) for m in messages if (t := _text_of(m))]
+    con = _db(db_path)                                  # CREATE VIRTUAL TABLE ... USING fts5
+    con.executemany("INSERT INTO session_log VALUES (?, ?, ?)", rows)
+    con.commit()
+    con.close()
+    return len(rows)
+```
+
+- `_text_of` flattens one message to searchable text: a plain string passes through, an API response keeps only its text blocks. Tool-use blocks carry no text and drop out.
+- Each row is `(session_id, role, content)`. The session id is the lineage key, so a hit can say which past run it came from.
+- FTS5 ships inside CPython's `sqlite3`, so the log costs no dependency.
+
+`search_sessions` reads the log back, ranked, with no model call:
+
+```python
+def search_sessions(db_path, query, k=SEARCH_K) -> list[tuple]:
+    words = _words(query)                               # the same tokenizer recall uses
+    if not words or not Path(db_path).exists():
+        return []
+    con = _db(db_path)
+    rows = con.execute("SELECT session_id, role, content FROM session_log "
+                       "WHERE session_log MATCH ? ORDER BY rank LIMIT ?",
+                       (" OR ".join(sorted(words)), k)).fetchall()
+    con.close()
+    return rows
+```
+
+- The query words join with `OR`, so any word can hit; `ORDER BY rank` (bm25) puts the best match first.
+  That is keyword recall with fuzzy ranking, the shape of Hermes' `session_search`.
+- `k` caps the returned rows for the same reason `RECALL_K` caps injected memories: precision over volume.
+- `search_tool` wraps this as the read-only `SessionSearch` tool, so consulting past sessions is the model's decision, made mid-turn.
+  Extracted-memory recall stays the harness's decision, made before the turn. The two paths differ in who pulls the trigger.
+
+`Store` is the handle the loop uses, and it now feeds both stores at run end:
+
+```python
+def write(self, messages) -> list[Path]:               # Store.write, called at run end
+    if self.db is not None:
+        log_run(self.db, self.session_id, messages)     # everything, searchable later
+    return extract(self.root, messages, self.extractor) if self.extractor else []   # the distilled few
+```
+
+The selector, extractor, and session db are all optional, so the tests can run offline.
 
 ### How it integrates
 
@@ -122,6 +170,7 @@ Rows are systems. Columns are the four memory operations.
 | System | Store | Recall | Extraction | Consolidation |
 | --- | --- | --- | --- | --- |
 | **Claude Code** | Markdown files with frontmatter. | Selector chooses a small set. | Forked agent writes memories at run end. | Background process merges and prunes. |
+| **Hermes Agent** | Two markdown files plus a SQLite index. | Prompt snapshot plus session search. | Memory tool writes entries. | Model rewrite on char-budget overflow. |
 
 ### Claude Code
 
@@ -134,6 +183,18 @@ Rows are systems. Columns are the four memory operations.
 - Bodies are injected with freshness notes.
 - Extraction runs as a forked agent at run end.
 - Consolidation is the "Dream" background task, gated by time, session count, and a lock.
+
+### Hermes Agent
+
+- Two files, two subjects: `MEMORY.md` holds agent observations, `USER.md` holds the user profile. Entries split on a `§` delimiter (`ENTRY_DELIMITER`).
+- Both files are frozen into the system prompt at session start (`load_from_disk` captures a snapshot).
+- Mid-session writes hit disk but not the prompt, which keeps the prompt cache warm.
+- Budgets are characters, not tokens: 2200 for memory, 1375 for the user profile. Overflow triggers a model-driven consolidation pass, with failure tracking.
+- `_scan_memory_content` checks entries for injection patterns before they enter the prompt.
+- Cross-session recall is a separate path: `session_search` queries `state.db` (SQLite FTS5, `SessionDB`) and returns actual past messages, no model call needed.
+- `session_search` has three modes: DISCOVERY by query, SCROLL around one message, BROWSE recent sessions.
+- Ranking demotes cron-sourced sessions below interactive ones (`_DEMOTED_SESSION_SOURCES`) and hides subagent and tool sessions.
+- Memory writes can be staged for approval (`write_approval.py`) instead of landing directly.
 
 > **Trade-off:** LLM-based recall can judge relevance better than simple keywords.
 > It costs an extra model call.
@@ -156,9 +217,10 @@ Rows are systems. Columns are the four memory operations.
 
 [`src/`](src/) carries 08 forward and adds:
 
-- [`memory.py`](src/memory.py): a `Store`, index loading, recall, and extraction.
+- [`memory.py`](src/memory.py): a `Store`, index loading, recall, extraction, and the session log (`log_run`, `search_sessions`, the `SessionSearch` tool).
 - [`loop.py`](src/loop.py): recalls into the opening turn and extracts at run end.
-- [`test.py`](src/test.py): walks the four operations on a temporary store.
+- [`test.py`](src/test.py): walks the four operations on a temporary store, then logs and searches past sessions.
+- [`demo.py`](src/demo.py): the agent answers from a past session's raw history via `SessionSearch`.
 
 ```bash
 python sections/09-memory/src/test.py         # offline checks, no key
@@ -171,4 +233,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 
 - Claude Code source: `memdir/findRelevantMemories.ts`, `memdir/memdir.ts`, `services/SessionMemory/sessionMemory.ts`.
 - Claude Code memory services: `services/extractMemories/extractMemories.ts`, `services/autoDream/autoDream.ts`.
+- Hermes Agent source: `tools/memory_tool.py`, `hermes_state.py` (`SessionDB`), `tools/session_search_tool.py`, `tools/write_approval.py`.
 - learn-claude-code · s09_memory: section framing.

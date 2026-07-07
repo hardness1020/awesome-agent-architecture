@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
-  <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-1+-0a7bbb?style=for-the-badge" alt="Systems"></a>
+  <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
   <a href="#各章節"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
@@ -34,10 +34,11 @@
 
 | 系統 | 維護者 | 授權 | 模型 | 使用介面 | 值得看的地方 |
 | --- | --- | --- | --- | --- | --- |
-| **Claude Code** | Anthropic | 專有 | 只支援 Claude | CLI、IDE、網頁 | 權限、subagent、skill |
+| **Claude Code** | Anthropic | 專有 | 只支援 Claude | CLI、IDE、網頁 | Permissions, subagents, skills |
+| **Hermes Agent** | Nous Research | MIT | 模型無關 | CLI、桌面、網頁、通訊平台 | Memory, skill evolution, always-on channels |
 | *(更多陸續加入)* | | | | | |
 
-> 之後可以再加入更多系統，例如 Hermes Agent、OpenClaw、aider 和 mini-swe-agent。
+> 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
 
 ---
 
@@ -181,4 +182,5 @@ uv run python sections/01-agent-loop/src/demo.py  # 即時
 | 出處 | 提供什麼 |
 | --- | --- |
 | [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Claude Code 原始碼備份，用來對照機制名稱與實作路徑。 |
+| [hermes-agent](https://github.com/NousResearch/hermes-agent) | 開源 agent harness（MIT），作為第二個研究系統。 |
 | [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 以程式碼為主的 harness 重建與章節架構。 |
