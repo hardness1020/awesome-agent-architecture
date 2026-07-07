@@ -86,33 +86,33 @@ flowchart LR
 | # | 章節 | 問題 | 關鍵機制 |
 | --- | --- | --- | --- |
 | | **第 0 層 · 基礎** | | |
-| 0 | [Harness thesis](sections/00-harness-thesis/) | agency（能動性）從哪裡來？ | Model vs harness, actions, observations, permissions |
+| 0 | [Harness thesis](sections/00-harness-thesis/README.zh-TW.md) | agency（能動性）從哪裡來？ | Model vs harness, actions, observations, permissions |
 | | **第 1 層 · 核心迴圈** | | |
-| 1 | [Agent loop](sections/01-agent-loop/) | agent 怎麼持續運作？ | `messages[]`, loop, `stop_reason` |
-| 2 | [Tool runtime](sections/02-tool-runtime/) | 工具怎麼被呼叫和路由？ | Registry, schemas, dispatch, deferred search |
-| 3 | [Permission & sandbox](sections/03-permission-sandbox/) | 副作用怎麼被控管？ | Permission modes, approvals, sandboxing |
-| 4 | [Hooks](sections/04-hooks/) | 擴充功能怎麼掛進迴圈？ | `PreToolUse`, `PostToolUse`, lifecycle events |
+| 1 | [Agent loop](sections/01-agent-loop/README.zh-TW.md) | agent 怎麼持續運作？ | `messages[]`, loop, `stop_reason` |
+| 2 | [Tool runtime](sections/02-tool-runtime/README.zh-TW.md) | 工具怎麼被呼叫和路由？ | Registry, schemas, dispatch, deferred search |
+| 3 | [Permission & sandbox](sections/03-permission-sandbox/README.zh-TW.md) | 副作用怎麼被控管？ | Permission modes, approvals, sandboxing |
+| 4 | [Hooks](sections/04-hooks/README.zh-TW.md) | 擴充功能怎麼掛進迴圈？ | `PreToolUse`, `PostToolUse`, lifecycle events |
 | | **第 2 層 · 複雜工作** | | |
-| 5 | [Planning & todos](sections/05-planning-todos/) | 大工作怎麼拆解？ | Plan mode, todo list, approval before edits |
-| 6 | [Subagents](sections/06-subagents/) | 子問題怎麼被隔離？ | Fresh `messages[]`, delegation, child loop |
-| 7 | [Skills](sections/07-skills/) | 能力怎麼隨需載入？ | `SKILL.md`, catalog, progressive disclosure |
-| 8 | [Context management](sections/08-context-management/) | 長對話怎麼塞進視窗？ | Budgeting, stubs, compaction, summaries |
+| 5 | [Planning & todos](sections/05-planning-todos/README.zh-TW.md) | 大工作怎麼拆解？ | Plan mode, todo list, approval before edits |
+| 6 | [Subagents](sections/06-subagents/README.zh-TW.md) | 子問題怎麼被隔離？ | Fresh `messages[]`, delegation, child loop |
+| 7 | [Skills](sections/07-skills/README.zh-TW.md) | 能力怎麼隨需載入？ | `SKILL.md`, catalog, progressive disclosure |
+| 8 | [Context management](sections/08-context-management/README.zh-TW.md) | 長對話怎麼塞進視窗？ | Budgeting, stubs, compaction, summaries |
 | | **第 3 層 · 知識與韌性** | | |
-| 9 | [Memory](sections/09-memory/) | 它怎麼跨執行記住東西？ | Selection, recall, extraction, consolidation |
-| 10 | [System prompt assembly](sections/10-system-prompt/) | 每一輪的提示怎麼組出來？ | Prompt sections, live state, cache boundaries |
-| 11 | [Error recovery](sections/11-error-recovery/) | 長任務怎麼在失敗中存活？ | Retries, overflow recovery, fallback model |
+| 9 | [Memory](sections/09-memory/README.zh-TW.md) | 它怎麼跨執行記住東西？ | Selection, recall, extraction, consolidation |
+| 10 | [System prompt assembly](sections/10-system-prompt/README.zh-TW.md) | 每一輪的提示怎麼組出來？ | Prompt sections, live state, cache boundaries |
+| 11 | [Error recovery](sections/11-error-recovery/README.zh-TW.md) | 長任務怎麼在失敗中存活？ | Retries, overflow recovery, fallback model |
 | | **第 4 層 · 長時間執行與非同步** | | |
-| 12 | [Task system](sections/12-task-system/) | 工作怎麼跨越單一輪次持續存在？ | Task records, dependencies, locks |
-| 13 | [Background execution](sections/13-background-execution/) | 工作怎麼在主迴圈之外執行？ | Handles, task state, notification queue |
-| 14 | [Scheduling](sections/14-scheduling/) | agent 怎麼在之後才執行？ | Cron, sleep, remote triggers, queues |
-| 15 | [Worktree isolation](sections/15-worktree-isolation/) | 平行工作怎麼避免衝突？ | Git worktrees, cwd binding, safe cleanup |
+| 12 | [Task system](sections/12-task-system/README.zh-TW.md) | 工作怎麼跨越單一輪次持續存在？ | Task records, dependencies, locks |
+| 13 | [Background execution](sections/13-background-execution/README.zh-TW.md) | 工作怎麼在主迴圈之外執行？ | Handles, task state, notification queue |
+| 14 | [Scheduling](sections/14-scheduling/README.zh-TW.md) | agent 怎麼在之後才執行？ | Cron, sleep, remote triggers, queues |
+| 15 | [Worktree isolation](sections/15-worktree-isolation/README.zh-TW.md) | 平行工作怎麼避免衝突？ | Git worktrees, cwd binding, safe cleanup |
 | | **第 5 層 · 多 Agent** | | |
-| 16 | [Coordination](sections/16-coordination/) | 多個 agent 怎麼溝通？ | Inboxes, broadcasts, permission bubbling |
-| 17 | [Protocols](sections/17-protocols/) | agent 怎麼達成共識並乾淨收尾？ | Plan approval, shutdown handshakes |
-| 18 | [Autonomy](sections/18-autonomy/) | agent 怎麼自我組織？ | Idle cycle, task claiming, self organization |
+| 16 | [Coordination](sections/16-coordination/README.zh-TW.md) | 多個 agent 怎麼溝通？ | Inboxes, broadcasts, permission bubbling |
+| 17 | [Protocols](sections/17-protocols/README.zh-TW.md) | agent 怎麼達成共識並乾淨收尾？ | Plan approval, shutdown handshakes |
+| 18 | [Autonomy](sections/18-autonomy/README.zh-TW.md) | agent 怎麼自我組織？ | Idle cycle, task claiming, self organization |
 | | **第 6 層 · 擴充與整合** | | |
-| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/) | harness 怎麼連到外面的世界？ | Transports, channels, tool pool assembly |
-| 20 | [Observability & evaluation](sections/20-observability/) | 我們怎麼知道它有效？ | Tracing, metrics, evals, failure analysis |
+| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-TW.md) | harness 怎麼連到外面的世界？ | Transports, channels, tool pool assembly |
+| 20 | [Observability & evaluation](sections/20-observability/README.zh-TW.md) | 我們怎麼知道它有效？ | Tracing, metrics, evals, failure analysis |
 
 ---
 
