@@ -136,14 +136,14 @@ awesome-agent-architecture/
 
 Each section folder is `NN-name/` and contains a `README.md`.
 
-Sections 1 to 20 also carry a runnable `src/`. The code accumulates section by section.
+Sections 1 to 21 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 ---
 
 ## Running the Demos
 
-Sections 1 to 20 ship runnable demos. Set up once from the repo root:
+Sections 1 to 21 ship runnable demos. Set up once from the repo root:
 
 ```bash
 uv venv
