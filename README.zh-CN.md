@@ -32,11 +32,11 @@
 
 每个系统都是下面各章节的实现示例。
 
-| 系统 | 维护者 | 覆盖章节 | 值得看的地方 |
-| --- | --- | --- | --- |
-| **Claude Code** | Anthropic | 0 到 20（全部） | 完整 harness，从这里读起 |
-| **Hermes Agent** | Nous Research | 7、9、14、16、19 | Memory, skill evolution, always-on channels |
-| *(更多陆续加入)* | | | |
+| 系统 | 大家为什么用它 | 值得看的地方 | 覆盖章节 | 维护者 |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起 | 0 到 20（全部） | Anthropic |
+| **Hermes Agent** | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。 | Memory, skill evolution, always-on channels | 7、9、14、16、19 | Nous Research |
+| *(更多陆续加入)* | | | | |
 
 > 之后可以再加入更多系统，例如 OpenClaw、aider 和 mini-swe-agent。
 

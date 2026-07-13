@@ -32,11 +32,11 @@ This repo explains the harness section by section: loop, tools, memory, permissi
 
 Each system is a worked example for the sections below.
 
-| System | Maintainer | Sections | Read it for |
-| --- | --- | --- | --- |
-| **Claude Code** | Anthropic | 0 to 20 (all) | The full harness, start here |
-| **Hermes Agent** | Nous Research | 7, 9, 14, 16, 19 | Memory, skill evolution, always-on channels |
-| *(more soon)* | | | |
+| System | Why people use it | Read it for | Sections | Maintainer |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 20 (all) | Anthropic |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs across platforms. | Memory, skill evolution, always-on channels | 7, 9, 14, 16, 19 | Nous Research |
+| *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 

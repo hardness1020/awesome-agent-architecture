@@ -32,11 +32,11 @@
 
 每個系統都是下面各章節的實作範例。
 
-| 系統 | 維護者 | 覆蓋章節 | 值得看的地方 |
-| --- | --- | --- | --- |
-| **Claude Code** | Anthropic | 0 到 20（全部） | 完整 harness，從這裡讀起 |
-| **Hermes Agent** | Nous Research | 7、9、14、16、19 | Memory, skill evolution, always-on channels |
-| *(更多陸續加入)* | | | |
+| 系統                   | 大家為什麼用它                                                        | 值得看的地方                                | 覆蓋章節         | 維護者        |
+| ---------------------- | --------------------------------------------------------------------- | ------------------------------------------- | ---------------- | ------------- |
+| **Claude Code**  | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起               | 0 到 20（全部）  | Anthropic     |
+| **Hermes Agent** | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory, skill evolution, always-on channels | 7、9、14、16、19 | Nous Research |
+| *(更多陸續加入)*     |                                                                       |                                             |                  |               |
 
 > 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
 
@@ -83,36 +83,36 @@ flowchart LR
 
 七層，從最基本的迴圈一路到多 agent 的 harness。每一列都連到一篇可獨立閱讀的說明。
 
-| # | 章節 | 問題 | 關鍵機制 |
-| --- | --- | --- | --- |
-| | **第 0 層 · 基礎** | | |
-| 0 | [Harness thesis](sections/00-harness-thesis/README.zh-TW.md) | agency（能動性）從哪裡來？ | Model vs harness, actions, observations, permissions |
-| | **第 1 層 · 核心迴圈** | | |
-| 1 | [Agent loop](sections/01-agent-loop/README.zh-TW.md) | agent 怎麼持續運作？ | `messages[]`, loop, `stop_reason` |
-| 2 | [Tool runtime](sections/02-tool-runtime/README.zh-TW.md) | 工具怎麼被呼叫和路由？ | Registry, schemas, dispatch, deferred search |
-| 3 | [Permission & sandbox](sections/03-permission-sandbox/README.zh-TW.md) | 副作用怎麼被控管？ | Permission modes, approvals, sandboxing |
-| 4 | [Hooks](sections/04-hooks/README.zh-TW.md) | 擴充功能怎麼掛進迴圈？ | `PreToolUse`, `PostToolUse`, lifecycle events |
-| | **第 2 層 · 複雜工作** | | |
-| 5 | [Planning & todos](sections/05-planning-todos/README.zh-TW.md) | 大工作怎麼拆解？ | Plan mode, todo list, approval before edits |
-| 6 | [Subagents](sections/06-subagents/README.zh-TW.md) | 子問題怎麼被隔離？ | Fresh `messages[]`, delegation, child loop |
-| 7 | [Skills](sections/07-skills/README.zh-TW.md) | 能力怎麼隨需載入？ | `SKILL.md`, catalog, progressive disclosure |
-| 8 | [Context management](sections/08-context-management/README.zh-TW.md) | 長對話怎麼塞進視窗？ | Budgeting, stubs, compaction, summaries |
-| | **第 3 層 · 知識與韌性** | | |
-| 9 | [Memory](sections/09-memory/README.zh-TW.md) | 它怎麼跨執行記住東西？ | Selection, recall, extraction, consolidation |
-| 10 | [System prompt assembly](sections/10-system-prompt/README.zh-TW.md) | 每一輪的提示怎麼組出來？ | Prompt sections, live state, cache boundaries |
-| 11 | [Error recovery](sections/11-error-recovery/README.zh-TW.md) | 長任務怎麼在失敗中存活？ | Retries, overflow recovery, fallback model |
-| | **第 4 層 · 長時間執行與非同步** | | |
-| 12 | [Task system](sections/12-task-system/README.zh-TW.md) | 工作怎麼跨越單一輪次持續存在？ | Task records, dependencies, locks |
-| 13 | [Background execution](sections/13-background-execution/README.zh-TW.md) | 工作怎麼在主迴圈之外執行？ | Handles, task state, notification queue |
-| 14 | [Scheduling](sections/14-scheduling/README.zh-TW.md) | agent 怎麼在之後才執行？ | Cron, sleep, remote triggers, queues |
-| 15 | [Worktree isolation](sections/15-worktree-isolation/README.zh-TW.md) | 平行工作怎麼避免衝突？ | Git worktrees, cwd binding, safe cleanup |
-| | **第 5 層 · 多 Agent** | | |
-| 16 | [Coordination](sections/16-coordination/README.zh-TW.md) | 多個 agent 怎麼溝通？ | Inboxes, broadcasts, permission bubbling |
-| 17 | [Protocols](sections/17-protocols/README.zh-TW.md) | agent 怎麼達成共識並乾淨收尾？ | Plan approval, shutdown handshakes |
-| 18 | [Autonomy](sections/18-autonomy/README.zh-TW.md) | agent 怎麼自我組織？ | Idle cycle, task claiming, self organization |
-| | **第 6 層 · 擴充與整合** | | |
-| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-TW.md) | harness 怎麼連到外面的世界？ | Transports, channels, tool pool assembly |
-| 20 | [Observability & evaluation](sections/20-observability/README.zh-TW.md) | 我們怎麼知道它有效？ | Tracing, metrics, evals, failure analysis |
+| #  | 章節                                                                      | 問題                           | 關鍵機制                                             |
+| -- | ------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
+|    | **第 0 層 · 基礎**                                                 |                                |                                                      |
+| 0  | [Harness thesis](sections/00-harness-thesis/README.zh-TW.md)                 | agency（能動性）從哪裡來？     | Model vs harness, actions, observations, permissions |
+|    | **第 1 層 · 核心迴圈**                                             |                                |                                                      |
+| 1  | [Agent loop](sections/01-agent-loop/README.zh-TW.md)                         | agent 怎麼持續運作？           | `messages[]`, loop, `stop_reason`                |
+| 2  | [Tool runtime](sections/02-tool-runtime/README.zh-TW.md)                     | 工具怎麼被呼叫和路由？         | Registry, schemas, dispatch, deferred search         |
+| 3  | [Permission &amp; sandbox](sections/03-permission-sandbox/README.zh-TW.md)   | 副作用怎麼被控管？             | Permission modes, approvals, sandboxing              |
+| 4  | [Hooks](sections/04-hooks/README.zh-TW.md)                                   | 擴充功能怎麼掛進迴圈？         | `PreToolUse`, `PostToolUse`, lifecycle events    |
+|    | **第 2 層 · 複雜工作**                                             |                                |                                                      |
+| 5  | [Planning &amp; todos](sections/05-planning-todos/README.zh-TW.md)           | 大工作怎麼拆解？               | Plan mode, todo list, approval before edits          |
+| 6  | [Subagents](sections/06-subagents/README.zh-TW.md)                           | 子問題怎麼被隔離？             | Fresh`messages[]`, delegation, child loop          |
+| 7  | [Skills](sections/07-skills/README.zh-TW.md)                                 | 能力怎麼隨需載入？             | `SKILL.md`, catalog, progressive disclosure        |
+| 8  | [Context management](sections/08-context-management/README.zh-TW.md)         | 長對話怎麼塞進視窗？           | Budgeting, stubs, compaction, summaries              |
+|    | **第 3 層 · 知識與韌性**                                           |                                |                                                      |
+| 9  | [Memory](sections/09-memory/README.zh-TW.md)                                 | 它怎麼跨執行記住東西？         | Selection, recall, extraction, consolidation         |
+| 10 | [System prompt assembly](sections/10-system-prompt/README.zh-TW.md)          | 每一輪的提示怎麼組出來？       | Prompt sections, live state, cache boundaries        |
+| 11 | [Error recovery](sections/11-error-recovery/README.zh-TW.md)                 | 長任務怎麼在失敗中存活？       | Retries, overflow recovery, fallback model           |
+|    | **第 4 層 · 長時間執行與非同步**                                   |                                |                                                      |
+| 12 | [Task system](sections/12-task-system/README.zh-TW.md)                       | 工作怎麼跨越單一輪次持續存在？ | Task records, dependencies, locks                    |
+| 13 | [Background execution](sections/13-background-execution/README.zh-TW.md)     | 工作怎麼在主迴圈之外執行？     | Handles, task state, notification queue              |
+| 14 | [Scheduling](sections/14-scheduling/README.zh-TW.md)                         | agent 怎麼在之後才執行？       | Cron, sleep, remote triggers, queues                 |
+| 15 | [Worktree isolation](sections/15-worktree-isolation/README.zh-TW.md)         | 平行工作怎麼避免衝突？         | Git worktrees, cwd binding, safe cleanup             |
+|    | **第 5 層 · 多 Agent**                                             |                                |                                                      |
+| 16 | [Coordination](sections/16-coordination/README.zh-TW.md)                     | 多個 agent 怎麼溝通？          | Inboxes, broadcasts, permission bubbling             |
+| 17 | [Protocols](sections/17-protocols/README.zh-TW.md)                           | agent 怎麼達成共識並乾淨收尾？ | Plan approval, shutdown handshakes                   |
+| 18 | [Autonomy](sections/18-autonomy/README.zh-TW.md)                             | agent 怎麼自我組織？           | Idle cycle, task claiming, self organization         |
+|    | **第 6 層 · 擴充與整合**                                           |                                |                                                      |
+| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-TW.md) | harness 怎麼連到外面的世界？   | Transports, channels, tool pool assembly             |
+| 20 | [Observability &amp; evaluation](sections/20-observability/README.zh-TW.md)  | 我們怎麼知道它有效？           | Tracing, metrics, evals, failure analysis            |
 
 ---
 
@@ -177,8 +177,8 @@ uv run python sections/01-agent-loop/src/demo.py  # 即時
 
 ## 參考資料
 
-| 出處 | 提供什麼 |
-| --- | --- |
-| [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Claude Code 原始碼備份，用來對照機制名稱與實作路徑。 |
-| [hermes-agent](https://github.com/NousResearch/hermes-agent) | 開源 agent harness（MIT），作為第二個研究系統。 |
-| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 以程式碼為主的 harness 重建與章節架構。 |
+| 出處                                                               | 提供什麼                                             |
+| ------------------------------------------------------------------ | ---------------------------------------------------- |
+| [claude-code](https://github.com/yasasbanukaofficial/claude-code)     | Claude Code 原始碼備份，用來對照機制名稱與實作路徑。 |
+| [hermes-agent](https://github.com/NousResearch/hermes-agent)          | 開源 agent harness（MIT），作為第二個研究系統。      |
+| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 以程式碼為主的 harness 重建與章節架構。              |
