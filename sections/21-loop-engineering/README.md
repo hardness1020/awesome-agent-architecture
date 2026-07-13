@@ -145,10 +145,9 @@ How each agent composes its outer loops.
 
 ## Sources
 
-- cobusgreyling · loop-engineering: building blocks, seven production loop patterns, L1 to L3 readiness levels.
-- LangChain · The art of loop engineering: the four stacked loops (agent, verification, event-driven, hill climbing).
-- Addy Osmani · Loop engineering: composing automations, worktrees, skills, connectors, sub-agents, and state.
-- MindStudio · What is loop engineering: goal conditions and the control-theory framing.
-- Claude Code: `/loop` skill, `ScheduleWakeup`, `Workflow` tool schema (`agent`, `pipeline`, `budget`, quality patterns).
-  Described from tool schemas and documented behavior, not the source backup.
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): building blocks and readiness levels.
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): the four stacked loops.
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): goal conditions.
+- Claude Code: `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
 - Hermes Agent source: `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
