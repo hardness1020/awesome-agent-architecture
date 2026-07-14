@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#研究的系统"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
   <a href="#研究的系统"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
-  <a href="#各章节"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
+  <a href="#各章节"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -34,8 +34,8 @@
 
 | 系统 | 大家为什么用它 | 值得看的地方 | 覆盖章节 | 维护者 |
 | --- | --- | --- | --- | --- |
-| **Claude Code** | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起 | 0 到 20（全部） | Anthropic |
-| **Hermes Agent** | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。 | Memory, skill evolution, always-on channels | 7、9、14、16、19 | Nous Research |
+| **Claude Code** | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起 | 0 到 21（全部） | Anthropic |
+| **Hermes Agent** | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。 | Memory, skill evolution, always-on channels | 7、9、14、16、19、21 | Nous Research |
 | *(更多陆续加入)* | | | | |
 
 > 之后可以再加入更多系统，例如 OpenClaw、aider 和 mini-swe-agent。
@@ -81,7 +81,7 @@ flowchart LR
 
 ## 各章节
 
-七层，从最基本的循环一路到多 agent 的 harness。每一行都链接到一篇可独立阅读的说明。
+八层，从最基本的循环一路到能自己运转的 harness。每一行都链接到一篇可独立阅读的说明。
 
 | # | 章节 | 问题 | 关键机制 |
 | --- | --- | --- | --- |
@@ -113,12 +113,14 @@ flowchart LR
 | | **第 6 层 · 扩展与集成** | | |
 | 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-CN.md) | harness 怎么连到外面的世界？ | Transports, channels, tool pool assembly |
 | 20 | [Observability & evaluation](sections/20-observability/README.zh-CN.md) | 我们怎么知道它有效？ | Tracing, metrics, evals, failure analysis |
+| | **第 7 层 · 组合** | | |
+| 21 | [Loop engineering](sections/21-loop-engineering/README.zh-CN.md) | 循环怎么叠成一个能自己运转的系统？ | Verification loop, triggers, budgets, maturity levels |
 
 ---
 
 ## 文件结构
 
-21 篇章节说明都已备齐，从 `00-harness-thesis/` 一路到 `20-observability/`。
+22 篇章节说明都已备齐，从 `00-harness-thesis/` 一路到 `21-loop-engineering/`。
 
 ```text
 awesome-agent-architecture/
@@ -126,20 +128,20 @@ awesome-agent-architecture/
 ├── sections/                  # 每个章节一个文件夹
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可执行的代码链从这里开始
-│   └── 20-observability/
+│   └── 21-loop-engineering/
 └── references/                # 原始出处与前人成果
 ```
 
 每个章节文件夹都是 `NN-name/` 格式，里面有一份 `README.md`。
 
-第 1 到 20 章还带有可执行的 `src/`。代码一章一章累积上去。
+第 1 到 21 章还带有可执行的 `src/`。代码一章一章累积上去。
 每一章新增一个机制，并让 `loop.py` 演进，所以对比相邻两章的 diff，就能看出改了什么。
 
 ---
 
 ## 运行示范
 
-第 1 到 20 章都附有可执行的示范。从 repo 根目录配置一次就好：
+第 1 到 21 章都附有可执行的示范。从 repo 根目录配置一次就好：
 
 ```bash
 uv venv

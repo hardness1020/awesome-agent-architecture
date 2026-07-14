@@ -1,6 +1,6 @@
 # 21 · Loop engineering
 
-[English](README.md) · **繁體中文**
+[English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
 > 別再想下一句 prompt 要寫什麼。去設計那個不需要你也能把 agent 跑起來的 loop。
 

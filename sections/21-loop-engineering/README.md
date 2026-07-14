@@ -1,6 +1,6 @@
 # 21 · Loop engineering
 
-**English** · [繁體中文](README.zh-TW.md)
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
 > Stop writing the next prompt. Design the loop that runs the agent without you.
 
