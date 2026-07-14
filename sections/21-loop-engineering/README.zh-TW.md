@@ -50,7 +50,7 @@ flowchart LR
 
 ### New：驗證 loop
 
-這是前面章節唯一沒做過的 loop。內層 loop 是 model 自己說完成就停。驗證 loop 把「完成」變成要通過檢查才算數的宣稱：
+這是前面章節唯一沒做過的 loop。內層 loop 是 model 自己說完成就停。有了驗證 loop，「完成」不再是 model 說了算，要通過檢查才算數：
 
 ```python
 def verified_run(task, worker, checker, budget=2):    # src/verify.py
