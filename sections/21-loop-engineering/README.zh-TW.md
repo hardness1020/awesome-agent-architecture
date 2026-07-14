@@ -99,7 +99,7 @@ Loop engineering 的幾個出處都用「敢讓它做多少事」來替 loop 分
 - 執行之間的狀態放在第 9 章的記憶和第 12 章的 task 紀錄。
 - 回報和 trace 是第 20 章。改進 loop 把第 20 章量到的東西接回 harness 的修改。
 
-可執行程式也是這樣接的。`run_turn` 和第 20 章一模一樣；驗證從外面把它包起來：
+可執行的 src 也是同一套組法。`run_turn` 完全沒改，跟第 20 章一模一樣；`verified_run` 只是在外面多包一層驗證：
 
 ```python
 def worker(prompt):                                # src/demo.py · the inner loop, unchanged
@@ -172,7 +172,7 @@ result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, bud
 - [`test.py`](src/test.py)：離線檢查第一次就通過、feedback 有進到重試、budget 上限，以及 PASS/FAIL 的 verdict 約定。
 - [`demo.py`](src/demo.py)：實際跑一次 verified run：worker 帶著 add tool，獨立的 checker 按固定 rubric 評分，budget 用完就交回給人。
 
-loop 沒有改變。驗證從外面把它包起來。
+loop 本身完全沒改，驗證那一層是包在外面的。
 
 ```bash
 python sections/21-loop-engineering/src/test.py         # offline checks, no key
