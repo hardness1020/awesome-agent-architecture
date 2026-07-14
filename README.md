@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
   <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
-  <a href="#sections"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
+  <a href="#sections"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -19,9 +19,11 @@
   <strong>English</strong> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-The model reasons. The harness gives it action, state, and limits: it runs tools, keeps state across calls, gates side effects, and coordinates loops, none of which a model call does by itself.
+The model reasons. The harness gives it action, state, and limits:
+it runs tools, keeps state across calls, gates side effects, and coordinates loops, none of which a model call does by itself.
 
-This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces. Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
+This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
+Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
 **Contents:** [Systems](#systems-under-study) · [Loop](#the-agent-loop) · [Method](#method) ·
 [Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
@@ -34,8 +36,8 @@ Each system is a worked example for the sections below.
 
 | System | Why people use it | Read it for | Sections | Maintainer |
 | --- | --- | --- | --- | --- |
-| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 20 (all) | Anthropic |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs across platforms. | Memory, skill evolution, always-on channels | 7, 9, 14, 16, 19 | Nous Research |
+| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | Anthropic |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skill evolution, always-on channels | 7, 9, 14, 16, 19, 21 | Nous Research |
 | *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
@@ -81,7 +83,7 @@ To learn from this repo:
 
 ## Sections
 
-Seven layers, from the basic loop to a multi-agent harness. Each row links to one self-contained writeup.
+Eight layers, from the basic loop to a harness that runs itself. Each row links to one self-contained writeup.
 
 | # | Section | Question | Key mechanisms |
 | --- | --- | --- | --- |
@@ -113,12 +115,14 @@ Seven layers, from the basic loop to a multi-agent harness. Each row links to on
 | | **Layer 6 · Extension & Integration** | | |
 | 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/) | How does the harness reach the world? | Transports, channels, tool pool assembly |
 | 20 | [Observability & evaluation](sections/20-observability/) | How do we know it works? | Tracing, metrics, evals, failure analysis |
+| | **Layer 7 · Composition** | | |
+| 21 | [Loop engineering](sections/21-loop-engineering/) | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
 
 ---
 
 ## Repository Structure
 
-All 21 section writeups are present, from `00-harness-thesis/` through `20-observability/`.
+All 22 section writeups are present, from `00-harness-thesis/` through `21-loop-engineering/`.
 
 ```text
 awesome-agent-architecture/
@@ -126,20 +130,20 @@ awesome-agent-architecture/
 ├── sections/                  # one folder per section
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
-│   └── 20-observability/
+│   └── 21-loop-engineering/
 └── references/                # primary sources and prior art
 ```
 
 Each section folder is `NN-name/` and contains a `README.md`.
 
-Sections 1 to 20 also carry a runnable `src/`. The code accumulates section by section.
+Sections 1 to 21 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 ---
 
 ## Running the Demos
 
-Sections 1 to 20 ship runnable demos. Set up once from the repo root:
+Sections 1 to 21 ship runnable demos. Set up once from the repo root:
 
 ```bash
 uv venv
