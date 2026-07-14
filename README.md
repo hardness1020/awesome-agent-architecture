@@ -34,10 +34,10 @@ Learn it once and you can read many agents, since a coding tool, chat assistant,
 
 Each system is a worked example for the sections below.
 
-| System | Why people use it | Read it for | Sections | Maintainer |
+| System | Why people use it | Read it for | Sections | Version studied |
 | --- | --- | --- | --- | --- |
-| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | Anthropic |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skill evolution, always-on channels | 7, 9, 14, 16, 19, 21 | Nous Research |
+| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | v2.1.88 |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1 |
 | *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
