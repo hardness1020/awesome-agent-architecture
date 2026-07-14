@@ -7,7 +7,7 @@
 前面每一章都是在一次 model 呼叫的周圍加上一個機制。這一章把它們組合起來。
 
 Loop engineering 說的是工程重心的轉移。
-與其一個 turn 一個 turn 地下 prompt，不如打造外層系統：由它找出要做的工作、把 agent 跑起來、檢查輸出，再決定下一步。
+與其一個 turn 一個 turn 的下 prompt，不如打造外層系統：由它找出要做的工作、把 agent 跑起來、檢查輸出，再決定下一步。
 人從操作者變成設計者。
 
 外層 loop 必須：
@@ -46,7 +46,7 @@ flowchart LR
 
 資料由內往外流。trigger fire 之後把一個 prompt 放進 queue。agent loop 產出一個候選輸出，評分者替它打分數。
 沒過而且 budget 還有剩，就帶著 feedback 重試；過了就透過該 task 的 channel 投遞出去。
-這次執行的 trace 會進到 telemetry，改進 loop 再從那裡讀。
+這次執行做了什麼，會記錄成 trace 留在 telemetry（第 20 章）。改進 loop 之後就是讀這些紀錄，來決定 harness 哪裡該改。
 
 ### New：驗證 loop
 
@@ -117,10 +117,10 @@ result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, bud
 
 各個 agent 如何組合自己的外層 loop。
 
-| System | 驗證 | 事件 loop | 改進 loop |
-| --- | --- | --- | --- |
-| **Claude Code** | 以程式編排的 verify 階段，含對抗式模式。 | Cron、自訂節奏喚醒、remote trigger。 | workflow 可斷點續跑；原始碼中沒有閉環。 |
-| **Hermes Agent** | 靠 delegation 分出 maker 和 checker；沒有內建評分者。 | gateway cron 加受限 toolset。 | curator agent 從使用情況整併 skill。 |
+| System                 | 驗證                                                  | 事件 loop                            | 改進 loop                               |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------ | --------------------------------------- |
+| **Claude Code**  | 以程式編排的 verify 階段，含對抗式模式。              | Cron、自訂節奏喚醒、remote trigger。 | workflow 可斷點續跑；原始碼中沒有閉環。 |
+| **Hermes Agent** | 靠 delegation 分出 maker 和 checker；沒有內建評分者。 | gateway cron 加受限 toolset。        | curator agent 從使用情況整併 skill。    |
 
 ### Claude Code
 
