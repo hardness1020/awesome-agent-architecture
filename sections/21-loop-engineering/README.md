@@ -28,6 +28,8 @@ The simple version: the agent loop, wrapped by three more loops. Each wraps the 
 2. **Verification loop.** Grades the output against a rubric. A failure feeds back into a retry, up to a budget. Answers: is it actually done.
 3. **Event loop.** Cron schedules, webhooks, and channels start runs (section 14, section 19). Answers: when does work start.
 4. **Improvement loop.** Traces and evals (section 20) feed changes to the harness config, skills, or model. Answers: does the system get better.
+   At its mature end this loop edits the harness itself: mine weaknesses from traces, propose a bounded edit, validate it against a regression set.
+   The loop structure becomes a search space, not a hand-designed template.
 
 ```mermaid
 flowchart LR
@@ -155,6 +157,8 @@ How each agent composes its outer loops.
   Mitigation: climb the maturity ladder one level at a time, gated by section 3 permissions.
 - **Silent drift.** An unattended loop degrades and nobody reads its output. Mitigation: heartbeats, always-delivered reports, and section 20 metrics on pass rate and cost.
 - **State amnesia.** Each run rediscovers the same work and redoes it. Mitigation: persist findings to memory or task records (sections 9, 12) and read them at run start.
+- **Self-editing harness escapes its gates.** An improvement loop that can modify harness code can modify the code that gates it.
+  Mitigation: permissions and budgets live outside anything the loop can edit (section 3).
 
 ---
 
@@ -181,5 +185,6 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): the four stacked loops.
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): goal conditions.
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): the improvement loop in depth; gates outside the loop.
 - Claude Code: `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
 - Hermes Agent source: `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
