@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
   <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
-  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-21-green?style=for-the-badge" alt="Sections"></a>
+  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -34,8 +34,8 @@
 
 | 系統                   | 大家為什麼用它                                                        | 值得看的地方                                | 覆蓋章節         | 維護者        |
 | ---------------------- | --------------------------------------------------------------------- | ------------------------------------------- | ---------------- | ------------- |
-| **Claude Code**  | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起               | 0 到 20（全部）  | Anthropic     |
-| **Hermes Agent** | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory, skill evolution, always-on channels | 7、9、14、16、19 | Nous Research |
+| **Claude Code**  | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起               | 0 到 21（全部）  | Anthropic     |
+| **Hermes Agent** | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory, skill evolution, always-on channels | 7、9、14、16、19、21 | Nous Research |
 | *(更多陸續加入)*     |                                                                       |                                             |                  |               |
 
 > 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
@@ -81,7 +81,7 @@ flowchart LR
 
 ## 各章節
 
-七層，從最基本的迴圈一路到多 agent 的 harness。每一列都連到一篇可獨立閱讀的說明。
+八層，從最基本的迴圈一路到能自己運轉的 harness。每一列都連到一篇可獨立閱讀的說明。
 
 | #  | 章節                                                                      | 問題                           | 關鍵機制                                             |
 | -- | ------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
@@ -113,12 +113,14 @@ flowchart LR
 |    | **第 6 層 · 擴充與整合**                                           |                                |                                                      |
 | 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-TW.md) | harness 怎麼連到外面的世界？   | Transports, channels, tool pool assembly             |
 | 20 | [Observability &amp; evaluation](sections/20-observability/README.zh-TW.md)  | 我們怎麼知道它有效？           | Tracing, metrics, evals, failure analysis            |
+|    | **第 7 層 · 組合**                                                 |                                |                                                      |
+| 21 | [Loop engineering](sections/21-loop-engineering/README.zh-TW.md)             | 迴圈怎麼疊成一個能自己運轉的系統？ | Verification loop, triggers, budgets, maturity levels |
 
 ---
 
 ## 檔案結構
 
-21 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `20-observability/`。
+22 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `21-loop-engineering/`。
 
 ```text
 awesome-agent-architecture/
@@ -126,20 +128,20 @@ awesome-agent-architecture/
 ├── sections/                  # 每個章節一個資料夾
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可執行的程式碼鏈從這裡開始
-│   └── 20-observability/
+│   └── 21-loop-engineering/
 └── references/                # 原始出處與前人成果
 ```
 
 每個章節資料夾都是 `NN-name/` 格式，裡面有一份 `README.md`。
 
-第 1 到 20 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
+第 1 到 21 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
 每一章新增一個機制，並讓 `loop.py` 演進，所以對比相鄰兩章的 diff，就能看出改了什麼。
 
 ---
 
 ## 執行示範
 
-第 1 到 20 章都附有可執行的示範。從 repo 根目錄設定一次就好：
+第 1 到 21 章都附有可執行的示範。從 repo 根目錄設定一次就好：
 
 ```bash
 uv venv

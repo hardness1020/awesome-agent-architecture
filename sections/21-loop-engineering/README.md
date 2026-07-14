@@ -1,5 +1,7 @@
 # 21 · Loop engineering
 
+**English** · [繁體中文](README.zh-TW.md)
+
 > Stop writing the next prompt. Design the loop that runs the agent without you.
 
 Every earlier section adds one mechanism around one model call. This section composes them.
