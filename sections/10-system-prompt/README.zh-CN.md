@@ -40,6 +40,15 @@ prompt = [s for s in resolve(sections) if s is not None]
 1. 依状态纳入段落，不要靠关键字猜测。
 2. 让易变的内容远离稳定的 prompt 前缀。
 
+```mermaid
+flowchart LR
+    ST[("live state · tools, mode, env")] --> C[compute each section]
+    SL[section list] --> C
+    C -->|drop None| J[join the rest]
+    J --> P[system prompt]
+    P -->|stable prefix cached| M{{model call}}
+```
+
 ### New: sections and assemble
 
 ```python

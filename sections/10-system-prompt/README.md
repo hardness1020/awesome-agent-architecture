@@ -40,6 +40,15 @@ Two rules keep it manageable:
 1. Include sections by state, not keyword guesses.
 2. Keep volatile content away from the stable prompt prefix.
 
+```mermaid
+flowchart LR
+    ST[("live state · tools, mode, env")] --> C[compute each section]
+    SL[section list] --> C
+    C -->|drop None| J[join the rest]
+    J --> P[system prompt]
+    P -->|stable prefix cached| M{{model call}}
+```
+
 ### New: sections and assemble
 
 ```python

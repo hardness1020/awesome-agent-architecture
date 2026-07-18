@@ -31,6 +31,19 @@ A pure function makes the permission decision. It reads the tool, the current mo
 
 The mode changes the default behavior. For example, plan mode allows read-only tools but denies edits until the plan is approved.
 
+```mermaid
+flowchart LR
+    U[tool_use] --> G{"decide · tool, mode, allow rules"}
+    G -->|allow| R[run tool]
+    G -->|ask| H{human approves?}
+    H -->|yes| R
+    H -->|no| D[denial message]
+    G -->|deny| D
+    R --> T[tool_result]
+    D --> T
+    T --> M[back to the model]
+```
+
 ### New: the gate
 
 `decide()` is the whole permission decision:

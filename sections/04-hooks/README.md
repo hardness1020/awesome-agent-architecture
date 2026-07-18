@@ -21,6 +21,17 @@ For tool execution, there are two important points:
 - `PreToolUse` runs before the permission gate. It can block the call or rewrite the input.
 - `PostToolUse` runs after a successful tool call. It can observe the result.
 
+```mermaid
+flowchart LR
+    U[tool_use] --> PRE{PreToolUse}
+    PRE -->|deny| T[tool_result]
+    PRE -->|"pass · args may be rewritten"| G{permission gate}
+    G -->|deny or unapproved| T
+    G -->|allow| R[run tool]
+    R --> POST[PostToolUse · observe]
+    POST --> T
+```
+
 ### New: hooks
 
 ```python

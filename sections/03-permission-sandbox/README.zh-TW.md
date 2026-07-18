@@ -31,6 +31,19 @@ permission 層必須做到：
 
 mode 會改變預設行為。舉例來說，plan mode 允許唯讀工具，但在計畫核准前拒絕編輯。
 
+```mermaid
+flowchart LR
+    U[tool_use] --> G{"decide · tool, mode, allow rules"}
+    G -->|allow| R[run tool]
+    G -->|ask| H{human approves?}
+    H -->|yes| R
+    H -->|no| D[denial message]
+    G -->|deny| D
+    R --> T[tool_result]
+    D --> T
+    T --> M[back to the model]
+```
+
 ### New: the gate
 
 `decide()` 就是整個 permission 決策：

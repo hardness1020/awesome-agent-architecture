@@ -25,6 +25,18 @@
 - 反覆的過載可以觸發 fallback model。
 - 未知或不可重試的錯誤會被拋出。
 
+```mermaid
+flowchart TD
+    C[model call] -->|ok| R([response])
+    C -->|error| K{classify}
+    K -->|"prompt_too_long · first time"| O[compact once] --> C
+    K -->|"429 · 408 · 409 · 5xx"| B{attempts left?}
+    B -->|yes| W[backoff, then retry] --> C
+    B -->|no| X([raise])
+    K -->|repeated 529| F([fallback model])
+    K -->|not retryable| X
+```
+
 ### New: classification, backoff, and the retry helper
 
 ```python

@@ -18,6 +18,20 @@ An `Agent` tool starts a child agent. The child has its own session and message 
 
 Only the child's final text comes back. Its transcript is discarded. File writes and shell side effects still happen in the working directory.
 
+```mermaid
+flowchart LR
+    subgraph parent[Parent loop]
+        M{{model call}} -->|"tool_use · Agent"| A[Agent tool]
+        T["tool_result · final text"] --> M
+    end
+    subgraph child["Child · fresh messages[]"]
+        S["new Session · inherited mode + rules"] --> L{{run_turn}}
+        L -.-> X[transcript discarded]
+    end
+    A -->|child prompt| S
+    L -->|final text only| T
+```
+
 ### New: the Agent tool
 
 ```python

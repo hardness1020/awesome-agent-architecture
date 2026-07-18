@@ -36,6 +36,19 @@ reactive -> truncate the head and re-summarize, with a retry cap
 
 順序很重要。舉例來說，大型的 tool 結果應該先被持久化，之後任何 pass 才可以用 stub 取代它的本體。
 
+```mermaid
+flowchart TD
+    MS["messages[]"] --> B[budget · persist huge results]
+    B --> MC[micro · stub old result bodies]
+    MC --> C{tokens over threshold?}
+    C -->|no| M{{model call}}
+    C -->|yes| A[auto · summarize the middle]
+    A --> M
+    M -->|prompt_too_long| RT[reactive · trim head, retry]
+    RT --> M
+    M -->|ok| N[append response] --> MS
+```
+
 ### New: the reduction passes
 
 ```python
