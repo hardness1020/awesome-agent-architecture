@@ -18,13 +18,6 @@
 
 ## 机制
 
-把模型调用包在一个重试辅助函数里。这个辅助函数先分类失败，再采取一个有界限的行动。
-
-- 暂时性的状态码会退避后重试。
-- prompt 溢出会执行一次压缩 callback，然后重试。
-- 反复的过载可以触发 fallback model。
-- 未知或不可重试的错误会被抛出。
-
 ```mermaid
 flowchart TD
     C[model call] -->|ok| R([response])
@@ -36,6 +29,13 @@ flowchart TD
     K -->|repeated 529| F([fallback model])
     K -->|not retryable| X
 ```
+
+把模型调用包在一个重试辅助函数里。这个辅助函数先分类失败，再采取一个有界限的行动。
+
+- 暂时性的状态码会退避后重试。
+- prompt 溢出会执行一次压缩 callback，然后重试。
+- 反复的过载可以触发 fallback model。
+- 未知或不可重试的错误会被抛出。
 
 ### New: classification, backoff, and the retry helper
 

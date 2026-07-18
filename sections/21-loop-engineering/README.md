@@ -24,15 +24,6 @@ Without this layer, a human is the outer loop. They prompt, read, judge, and ret
 
 ## Mechanism
 
-The simple version: the agent loop, wrapped by three more loops. Each wraps the one inside it, and each answers a different question.
-
-1. **Agent loop** (section 1). Calls tools until the task looks done. Answers: how does one step get done.
-2. **Verification loop.** Grades the output against a rubric. A failure feeds back into a retry, up to a budget. Answers: is it actually done.
-3. **Event loop.** Cron schedules, webhooks, and channels start runs (section 14, section 19). Answers: when does work start.
-4. **Improvement loop.** Traces and evals (section 20) feed changes to the harness config, skills, or model. Answers: does the system get better.
-   At its mature end this loop edits the harness itself: mine weaknesses from traces, propose a bounded edit, validate it against a regression set.
-   The loop structure becomes a search space, not a hand-designed template.
-
 ```mermaid
 flowchart LR
     E["trigger · cron, webhook, channel"] --> A["agent loop"]
@@ -43,6 +34,15 @@ flowchart LR
     D --> T[("traces")]
     T -.->|"tune harness"| E
 ```
+
+The simple version: the agent loop, wrapped by three more loops. Each wraps the one inside it, and each answers a different question.
+
+1. **Agent loop** (section 1). Calls tools until the task looks done. Answers: how does one step get done.
+2. **Verification loop.** Grades the output against a rubric. A failure feeds back into a retry, up to a budget. Answers: is it actually done.
+3. **Event loop.** Cron schedules, webhooks, and channels start runs (section 14, section 19). Answers: when does work start.
+4. **Improvement loop.** Traces and evals (section 20) feed changes to the harness config, skills, or model. Answers: does the system get better.
+   At its mature end this loop edits the harness itself: mine weaknesses from traces, propose a bounded edit, validate it against a regression set.
+   The loop structure becomes a search space, not a hand-designed template.
 
 Data moves outward. A trigger fires and enqueues a prompt. The agent loop produces a candidate. The grader scores it.
 A failure appends feedback and retries while budget remains. A pass delivers through the task's channel.

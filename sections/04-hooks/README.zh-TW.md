@@ -14,13 +14,6 @@ hook 讓迴圈保持精簡。迴圈對外提供固定的事件。擴充行為則
 
 ## 機制
 
-一個 `Hooks` 物件把事件名稱對應到 callback 清單。迴圈不會直接呼叫自訂的檢查。取而代之，`_dispatch` 觸發具名的事件。
-
-在工具執行方面，有兩個重要的點：
-
-- `PreToolUse` 在 permission gate 之前執行。它可以擋下呼叫，或改寫輸入。
-- `PostToolUse` 在工具呼叫成功之後執行。它可以觀察結果。
-
 ```mermaid
 flowchart LR
     U[tool_use] --> PRE{PreToolUse}
@@ -31,6 +24,13 @@ flowchart LR
     R --> POST[PostToolUse · observe]
     POST --> T
 ```
+
+一個 `Hooks` 物件把事件名稱對應到 callback 清單。迴圈不會直接呼叫自訂的檢查。取而代之，`_dispatch` 觸發具名的事件。
+
+在工具執行方面，有兩個重要的點：
+
+- `PreToolUse` 在 permission gate 之前執行。它可以擋下呼叫，或改寫輸入。
+- `PostToolUse` 在工具呼叫成功之後執行。它可以觀察結果。
 
 ### New: hooks
 

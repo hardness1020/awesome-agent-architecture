@@ -23,14 +23,6 @@ background execution 必須：
 
 ## 機制
 
-這裡有三個部件：
-
-1. 一個把工作移出 loop 的 starter，它會回傳一個 handle。
-2. 一個追蹤 task 狀態的 runtime。
-3. 一個 queue，會在稍後的某個 turn 注入一則完成 notification。
-
-loop 不會等這個慢工作。
-
 ```mermaid
 flowchart LR
     L[main loop] -->|run_in_background| S[start off-loop]
@@ -40,6 +32,14 @@ flowchart LR
     W -->|done| Q[[notification queue]]
     Q -->|later turn| L
 ```
+
+這裡有三個部件：
+
+1. 一個把工作移出 loop 的 starter，它會回傳一個 handle。
+2. 一個追蹤 task 狀態的 runtime。
+3. 一個 queue，會在稍後的某個 turn 注入一則完成 notification。
+
+loop 不會等這個慢工作。
 
 - 背景執行是一個執行選項，而不是一種特殊的工具型別。
 - 被背景化的呼叫會立刻回傳一個正常的 `tool_result`。

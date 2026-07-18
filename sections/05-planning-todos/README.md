@@ -19,12 +19,6 @@ Without this layer, short tasks still work. Longer tasks can skip steps or act t
 
 ## Mechanism
 
-There are two tools. Both are normal model-called tools. Neither changes the core loop.
-
-**Todo list.** The model overwrites a structured checklist. The tool does no file or shell work. It only stores plan state for the session.
-
-**Plan mode.** The session enters a read-only mode. The model explores, writes a plan, and calls `ExitPlanMode`. That exit is gated by the permission layer.
-
 ```mermaid
 flowchart TD
     T["complex task"] --> P{plan mode?}
@@ -36,6 +30,12 @@ flowchart TD
     TW --> S["mark one in_progress, do it, mark completed"]
     S -->|next pending| S
 ```
+
+There are two tools. Both are normal model-called tools. Neither changes the core loop.
+
+**Todo list.** The model overwrites a structured checklist. The tool does no file or shell work. It only stores plan state for the session.
+
+**Plan mode.** The session enters a read-only mode. The model explores, writes a plan, and calls `ExitPlanMode`. That exit is gated by the permission layer.
 
 ### New: todos and plan-mode tools
 

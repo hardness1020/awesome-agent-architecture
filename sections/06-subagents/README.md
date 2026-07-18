@@ -14,10 +14,6 @@ Without subagents, every investigation stays in the main transcript. Long runs b
 
 ## Mechanism
 
-An `Agent` tool starts a child agent. The child has its own session and message list. It runs the same loop as the parent.
-
-Only the child's final text comes back. Its transcript is discarded. File writes and shell side effects still happen in the working directory.
-
 ```mermaid
 flowchart LR
     subgraph parent[Parent loop]
@@ -31,6 +27,10 @@ flowchart LR
     A -->|child prompt| S
     L -->|final text only| T
 ```
+
+An `Agent` tool starts a child agent. The child has its own session and message list. It runs the same loop as the parent.
+
+Only the child's final text comes back. Its transcript is discarded. File writes and shell side effects still happen in the working directory.
 
 ### New: the Agent tool
 

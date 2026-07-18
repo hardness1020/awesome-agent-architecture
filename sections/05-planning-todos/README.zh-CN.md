@@ -19,12 +19,6 @@
 
 ## 机制
 
-这里有两个工具。两者都是一般由模型调用的工具。两者都不改动核心循环。
-
-**Todo list。** 模型会覆写一份结构化的检查清单。这个工具不做任何文件或 shell 的工作。它只为这个 session 存放计划状态。
-
-**Plan mode。** session 进入只读 mode。模型进行探索、写出计划，然后调用 `ExitPlanMode`。这个离开动作由 permission 层管制。
-
 ```mermaid
 flowchart TD
     T["complex task"] --> P{plan mode?}
@@ -36,6 +30,12 @@ flowchart TD
     TW --> S["mark one in_progress, do it, mark completed"]
     S -->|next pending| S
 ```
+
+这里有两个工具。两者都是一般由模型调用的工具。两者都不改动核心循环。
+
+**Todo list。** 模型会覆写一份结构化的检查清单。这个工具不做任何文件或 shell 的工作。它只为这个 session 存放计划状态。
+
+**Plan mode。** session 进入只读 mode。模型进行探索、写出计划，然后调用 `ExitPlanMode`。这个离开动作由 permission 层管制。
 
 ### New: todos and plan-mode tools
 

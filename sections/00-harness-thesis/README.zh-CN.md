@@ -21,10 +21,6 @@ harness 必须：
 
 ## 机制
 
-这一章讲的是拆解。一个小小的模型调用坐在中心。harness 供给它的输入，并处理它的输出。
-
-模型负责判断。harness 负责环境。
-
 ```mermaid
 flowchart TB
     K[knowledge: memory · skills · prompt] --> M
@@ -35,6 +31,10 @@ flowchart TB
     A --> O
     M -->|end_turn| D([reply])
 ```
+
+这一章讲的是拆解。一个小小的模型调用坐在中心。harness 供给它的输入，并处理它的输出。
+
+模型负责判断。harness 负责环境。
 
 第 1 章的循环是核心控制流程。其他章节在它周围加上输入、检查或状态：
 

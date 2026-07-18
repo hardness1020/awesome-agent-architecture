@@ -23,14 +23,6 @@ permission 層必須做到：
 
 ## 機制
 
-一個純函式負責做出 permission 決策。它讀取工具、目前的 mode，以及所有的 allow 規則，並回傳三個值之一：
-
-- `allow`：執行工具。
-- `ask`：暫停並詢問人類。
-- `deny`：不執行工具。
-
-mode 會改變預設行為。舉例來說，plan mode 允許唯讀工具，但在計畫核准前拒絕編輯。
-
 ```mermaid
 flowchart LR
     U[tool_use] --> G{"decide · tool, mode, allow rules"}
@@ -43,6 +35,14 @@ flowchart LR
     D --> T
     T --> M[back to the model]
 ```
+
+一個純函式負責做出 permission 決策。它讀取工具、目前的 mode，以及所有的 allow 規則，並回傳三個值之一：
+
+- `allow`：執行工具。
+- `ask`：暫停並詢問人類。
+- `deny`：不執行工具。
+
+mode 會改變預設行為。舉例來說，plan mode 允許唯讀工具，但在計畫核准前拒絕編輯。
 
 ### New: the gate
 

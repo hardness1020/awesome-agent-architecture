@@ -18,10 +18,6 @@ A plugin bundles servers with hooks and skills. A channel lets a server push mes
 
 ## Mechanism
 
-Connect to each server, discover its tools (`tools/list`), wrap each as a runtime `Tool` (section 2), and merge those into the same pool the loop dispatches.
-
-Names are namespaced `mcp__<server>__<tool>` so two servers never collide. The loop and gate do not change: an MCP tool is a `Tool` whose `run()` calls out over a transport.
-
 ```mermaid
 flowchart LR
     C[".mcp.json / plugins / claude.ai"] --> X{{transport}}
@@ -33,6 +29,10 @@ flowchart LR
     B[built-in tools] --> P
     P --> L{{agent loop dispatch}}
 ```
+
+Connect to each server, discover its tools (`tools/list`), wrap each as a runtime `Tool` (section 2), and merge those into the same pool the loop dispatches.
+
+Names are namespaced `mcp__<server>__<tool>` so two servers never collide. The loop and gate do not change: an MCP tool is a `Tool` whose `run()` calls out over a transport.
 
 - Discovery is one `tools/list` call per server; each returned spec becomes one wrapped `Tool`.
 - The name is namespaced and normalized, so it is unique and matches the API's name pattern.

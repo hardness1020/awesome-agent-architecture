@@ -21,8 +21,6 @@ Without this layer, the plan exists only in the current context window.
 
 ## Mechanism
 
-A task is a JSON record on disk. `blockedBy` and `blocks` are dependency edges. A file lock serializes claims.
-
 ```mermaid
 flowchart LR
     C[TaskCreate] --> F["{id}.json on disk"]
@@ -32,6 +30,8 @@ flowchart LR
     K -->|yes| W[claimed by agent]
     K -->|no| X[rejected]
 ```
+
+A task is a JSON record on disk. `blockedBy` and `blocks` are dependency edges. A file lock serializes claims.
 
 - IDs are sequential and never reused.
 - Create, get, update, and list are plain CRUD.

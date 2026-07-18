@@ -21,6 +21,16 @@ Without this loop, the model can reason about actions but cannot act. If the loo
 
 ## Mechanism
 
+```mermaid
+flowchart LR
+    U([User turn]) --> M["messages[] · persists across turns"]
+    M --> L{{model call}}
+    L -->|stop_reason: tool_use| T[run tools]
+    T --> A[append results] --> M
+    L -->|stop_reason: end_turn| D([reply])
+    D -.next user turn appended.-> M
+```
+
 There are two loops over one `messages[]`.
 
 Picture a chat window. You ask "What is the weather in Taipei? Should I take an umbrella?"
@@ -32,16 +42,6 @@ It calls the model, checks `stop_reason`, runs tools if needed, appends results,
 Then you ask "What about tomorrow?" in the same window. That is a new turn.
 The outer loop is what strings turn after turn into one conversation.
 Each new turn is appended to the same `messages[]`, so when the model answers "tomorrow" it still sees that you asked about Taipei.
-
-```mermaid
-flowchart LR
-    U([User turn]) --> M["messages[] · persists across turns"]
-    M --> L{{model call}}
-    L -->|stop_reason: tool_use| T[run tools]
-    T --> A[append results] --> M
-    L -->|stop_reason: end_turn| D([reply])
-    D -.next user turn appended.-> M
-```
 
 The inner loop is one turn over a `messages[]` owned by the caller:
 

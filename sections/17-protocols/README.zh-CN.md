@@ -27,10 +27,6 @@ protocol 必须：
 
 ## 机制
 
-每一次交换都是一条带类型的请求和一条带类型的响应，两者共用同一个 `requestId`。
-
-sender 把请求记为 pending，按类型路由回复，并解析出相符的请求。
-
 ```mermaid
 sequenceDiagram
     participant L as Lead
@@ -43,6 +39,10 @@ sequenceDiagram
     T->>L: plan_approval_request {requestId, plan}
     L->>T: plan_approval_response {requestId, approved}
 ```
+
+每一次交换都是一条带类型的请求和一条带类型的响应，两者共用同一个 `requestId`。
+
+sender 把请求记为 pending，按类型路由回复，并解析出相符的请求。
 
 有三条规则让它成为一个 protocol，而不只是两条消息：
 

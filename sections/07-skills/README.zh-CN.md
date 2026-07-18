@@ -26,14 +26,6 @@ skill 系统必须做到：
 
 ## 机制
 
-skill 使用 progressive disclosure。模型只会看到刚好足够的信息，来决定要不要加载更多。
-
-1. **Metadata。** 来自 frontmatter 的 `name` 和 `description`，再加上这个 skill 的路径。这份低成本的 catalog 每个 turn 都待在 system prompt 里。
-2. **Instructions。** `SKILL.md` 的正文。只有在某个任务需要这个 skill 时，模型才会去读这个文件。
-3. **Resources。** skill 文件夹里的额外文件。指令指向它们时，模型用同一个 file tool 读取。
-
-不需要专门的 skill tool。只要 catalog 列出每个 skill 的名称和路径，agent 就用普通的 Read tool 去读那个文件来加载 skill。L2 和 L3 都只是读文件而已。
-
 ```mermaid
 flowchart LR
     D["scan dirs · name + description + path"] --> C["catalog in system prompt"]
@@ -43,6 +35,14 @@ flowchart LR
     M -->|body cites a file| R["Read resource file"]
     R --> M
 ```
+
+skill 使用 progressive disclosure。模型只会看到刚好足够的信息，来决定要不要加载更多。
+
+1. **Metadata。** 来自 frontmatter 的 `name` 和 `description`，再加上这个 skill 的路径。这份低成本的 catalog 每个 turn 都待在 system prompt 里。
+2. **Instructions。** `SKILL.md` 的正文。只有在某个任务需要这个 skill 时，模型才会去读这个文件。
+3. **Resources。** skill 文件夹里的额外文件。指令指向它们时，模型用同一个 file tool 读取。
+
+不需要专门的 skill tool。只要 catalog 列出每个 skill 的名称和路径，agent 就用普通的 Read tool 去读那个文件来加载 skill。L2 和 L3 都只是读文件而已。
 
 ### New: scan the skills and list them in the prompt
 

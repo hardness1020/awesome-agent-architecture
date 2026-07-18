@@ -27,10 +27,6 @@ protocol 必須：
 
 ## 機制
 
-每一次交換都是一則具型別的請求和一則具型別的回應，兩者共用同一個 `requestId`。
-
-sender 把請求記為 pending，依型別路由回覆，並解析出相符的請求。
-
 ```mermaid
 sequenceDiagram
     participant L as Lead
@@ -43,6 +39,10 @@ sequenceDiagram
     T->>L: plan_approval_request {requestId, plan}
     L->>T: plan_approval_response {requestId, approved}
 ```
+
+每一次交換都是一則具型別的請求和一則具型別的回應，兩者共用同一個 `requestId`。
+
+sender 把請求記為 pending，依型別路由回覆，並解析出相符的請求。
 
 有三條規則讓它成為一個 protocol，而不只是兩則訊息：
 

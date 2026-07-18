@@ -23,13 +23,6 @@ task 系統決定有哪些工作要做。subagent 決定工作怎麼拆分。wor
 
 ## 機制
 
-有兩個部分：
-
-1. 每個工作單元一個私有的 git worktree。
-2. 每個 context 各自的工作目錄綁定。
-
-這個綁定必須限定在 agent context 的範圍內。全域的 `chdir` 會影響同一個 process 裡的其他 agent。
-
 ```mermaid
 flowchart TB
     T["unit of work · slug"] --> V["validate slug"]
@@ -40,6 +33,13 @@ flowchart TB
     C -->|none| X["auto-remove"]
     C -->|"changes"| K["keep for review"]
 ```
+
+有兩個部分：
+
+1. 每個工作單元一個私有的 git worktree。
+2. 每個 context 各自的工作目錄綁定。
+
+這個綁定必須限定在 agent context 的範圍內。全域的 `chdir` 會影響同一個 process 裡的其他 agent。
 
 - 每個 worktree 都是同一個 repo 在自己 branch 上的 checkout。
 - slug 會變成路徑，所以在任何路徑組合之前先驗證它。

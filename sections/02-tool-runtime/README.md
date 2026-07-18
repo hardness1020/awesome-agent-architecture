@@ -24,8 +24,6 @@ With only one `bash` tool, every capability becomes string handling. There is no
 
 ## Mechanism
 
-A tool is a small object with a name, a handler, a schema, and a few predicates. A registry stores tools by name. Dispatch is a lookup.
-
 ```mermaid
 flowchart LR
     R[("Registry · name -> tool")] -->|"schemas()"| M{{model call}}
@@ -38,6 +36,8 @@ flowchart LR
     Q --> T
     T -->|append| M
 ```
+
+A tool is a small object with a name, a handler, a schema, and a few predicates. A registry stores tools by name. Dispatch is a lookup.
 
 ### New: the tool runtime
 

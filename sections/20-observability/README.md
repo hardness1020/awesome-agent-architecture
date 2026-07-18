@@ -16,12 +16,6 @@ Leave both out and every regression ships silently, every cost spike is a surpri
 
 ## Mechanism
 
-Two separable pipelines that never touch the loop's control flow.
-
-Telemetry runs inline: each step calls a fire-and-forget logger that queues until a sink attaches, then samples, scrubs sensitive fields, and fans out.
-
-Evaluation runs offline: replay a fixed task set against a candidate build and grade each output.
-
 ```mermaid
 flowchart LR
     E["loop step · emit(event)"] --> Q{{sink ready?}}
@@ -32,6 +26,12 @@ flowchart LR
     T[(eval task set)] --> RUN["run build · grade"]
     RUN --> P([pass rate])
 ```
+
+Two separable pipelines that never touch the loop's control flow.
+
+Telemetry runs inline: each step calls a fire-and-forget logger that queues until a sink attaches, then samples, scrubs sensitive fields, and fans out.
+
+Evaluation runs offline: replay a fixed task set against a candidate build and grade each output.
 
 - `emit` never blocks and never raises, so a logging fault cannot stall or crash the loop (section 1).
 - Events buffer in a queue until a sink attaches, then drain, so the loop can log before telemetry is ready.

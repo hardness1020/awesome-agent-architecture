@@ -27,10 +27,6 @@ Without this layer, coordination is unstructured chat. Nothing is gated, nothing
 
 ## Mechanism
 
-Every exchange is a typed request and a typed response that share one `requestId`.
-
-The sender records the request as pending, routes the reply by its type, and resolves the matching request.
-
 ```mermaid
 sequenceDiagram
     participant L as Lead
@@ -43,6 +39,10 @@ sequenceDiagram
     T->>L: plan_approval_request {requestId, plan}
     L->>T: plan_approval_response {requestId, approved}
 ```
+
+Every exchange is a typed request and a typed response that share one `requestId`.
+
+The sender records the request as pending, routes the reply by its type, and resolves the matching request.
 
 Three rules make it a protocol, not just two messages:
 

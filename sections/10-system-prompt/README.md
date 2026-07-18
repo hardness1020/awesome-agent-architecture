@@ -22,6 +22,15 @@ Without assembly, the prompt becomes stale, bloated, or hard to change safely.
 
 ## Mechanism
 
+```mermaid
+flowchart LR
+    ST[("live state · tools, mode, env")] --> C[compute each section]
+    SL[section list] --> C
+    C -->|drop None| J[join the rest]
+    J --> P[system prompt]
+    P -->|stable prefix cached| M{{model call}}
+```
+
 Define the prompt as named sections. Some sections are static. Others compute text from live state and return `None` when they do not apply.
 
 Assembly is simple: resolve every section, drop `None`, and join the rest.
@@ -39,15 +48,6 @@ Two rules keep it manageable:
 
 1. Include sections by state, not keyword guesses.
 2. Keep volatile content away from the stable prompt prefix.
-
-```mermaid
-flowchart LR
-    ST[("live state · tools, mode, env")] --> C[compute each section]
-    SL[section list] --> C
-    C -->|drop None| J[join the rest]
-    J --> P[system prompt]
-    P -->|stable prefix cached| M{{model call}}
-```
 
 ### New: sections and assemble
 

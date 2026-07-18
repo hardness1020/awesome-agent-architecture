@@ -21,10 +21,6 @@
 
 ## 机制
 
-把时钟和 loop 分开。scheduler 监视时间。它不会直接调用 model。
-
-在 fire 的时刻，scheduler 只把一个 prompt 放进 queue。driver 会等到没有 turn 正在跑的时候（也就是两个 turn 之间）才排空 queue，把每个 prompt 交给处理 user 输入的同一个 agent loop，当成新的一轮跑。
-
 ```mermaid
 flowchart LR
     C["fire time · optional repeat"] --> S{{"scheduler tick"}}
@@ -33,6 +29,10 @@ flowchart LR
     Q -->|"loop idle"| L["agent loop"]
     D["durable store"] -.->|"reload on start"| S
 ```
+
+把时钟和 loop 分开。scheduler 监视时间。它不会直接调用 model。
+
+在 fire 的时刻，scheduler 只把一个 prompt 放进 queue。driver 会等到没有 turn 正在跑的时候（也就是两个 turn 之间）才排空 queue，把每个 prompt 交给处理 user 输入的同一个 agent loop，当成新的一轮跑。
 
 - 一个 schedule 就是数据：要跑的 prompt、一个 fire 时间，以及可选的重复间隔。scheduler 把每一条存成一个 task。
 - 一次性（one-shot）的 schedule fire 一次后就把自己删掉。

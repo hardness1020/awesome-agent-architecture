@@ -18,13 +18,6 @@ Without recovery, one temporary API failure can end a long task.
 
 ## Mechanism
 
-Wrap the model call in a retry helper. The helper classifies the failure, then takes a bounded action.
-
-- Transient status codes back off and retry.
-- Prompt overflow runs a compaction callback once, then retries.
-- Repeated overload can trigger a fallback model.
-- Unknown or non-retryable errors are raised.
-
 ```mermaid
 flowchart TD
     C[model call] -->|ok| R([response])
@@ -36,6 +29,13 @@ flowchart TD
     K -->|repeated 529| F([fallback model])
     K -->|not retryable| X
 ```
+
+Wrap the model call in a retry helper. The helper classifies the failure, then takes a bounded action.
+
+- Transient status codes back off and retry.
+- Prompt overflow runs a compaction callback once, then retries.
+- Repeated overload can trigger a fallback model.
+- Unknown or non-retryable errors are raised.
 
 ### New: classification, backoff, and the retry helper
 

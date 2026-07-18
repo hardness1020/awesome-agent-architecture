@@ -14,13 +14,6 @@ Hooks keep the loop small. The loop exposes fixed events. Extensions attach to t
 
 ## Mechanism
 
-A `Hooks` object maps event names to callback lists. The loop does not call custom checks directly. Instead, `_dispatch` fires named events.
-
-For tool execution, there are two important points:
-
-- `PreToolUse` runs before the permission gate. It can block the call or rewrite the input.
-- `PostToolUse` runs after a successful tool call. It can observe the result.
-
 ```mermaid
 flowchart LR
     U[tool_use] --> PRE{PreToolUse}
@@ -31,6 +24,13 @@ flowchart LR
     R --> POST[PostToolUse · observe]
     POST --> T
 ```
+
+A `Hooks` object maps event names to callback lists. The loop does not call custom checks directly. Instead, `_dispatch` fires named events.
+
+For tool execution, there are two important points:
+
+- `PreToolUse` runs before the permission gate. It can block the call or rewrite the input.
+- `PostToolUse` runs after a successful tool call. It can observe the result.
 
 ### New: hooks
 

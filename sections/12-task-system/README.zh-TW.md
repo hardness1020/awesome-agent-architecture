@@ -21,8 +21,6 @@ task system 必須：
 
 ## 機制
 
-一個 task 就是磁碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 是相依關係的邊。用一把 file lock 讓認領動作序列化。
-
 ```mermaid
 flowchart LR
     C[TaskCreate] --> F["{id}.json on disk"]
@@ -32,6 +30,8 @@ flowchart LR
     K -->|yes| W[claimed by agent]
     K -->|no| X[rejected]
 ```
+
+一個 task 就是磁碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 是相依關係的邊。用一把 file lock 讓認領動作序列化。
 
 - ID 是連續的，而且永不重複使用。
 - create、get、update、list 都是單純的 CRUD。

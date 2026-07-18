@@ -27,16 +27,6 @@
 
 ## 機制
 
-一個 outer loop 包住 agent loop。
-
-inner loop 就是第 1 章那個普通的 `while`。當它抵達 `end_turn` 時，agent 不會回傳，而是進入 poll。
-
-poll 會排空兩個 channel：一個定向的 inbox（第 16 章），承接寄給這個 agent 的訊息；一個非定向的看板（第 12 章），放著任何閒置 agent 都能認領的 task。
-
-它依優先序檢查這些來源：先看 shutdown 請求，再看 inbox 訊息，最後才看看板上的 task。
-
-無論找到什麼，都會成為下一個 prompt，接著 inner loop 再跑一次。
-
 ```mermaid
 flowchart TD
     W[Run inner loop to end_turn] --> I[Send idle notification]
@@ -48,6 +38,16 @@ flowchart TD
     E -->|yes| T[Task becomes next prompt] --> W
     E -->|no| S[Sleep] --> A
 ```
+
+一個 outer loop 包住 agent loop。
+
+inner loop 就是第 1 章那個普通的 `while`。當它抵達 `end_turn` 時，agent 不會回傳，而是進入 poll。
+
+poll 會排空兩個 channel：一個定向的 inbox（第 16 章），承接寄給這個 agent 的訊息；一個非定向的看板（第 12 章），放著任何閒置 agent 都能認領的 task。
+
+它依優先序檢查這些來源：先看 shutdown 請求，再看 inbox 訊息，最後才看看板上的 task。
+
+無論找到什麼，都會成為下一個 prompt，接著 inner loop 再跑一次。
 
 - inner loop 依模型的 `stop_reason` 結束，這與第 1 章是同一個訊號。
 - poll 先檢查 shutdown，所以停止指令永遠不會被 peer 訊息淹沒。

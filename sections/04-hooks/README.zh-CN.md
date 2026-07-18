@@ -14,13 +14,6 @@ hook 让循环保持精简。循环对外提供固定的事件。扩展行为则
 
 ## 机制
 
-一个 `Hooks` 对象把事件名称映射到 callback 列表。循环不会直接调用自定义的检查。取而代之，`_dispatch` 触发具名的事件。
-
-在工具执行方面，有两个重要的点：
-
-- `PreToolUse` 在 permission gate 之前运行。它可以拦截调用，或改写输入。
-- `PostToolUse` 在工具调用成功之后运行。它可以观察结果。
-
 ```mermaid
 flowchart LR
     U[tool_use] --> PRE{PreToolUse}
@@ -31,6 +24,13 @@ flowchart LR
     R --> POST[PostToolUse · observe]
     POST --> T
 ```
+
+一个 `Hooks` 对象把事件名称映射到 callback 列表。循环不会直接调用自定义的检查。取而代之，`_dispatch` 触发具名的事件。
+
+在工具执行方面，有两个重要的点：
+
+- `PreToolUse` 在 permission gate 之前运行。它可以拦截调用，或改写输入。
+- `PostToolUse` 在工具调用成功之后运行。它可以观察结果。
 
 ### New: hooks
 

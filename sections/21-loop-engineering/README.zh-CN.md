@@ -24,15 +24,6 @@ Loop engineering 说的是工程重心的转移。
 
 ## 机制
 
-最简单的说法：agent loop 外面再包三层 loop。一层包着一层，每一层回答一个不同的问题。
-
-1. **Agent loop**（第 1 章）：调用 tool 直到任务看起来完成。回答的是：这一步怎么做完。
-2. **验证 loop（verification loop）**：拿 rubric（评分准则）为输出评分。没过就带着 feedback 重试，最多试到 budget 用完。回答的是：是不是真的完成了。
-3. **事件 loop（event loop）**：cron 调度、webhook 和 channel 负责启动执行（第 14、19 章）。回答的是：工作什么时候开始。
-4. **改进 loop（improvement loop）**：trace 和 eval（第 20 章）回头改 harness 配置、skill 或 model。回答的是：整个系统有没有变好。
-   这个 loop 成熟到极致时，改的是 harness 本身：从 trace 里挖出弱点、提出一个范围受限的修改、再用 regression 测试验证。
-   loop 的结构本身变成一个可以搜索的空间，而不是手工设计的模板。
-
 ```mermaid
 flowchart LR
     E["trigger · cron, webhook, channel"] --> A["agent loop"]
@@ -43,6 +34,15 @@ flowchart LR
     D --> T[("traces")]
     T -.->|"tune harness"| E
 ```
+
+最简单的说法：agent loop 外面再包三层 loop。一层包着一层，每一层回答一个不同的问题。
+
+1. **Agent loop**（第 1 章）：调用 tool 直到任务看起来完成。回答的是：这一步怎么做完。
+2. **验证 loop（verification loop）**：拿 rubric（评分准则）为输出评分。没过就带着 feedback 重试，最多试到 budget 用完。回答的是：是不是真的完成了。
+3. **事件 loop（event loop）**：cron 调度、webhook 和 channel 负责启动执行（第 14、19 章）。回答的是：工作什么时候开始。
+4. **改进 loop（improvement loop）**：trace 和 eval（第 20 章）回头改 harness 配置、skill 或 model。回答的是：整个系统有没有变好。
+   这个 loop 成熟到极致时，改的是 harness 本身：从 trace 里挖出弱点、提出一个范围受限的修改、再用 regression 测试验证。
+   loop 的结构本身变成一个可以搜索的空间，而不是手工设计的模板。
 
 数据由内往外流。trigger fire 之后把一个 prompt 放进 queue。agent loop 产出一个候选输出，评分者为它打分。
 没过而且 budget 还有剩，就带着 feedback 重试；过了就通过该 task 的 channel 投递出去。
