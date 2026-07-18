@@ -23,14 +23,6 @@ Without this layer, one slow command can freeze the whole agent.
 
 ## Mechanism
 
-There are three pieces:
-
-1. An off-loop starter that returns a handle.
-2. A runtime that tracks task state.
-3. A queue that injects a completion notification on a later turn.
-
-The loop does not wait for the slow work.
-
 ```mermaid
 flowchart LR
     L[main loop] -->|run_in_background| S[start off-loop]
@@ -40,6 +32,14 @@ flowchart LR
     W -->|done| Q[[notification queue]]
     Q -->|later turn| L
 ```
+
+There are three pieces:
+
+1. An off-loop starter that returns a handle.
+2. A runtime that tracks task state.
+3. A queue that injects a completion notification on a later turn.
+
+The loop does not wait for the slow work.
 
 - Backgrounding is an execution option, not a special tool type.
 - A backgrounded call returns a normal `tool_result` right away.

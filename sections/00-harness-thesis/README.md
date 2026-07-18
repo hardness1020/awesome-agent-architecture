@@ -21,10 +21,6 @@ Without a harness, the model can only answer. It cannot run tools, observe resul
 
 ## Mechanism
 
-This section is about decomposition. A small model call sits at the center. The harness supplies its inputs and handles its outputs.
-
-The model owns judgment. The harness owns the environment.
-
 ```mermaid
 flowchart TB
     K[knowledge: memory · skills · prompt] --> M
@@ -35,6 +31,10 @@ flowchart TB
     A --> O
     M -->|end_turn| D([reply])
 ```
+
+This section is about decomposition. A small model call sits at the center. The harness supplies its inputs and handles its outputs.
+
+The model owns judgment. The harness owns the environment.
 
 The loop in section 1 is the core control flow. Other sections add inputs, checks, or state around it:
 

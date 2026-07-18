@@ -23,6 +23,19 @@ Without this layer, one bad tool call can cause an irreversible side effect.
 
 ## Mechanism
 
+```mermaid
+flowchart LR
+    U[tool_use] --> G{"decide · tool, mode, allow rules"}
+    G -->|allow| R[run tool]
+    G -->|ask| H{human approves?}
+    H -->|yes| R
+    H -->|no| D[denial message]
+    G -->|deny| D
+    R --> T[tool_result]
+    D --> T
+    T --> M[back to the model]
+```
+
 A pure function makes the permission decision. It reads the tool, the current mode, and any allow rules. It returns one of three values:
 
 - `allow`: run the tool.

@@ -23,6 +23,19 @@ permission 層必須做到：
 
 ## 機制
 
+```mermaid
+flowchart LR
+    U[tool_use] --> G{"decide · tool, mode, allow rules"}
+    G -->|allow| R[run tool]
+    G -->|ask| H{human approves?}
+    H -->|yes| R
+    H -->|no| D[denial message]
+    G -->|deny| D
+    R --> T[tool_result]
+    D --> T
+    T --> M[back to the model]
+```
+
 一個純函式負責做出 permission 決策。它讀取工具、目前的 mode，以及所有的 allow 規則，並回傳三個值之一：
 
 - `allow`：執行工具。

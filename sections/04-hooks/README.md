@@ -14,6 +14,17 @@ Hooks keep the loop small. The loop exposes fixed events. Extensions attach to t
 
 ## Mechanism
 
+```mermaid
+flowchart LR
+    U[tool_use] --> PRE{PreToolUse}
+    PRE -->|deny| T[tool_result]
+    PRE -->|"pass · args may be rewritten"| G{permission gate}
+    G -->|deny or unapproved| T
+    G -->|allow| R[run tool]
+    R --> POST[PostToolUse · observe]
+    POST --> T
+```
+
 A `Hooks` object maps event names to callback lists. The loop does not call custom checks directly. Instead, `_dispatch` fires named events.
 
 For tool execution, there are two important points:

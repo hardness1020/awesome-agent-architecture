@@ -21,10 +21,6 @@ Without memory, the agent repeats questions and forgets user preferences between
 
 ## Mechanism
 
-Memory is a file store plus an index plus on-demand recall.
-
-The loop does not read the whole store. It reads a cheap index, then loads only the few memory files that match the current query.
-
 ```mermaid
 flowchart TD
     Q([User query]) --> SEL{relevance selector}
@@ -37,6 +33,10 @@ flowchart TD
     CON --> STORE
     STORE --> IDX
 ```
+
+Memory is a file store plus an index plus on-demand recall.
+
+The loop does not read the whole store. It reads a cheap index, then loads only the few memory files that match the current query.
 
 There are four operations:
 

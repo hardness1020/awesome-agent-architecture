@@ -14,6 +14,20 @@ subagent 就是在一次 tool call 裡執行的 agent 迴圈。parent 給 child 
 
 ## 機制
 
+```mermaid
+flowchart LR
+    subgraph parent[Parent loop]
+        M{{model call}} -->|"tool_use · Agent"| A[Agent tool]
+        T["tool_result · final text"] --> M
+    end
+    subgraph child["Child · fresh messages[]"]
+        S["new Session · inherited mode + rules"] --> L{{run_turn}}
+        L -.-> X[transcript discarded]
+    end
+    A -->|child prompt| S
+    L -->|final text only| T
+```
+
 一個 `Agent` tool 會啟動一個 child agent。child 有自己的 session 和 message 清單。它跑的是和 parent 一樣的迴圈。
 
 只有 child 的最終文字會回傳。它的 transcript 會被丟棄。檔案寫入和 shell 的副作用仍然會發生在工作目錄裡。

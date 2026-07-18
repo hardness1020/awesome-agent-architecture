@@ -14,6 +14,17 @@ hook 让循环保持精简。循环对外提供固定的事件。扩展行为则
 
 ## 机制
 
+```mermaid
+flowchart LR
+    U[tool_use] --> PRE{PreToolUse}
+    PRE -->|deny| T[tool_result]
+    PRE -->|"pass · args may be rewritten"| G{permission gate}
+    G -->|deny or unapproved| T
+    G -->|allow| R[run tool]
+    R --> POST[PostToolUse · observe]
+    POST --> T
+```
+
 一个 `Hooks` 对象把事件名称映射到 callback 列表。循环不会直接调用自定义的检查。取而代之，`_dispatch` 触发具名的事件。
 
 在工具执行方面，有两个重要的点：

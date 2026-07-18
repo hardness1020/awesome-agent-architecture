@@ -23,14 +23,6 @@ background execution 必须：
 
 ## 机制
 
-这里有三个部件：
-
-1. 一个把工作移出 loop 的 starter，它会返回一个 handle。
-2. 一个追踪 task 状态的 runtime。
-3. 一个 queue，会在稍后的某个 turn 注入一则完成 notification。
-
-loop 不会等这个慢工作。
-
 ```mermaid
 flowchart LR
     L[main loop] -->|run_in_background| S[start off-loop]
@@ -40,6 +32,14 @@ flowchart LR
     W -->|done| Q[[notification queue]]
     Q -->|later turn| L
 ```
+
+这里有三个部件：
+
+1. 一个把工作移出 loop 的 starter，它会返回一个 handle。
+2. 一个追踪 task 状态的 runtime。
+3. 一个 queue，会在稍后的某个 turn 注入一则完成 notification。
+
+loop 不会等这个慢工作。
 
 - 后台执行是一个执行选项，而不是一种特殊的工具类型。
 - 被放到后台的调用会立刻返回一个正常的 `tool_result`。

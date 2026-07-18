@@ -23,13 +23,6 @@ Without this layer, parallel writers can corrupt the shared tree.
 
 ## Mechanism
 
-There are two pieces:
-
-1. A private git worktree per unit of work.
-2. A per-context working-directory binding.
-
-The binding must be scoped to the agent context. A global `chdir` would affect other agents in the same process.
-
 ```mermaid
 flowchart TB
     T["unit of work · slug"] --> V["validate slug"]
@@ -40,6 +33,13 @@ flowchart TB
     C -->|none| X["auto-remove"]
     C -->|"changes"| K["keep for review"]
 ```
+
+There are two pieces:
+
+1. A private git worktree per unit of work.
+2. A per-context working-directory binding.
+
+The binding must be scoped to the agent context. A global `chdir` would affect other agents in the same process.
 
 - Each worktree is a checkout of the same repo on its own branch.
 - The slug becomes a path, so validate it before any path join.

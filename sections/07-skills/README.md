@@ -26,15 +26,6 @@ Without this layer, the prompt is either too large or the agent cannot find its 
 
 ## Mechanism
 
-Skills use progressive disclosure. The model sees only enough information to decide whether to load more.
-
-1. **Metadata.** `name` and `description` from frontmatter, plus the skill's path. This cheap catalog rides in the system prompt every turn.
-2. **Instructions.** The `SKILL.md` body. The model reads the file only when a task needs the skill.
-3. **Resources.** Extra files in the skill folder. The model reads them with the same file tool when the instructions point to them.
-
-No skill-specific tool is needed. Once the catalog names each skill and its path,
-the agent loads a skill by reading its file with the normal Read tool. L2 and L3 are both just file reads.
-
 ```mermaid
 flowchart LR
     D["scan dirs · name + description + path"] --> C["catalog in system prompt"]
@@ -44,6 +35,15 @@ flowchart LR
     M -->|body cites a file| R["Read resource file"]
     R --> M
 ```
+
+Skills use progressive disclosure. The model sees only enough information to decide whether to load more.
+
+1. **Metadata.** `name` and `description` from frontmatter, plus the skill's path. This cheap catalog rides in the system prompt every turn.
+2. **Instructions.** The `SKILL.md` body. The model reads the file only when a task needs the skill.
+3. **Resources.** Extra files in the skill folder. The model reads them with the same file tool when the instructions point to them.
+
+No skill-specific tool is needed. Once the catalog names each skill and its path,
+the agent loads a skill by reading its file with the normal Read tool. L2 and L3 are both just file reads.
 
 ### New: scan the skills and list them in the prompt
 

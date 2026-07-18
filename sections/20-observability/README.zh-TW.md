@@ -16,12 +16,6 @@
 
 ## 機制
 
-兩條可分離的 pipeline，都不碰 loop 的控制流。
-
-telemetry 內聯運行：每一步呼叫一個發射即忘（fire-and-forget）的 logger，它會先排入佇列直到某個 sink 接上，然後採樣、洗掉敏感欄位，再扇出。
-
-evaluation 離線運行：把一組固定的 task 集重播到某個候選 build 上，並為每個輸出評分。
-
 ```mermaid
 flowchart LR
     E["loop step · emit(event)"] --> Q{{sink ready?}}
@@ -32,6 +26,12 @@ flowchart LR
     T[(eval task set)] --> RUN["run build · grade"]
     RUN --> P([pass rate])
 ```
+
+兩條可分離的 pipeline，都不碰 loop 的控制流。
+
+telemetry 內聯運行：每一步呼叫一個發射即忘（fire-and-forget）的 logger，它會先排入佇列直到某個 sink 接上，然後採樣、洗掉敏感欄位，再扇出。
+
+evaluation 離線運行：把一組固定的 task 集重播到某個候選 build 上，並為每個輸出評分。
 
 - `emit` 永不阻塞、永不拋例外，所以一次 logging 故障無法卡住或弄垮 loop（第 1 章）。
 - event 會在佇列裡緩衝直到某個 sink 接上，然後排空，所以 loop 在 telemetry 就緒之前就能 log。

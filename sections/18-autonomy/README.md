@@ -27,16 +27,6 @@ Leave this out and every agent is a puppet. It waits for a human or a lead to pu
 
 ## Mechanism
 
-An outer loop wraps the agent loop.
-
-The inner loop is the normal `while` from section 1. When it reaches `end_turn` the agent does not return. It enters a poll.
-
-The poll drains two channels: a directed inbox (section 16) for messages addressed to this agent, and an undirected board (section 12) of tasks any idle agent can claim.
-
-It checks them in priority order: a shutdown request first, then an inbox message, then a task on the board.
-
-Whatever it finds becomes the next prompt, and the inner loop runs again.
-
 ```mermaid
 flowchart TD
     W[Run inner loop to end_turn] --> I[Send idle notification]
@@ -48,6 +38,16 @@ flowchart TD
     E -->|yes| T[Task becomes next prompt] --> W
     E -->|no| S[Sleep] --> A
 ```
+
+An outer loop wraps the agent loop.
+
+The inner loop is the normal `while` from section 1. When it reaches `end_turn` the agent does not return. It enters a poll.
+
+The poll drains two channels: a directed inbox (section 16) for messages addressed to this agent, and an undirected board (section 12) of tasks any idle agent can claim.
+
+It checks them in priority order: a shutdown request first, then an inbox message, then a task on the board.
+
+Whatever it finds becomes the next prompt, and the inner loop runs again.
 
 - The inner loop ends on the model's `stop_reason`, the same signal as section 1.
 - The poll checks shutdown first, so a stop is never buried under peer messages.

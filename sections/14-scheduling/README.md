@@ -21,10 +21,6 @@ Without this layer, the agent can only react to user input.
 
 ## Mechanism
 
-Separate the clock from the loop. The scheduler watches time. It does not call the model directly.
-
-At fire time, the scheduler only enqueues a prompt. The driver drains the queue between turns, when no turn is in flight, and runs each prompt through the same agent loop that handles user input.
-
 ```mermaid
 flowchart LR
     C["fire time · optional repeat"] --> S{{"scheduler tick"}}
@@ -33,6 +29,10 @@ flowchart LR
     Q -->|"loop idle"| L["agent loop"]
     D["durable store"] -.->|"reload on start"| S
 ```
+
+Separate the clock from the loop. The scheduler watches time. It does not call the model directly.
+
+At fire time, the scheduler only enqueues a prompt. The driver drains the queue between turns, when no turn is in flight, and runs each prompt through the same agent loop that handles user input.
 
 - A schedule is data: a prompt to run, a fire time, and an optional repeat interval. The scheduler stores each one as a task.
 - A one-shot fires once and then deletes itself.

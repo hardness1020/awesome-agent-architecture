@@ -24,15 +24,6 @@ Without this layer, large work either stays serial or splits into workers that c
 
 ## Mechanism
 
-Each agent owns an inbox. Sending a message means writing to the recipient's inbox. Delivery happens when the recipient drains its inbox.
-
-The team's size and names are decided at run time by the lead's model, not hard-coded in the script. The lead calls `TeamCreate` to form the team for the task, then spawns each member.
-
-The lead does not hand-start teammates. It calls `SpawnTeammate`, and the harness runs the teammate's loop on a background thread (section 13).
-The teammate then pulls its own inbox and acts, so the script drives no one.
-
-There is no central broker in the demo. There is a shared convention for names, inbox paths, and message shape.
-
 ```mermaid
 flowchart LR
     L([Lead]) -->|TeamCreate| R[(Team roster)]
@@ -44,6 +35,15 @@ flowchart LR
     LI -.->|route to UI| H([Human approves])
     H -.->|verdict| T
 ```
+
+Each agent owns an inbox. Sending a message means writing to the recipient's inbox. Delivery happens when the recipient drains its inbox.
+
+The team's size and names are decided at run time by the lead's model, not hard-coded in the script. The lead calls `TeamCreate` to form the team for the task, then spawns each member.
+
+The lead does not hand-start teammates. It calls `SpawnTeammate`, and the harness runs the teammate's loop on a background thread (section 13).
+The teammate then pulls its own inbox and acts, so the script drives no one.
+
+There is no central broker in the demo. There is a shared convention for names, inbox paths, and message shape.
 
 - Each agent owns one inbox.
 - A message has a sender, recipient, and content.

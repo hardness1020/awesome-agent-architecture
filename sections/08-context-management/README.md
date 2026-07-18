@@ -20,6 +20,19 @@ Without this layer, long tasks fail once the prompt no longer fits.
 
 ## Mechanism
 
+```mermaid
+flowchart TD
+    MS["messages[]"] --> B[budget · persist huge results]
+    B --> MC[micro · stub old result bodies]
+    MC --> C{tokens over threshold?}
+    C -->|no| M{{model call}}
+    C -->|yes| A[auto · summarize the middle]
+    A --> M
+    M -->|prompt_too_long| RT[reactive · trim head, retry]
+    RT --> M
+    M -->|ok| N[append response] --> MS
+```
+
 Use cheap reducers before summarization. Cheap reducers are local and mostly lossless. Summarization costs a model call and can lose detail.
 
 Claude Code uses a layered order:
