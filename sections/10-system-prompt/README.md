@@ -71,6 +71,19 @@ DEMO_SECTIONS = [
 
 Recalled memory is not part of this prompt. It is injected as a `<system-reminder>` message by section 9. That keeps the prompt prefix more stable.
 
+### Prompt caching
+
+Most system prompt sections are stable during a session. The demo sets a top-level cache breakpoint:
+
+```python
+client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
+                       messages=messages, cache_control={"type": "ephemeral"})
+```
+
+Stable content should come before volatile content. If a changing value appears early, it can invalidate more of the cache.
+
+Claude Code also uses an explicit dynamic boundary. That protects a large static prefix when a smaller dynamic tail changes.
+
 ### How it integrates
 
 The loop assembles the prompt before each model call:
@@ -87,39 +100,20 @@ for _ in range(max_steps):                             # src/loop.py
 - It reads live state such as enabled tools and session mode.
 - Passing `prompt=None` keeps the section-9 behavior.
 
-### Prompt caching
-
-Most system prompt sections are stable during a session. The demo sets a top-level cache breakpoint:
-
-```python
-client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
-                       messages=messages, cache_control={"type": "ephemeral"})
-```
-
-Stable content should come before volatile content. If a changing value appears early, it can invalidate more of the cache.
-
-Claude Code also uses an explicit dynamic boundary. That protects a large static prefix when a smaller dynamic tail changes.
-
 ---
 
 ## Per system
 
 How the prompt is composed each turn.
 
-| System | Assembly point | Sections | When built |
-| --- | --- | --- | --- |
-| **Claude Code** | `getSystemPrompt()`. | Static and dynamic sections. | Per turn from live state. |
-
-### Claude Code
-
-- `getSystemPrompt()` returns a `string[]`, one element per section.
-- Tool guidance is built from the enabled tool set.
-- Dynamic sections are memoized until `/clear` or `/compact`.
-- MCP instructions opt out of caching because servers can change.
-- CLAUDE.md, date, and git status are injected as context messages, not prompt sections.
-- `SYSTEM_PROMPT_DYNAMIC_BOUNDARY` separates a stable prefix from a changing tail.
-
-> **Trade-off:** Section-based assembly avoids stale or irrelevant instructions. It adds a section registry, cache invalidation rules, and ordering discipline.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | No stale or irrelevant instructions. Tool guidance matches the enabled tool set. | One render from config. Nothing to memoize or invalidate. |
+| **Cons** | Needs a section registry, cache invalidation rules, and ordering discipline. | The prompt cannot change mid-run. Later state reaches the model as observations. |
+| **Why** | Tools, memory, and modes vary by session. The prompt should describe what is active. | Assumes the tool set never changes mid-run, so one render at start holds. |
+| **How: assembly point** | A prompt builder that returns one string per section. | Jinja2 templates in config. A missing variable fails loudly. |
+| **How: sections** | Static and dynamic sections. Project context goes in context messages. | Two templates: system and instance, filled from config, environment, and run state. |
+| **How: when built** | Per turn from live state. Dynamic parts stay memoized until the session is cleared or compacted. | Once, at run start, adapted to the platform. |
 
 ---
 
@@ -151,6 +145,8 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
+  `config/mini.yaml`, `_render_template` and `get_template_vars` in `agents/default.py`, `models/utils/cache_control.py`.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache breakpoints, TTLs, pricing, and token minimums.
-- learn-claude-code · s10_system_prompt: section framing.
+- [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): section framing.
