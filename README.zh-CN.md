@@ -118,6 +118,7 @@ awesome-agent-architecture/
 ├── sections/                  # 每个章节一个文件夹
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可执行的代码链从这里开始
+│   ├── ...
 │   └── 21-loop-engineering/
 └── references/                # 原始出处与前人成果
 ```
