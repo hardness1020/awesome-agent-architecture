@@ -21,16 +21,7 @@ Without a harness, the model can only answer. It cannot run tools, observe resul
 
 ## Mechanism
 
-```mermaid
-flowchart TB
-    K[knowledge: memory · skills · prompt] --> M
-    O[observation: tool results · context] --> M
-    M{{model}} -->|tool_use| A[actions: tool runtime · dispatch]
-    A --> P[permissions: gate side effects]
-    P --> A
-    A --> O
-    M -->|end_turn| D([reply])
-```
+![Mechanism diagram](assets/00-harness-thesis.png)
 
 This section is about decomposition. A small model call sits at the center. The harness supplies its inputs and handles its outputs.
 

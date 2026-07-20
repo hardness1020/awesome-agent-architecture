@@ -16,16 +16,7 @@
 
 ## 机制
 
-```mermaid
-flowchart LR
-    E["loop step · emit(event)"] --> Q{{sink ready?}}
-    Q -->|no| B[(pre-sink queue)]
-    B -.->|attach drains| S
-    Q -->|yes| S["sample · scrub"]
-    S --> K[[sinks · Datadog · logger]]
-    T[(eval task set)] --> RUN["run build · grade"]
-    RUN --> P([pass rate])
-```
+![机制图](assets/20-observability.png)
 
 两条可分离的 pipeline，都不碰 loop 的控制流。
 

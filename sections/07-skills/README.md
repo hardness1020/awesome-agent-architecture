@@ -26,15 +26,7 @@ Without this layer, the prompt is either too large or the agent cannot find its 
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    D["scan dirs · name + description + path"] --> C["catalog in system prompt"]
-    C --> M{{model call}}
-    M -->|Read SKILL.md| L["skill body enters messages[]"]
-    L --> M
-    M -->|body cites a file| R["Read resource file"]
-    R --> M
-```
+![Mechanism diagram](assets/07-skills.png)
 
 Skills use progressive disclosure. The model sees only enough information to decide whether to load more.
 

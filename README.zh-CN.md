@@ -46,17 +46,7 @@
 
 大多数 agent 都共用同一套控制流程：调用模型、执行它要求的工具、把结果接回去，然后再调用模型。
 
-```mermaid
-flowchart LR
-    U([用户意图]) --> M["messages[]"]
-    M --> L{{LLM}}
-    L -->|stop_reason: tool_use| T[工具执行环境]
-    T --> P{有权限吗?}
-    P -->|拒绝 / 询问| M
-    P -->|允许| X[执行工具]
-    X --> R[工具结果] --> M
-    L -->|stop_reason: end_turn| D([回复用户])
-```
+![The agent loop](assets/the-agent-loop.png)
 
 这个循环很小。大部分工程都在它周围：分发工具、管控副作用、管理上下文、保存状态，还有协调其他循环。
 

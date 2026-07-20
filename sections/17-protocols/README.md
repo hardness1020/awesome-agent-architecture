@@ -27,18 +27,7 @@ Without this layer, coordination is unstructured chat. Nothing is gated, nothing
 
 ## Mechanism
 
-```mermaid
-sequenceDiagram
-    participant L as Lead
-    participant T as Teammate
-    L->>T: shutdown_request {requestId, reason}
-    Note over T: finish current step, flush state
-    T->>L: shutdown_approved {requestId}
-    Note over L: kill, mark notified, emit terminated
-    Note over T,L: plan approval is the same shape, inverted
-    T->>L: plan_approval_request {requestId, plan}
-    L->>T: plan_approval_response {requestId, approved}
-```
+![Mechanism diagram](assets/17-protocols.png)
 
 Every exchange is a typed request and a typed response that share one `requestId`.
 

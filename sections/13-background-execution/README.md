@@ -23,15 +23,7 @@ Without this layer, one slow command can freeze the whole agent.
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    L[main loop] -->|run_in_background| S[start off-loop]
-    S --> H[return handle + placeholder result]
-    H --> L
-    S -.->|runs independently| W[worker or subprocess]
-    W -->|done| Q[[notification queue]]
-    Q -->|later turn| L
-```
+![Mechanism diagram](assets/13-background-execution.png)
 
 There are three pieces:
 

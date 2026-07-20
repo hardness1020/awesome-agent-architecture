@@ -18,17 +18,7 @@ A plugin bundles servers with hooks and skills. A channel lets a server push mes
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    C[".mcp.json / plugins / claude.ai"] --> X{{transport}}
-    X -->|stdio| S1[local server]
-    X -->|http · sse · ws| S2[remote server]
-    S1 & S2 --> D["tools/list discovery"]
-    D --> W["wrap as a Tool<br/>name = mcp__server__tool"]
-    W --> P[(one tool pool)]
-    B[built-in tools] --> P
-    P --> L{{agent loop dispatch}}
-```
+![Mechanism diagram](assets/19-mcp-plugins-channels.png)
 
 Connect to each server, discover its tools (`tools/list`), wrap each as a runtime `Tool` (section 2), and merge those into the same pool the loop dispatches.
 

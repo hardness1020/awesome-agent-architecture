@@ -21,15 +21,7 @@ Without this layer, the plan exists only in the current context window.
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    C[TaskCreate] --> F["{id}.json on disk"]
-    F --> U[TaskUpdate]
-    U -->|"pending -> in_progress -> completed"| F
-    F -->|"blockers complete?"| K{claimTask}
-    K -->|yes| W[claimed by agent]
-    K -->|no| X[rejected]
-```
+![Mechanism diagram](assets/12-task-system.png)
 
 A task is a JSON record on disk. `blockedBy` and `blocks` are dependency edges. A file lock serializes claims.
 

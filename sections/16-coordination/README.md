@@ -24,17 +24,7 @@ Without this layer, large work either stays serial or splits into workers that c
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    L([Lead]) -->|TeamCreate| R[(Team roster)]
-    L -->|SpawnTeammate| T[Worker loop · serve_mailbox]
-    L -->|SendMessage| WI[Worker inbox]
-    T -->|pull| WI
-    T -->|reply| LI[Lead inbox]
-    T -.->|permission_request| LI
-    LI -.->|route to UI| H([Human approves])
-    H -.->|verdict| T
-```
+![Mechanism diagram](assets/16-coordination.png)
 
 Each agent owns an inbox. Sending a message means writing to the recipient's inbox. Delivery happens when the recipient drains its inbox.
 

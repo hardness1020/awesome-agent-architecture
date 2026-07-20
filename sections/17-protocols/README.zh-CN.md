@@ -27,18 +27,7 @@ protocol 必须：
 
 ## 机制
 
-```mermaid
-sequenceDiagram
-    participant L as Lead
-    participant T as Teammate
-    L->>T: shutdown_request {requestId, reason}
-    Note over T: finish current step, flush state
-    T->>L: shutdown_approved {requestId}
-    Note over L: kill, mark notified, emit terminated
-    Note over T,L: plan approval is the same shape, inverted
-    T->>L: plan_approval_request {requestId, plan}
-    L->>T: plan_approval_response {requestId, approved}
-```
+![机制图](assets/17-protocols.png)
 
 每一次交换都是一条带类型的请求和一条带类型的响应，两者共用同一个 `requestId`。
 

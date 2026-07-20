@@ -23,16 +23,7 @@ task 系統決定有哪些工作要做。subagent 決定工作怎麼拆分。wor
 
 ## 機制
 
-```mermaid
-flowchart TB
-    T["unit of work · slug"] --> V["validate slug"]
-    V --> W["git worktree add · own branch"]
-    W --> B["bind cwd to this context"]
-    B --> R["agent loop · tools resolve in worktree"]
-    R --> C{"changes?"}
-    C -->|none| X["auto-remove"]
-    C -->|"changes"| K["keep for review"]
-```
+![機制圖](assets/15-worktree-isolation.png)
 
 有兩個部分：
 

@@ -21,14 +21,7 @@
 
 ## 機制
 
-```mermaid
-flowchart LR
-    C["fire time · optional repeat"] --> S{{"scheduler tick"}}
-    S -->|"time matches"| F["onFire(prompt)"]
-    F --> Q["pending queue"]
-    Q -->|"loop idle"| L["agent loop"]
-    D["durable store"] -.->|"reload on start"| S
-```
+![機制圖](assets/14-scheduling.png)
 
 把時鐘和 loop 分開。scheduler 監看時間。它不會直接呼叫 model。
 

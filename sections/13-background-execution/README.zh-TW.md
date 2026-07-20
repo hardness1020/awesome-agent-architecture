@@ -23,15 +23,7 @@ background execution 必須：
 
 ## 機制
 
-```mermaid
-flowchart LR
-    L[main loop] -->|run_in_background| S[start off-loop]
-    S --> H[return handle + placeholder result]
-    H --> L
-    S -.->|runs independently| W[worker or subprocess]
-    W -->|done| Q[[notification queue]]
-    Q -->|later turn| L
-```
+![機制圖](assets/13-background-execution.png)
 
 這裡有三個部件：
 

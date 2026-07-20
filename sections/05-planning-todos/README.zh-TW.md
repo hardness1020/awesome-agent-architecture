@@ -19,17 +19,7 @@
 
 ## 機制
 
-```mermaid
-flowchart TD
-    T["complex task"] --> P{plan mode?}
-    P -->|yes| E["EnterPlanMode · mode := 'plan'"]
-    E --> R["explore read-only, write plan"]
-    R --> X["ExitPlanMode · ask: approve?"]
-    X -->|approved| TW["TodoWrite: list steps"]
-    P -->|no| TW
-    TW --> S["mark one in_progress, do it, mark completed"]
-    S -->|next pending| S
-```
+![機制圖](assets/05-planning-and-todos.png)
 
 這裡有兩個工具。兩者都是一般由模型呼叫的工具。兩者都不改動核心迴圈。
 

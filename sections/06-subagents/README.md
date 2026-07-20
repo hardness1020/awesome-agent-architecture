@@ -14,19 +14,7 @@ Without subagents, every investigation stays in the main transcript. Long runs b
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    subgraph parent[Parent loop]
-        M{{model call}} -->|"tool_use · Agent"| A[Agent tool]
-        T["tool_result · final text"] --> M
-    end
-    subgraph child["Child · fresh messages[]"]
-        S["new Session · inherited mode + rules"] --> L{{run_turn}}
-        L -.-> X[transcript discarded]
-    end
-    A -->|child prompt| S
-    L -->|final text only| T
-```
+![Mechanism diagram](assets/06-subagents.png)
 
 An `Agent` tool starts a child agent. The child has its own session and message list. It runs the same loop as the parent.
 

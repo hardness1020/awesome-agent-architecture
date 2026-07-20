@@ -21,16 +21,7 @@ harness 必須：
 
 ## 機制
 
-```mermaid
-flowchart TB
-    K[knowledge: memory · skills · prompt] --> M
-    O[observation: tool results · context] --> M
-    M{{model}} -->|tool_use| A[actions: tool runtime · dispatch]
-    A --> P[permissions: gate side effects]
-    P --> A
-    A --> O
-    M -->|end_turn| D([reply])
-```
+![機制圖](assets/00-harness-thesis.png)
 
 這一章講的是拆解。一個小小的模型呼叫坐在中心。harness 供給它的輸入，並處理它的輸出。
 

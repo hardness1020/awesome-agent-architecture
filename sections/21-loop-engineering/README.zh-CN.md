@@ -24,16 +24,7 @@ Loop engineering 说的是工程重心的转移。
 
 ## 机制
 
-```mermaid
-flowchart LR
-    E["trigger · cron, webhook, channel"] --> A["agent loop"]
-    A --> O["candidate output"] --> G{"grader"}
-    G -->|"fail · budget left"| A
-    G -->|"budget spent"| X["escalate to human"]
-    G -->|"pass"| D["deliver"]
-    D --> T[("traces")]
-    T -.->|"tune harness"| E
-```
+![机制图](assets/21-loop-engineering.png)
 
 最简单的说法：agent loop 外面再包三层 loop。一层包着一层，每一层回答一个不同的问题。
 

@@ -48,17 +48,7 @@ Each system is a worked example for the sections below.
 
 Most agents share the same control flow: call the model, run requested tools, append results, and call the model again.
 
-```mermaid
-flowchart LR
-    U([User intent]) --> M["messages[]"]
-    M --> L{{LLM}}
-    L -->|stop_reason: tool_use| T[Tool runtime]
-    T --> P{Permitted?}
-    P -->|deny / ask| M
-    P -->|allow| X[Execute tool]
-    X --> R[Tool result] --> M
-    L -->|stop_reason: end_turn| D([Reply to user])
-```
+![The agent loop](assets/the-agent-loop.png)
 
 The loop is small. Most engineering is around it: dispatch tools, gate side effects, manage context, persist state, and coordinate other loops.
 

@@ -18,17 +18,7 @@ Without recovery, one temporary API failure can end a long task.
 
 ## Mechanism
 
-```mermaid
-flowchart TD
-    C[model call] -->|ok| R([response])
-    C -->|error| K{classify}
-    K -->|"prompt_too_long · first time"| O[compact once] --> C
-    K -->|"429 · 408 · 409 · 5xx"| B{attempts left?}
-    B -->|yes| W[backoff, then retry] --> C
-    B -->|no| X([raise])
-    K -->|repeated 529| F([fallback model])
-    K -->|not retryable| X
-```
+![Mechanism diagram](assets/11-error-recovery.png)
 
 Wrap the model call in a retry helper. The helper classifies the failure, then takes a bounded action.
 
