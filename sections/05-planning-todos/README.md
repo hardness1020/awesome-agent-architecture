@@ -72,23 +72,14 @@ The status is `pending`, `in_progress`, or `completed`. The model writes the who
 
 How each agent tracks a plan and gates execution.
 
-| System | Plan artifact | Plan mode | Execution gate |
-| --- | --- | --- | --- |
-| **Claude Code** | Todo list plus a plan file. | Yes. Read-only until exit. | `ExitPlanMode` asks for approval. |
-
-### Claude Code
-
-- `TodoWrite` stores an in-memory todo list.
-- `TodoWrite` is always allowed because it has no external side effect.
-- Items live in `appState.todos[todoKey]`.
-- `EnterPlanModeTool` flips the permission mode to `plan`.
-- `ExitPlanMode` reads the plan and returns an `ask` decision.
-- `validateInput` rejects `ExitPlanMode` unless the current mode is `plan`.
-- Durable task graphs are handled later by section 12.
-
-> **Trade-off:** An in-memory todo list is simple and cheap.
-> It has no dependencies, persistence, or locking.
-> A disk-backed task graph adds those features, but it needs more tools and on-disk state.
+| | Claude Code |
+| --- | --- |
+| **Pros** | Simple and cheap. An in-memory todo list needs no dependencies, persistence, or locking. |
+| **Cons** | The list is session state only. Work that must survive a turn or process needs a disk-backed task graph, which adds more tools and on-disk state (section 12). |
+| **Why** | The model loses track of a plan kept only in the prompt, so the checklist is stored as session state. The agent should not edit files before the plan is approved. |
+| **How: plan artifact** | Todo list plus a plan file. `TodoWrite` overwrites the in-memory list and is always allowed because it has no external side effect. |
+| **How: plan mode** | Yes. Entering flips the permission mode to plan, and the session stays read-only until exit. |
+| **How: execution gate** | `ExitPlanMode` reads the plan and asks for approval. The call is rejected unless the current mode is plan. |
 
 ---
 
@@ -119,6 +110,7 @@ uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `tools/TodoWriteTool/TodoWriteTool.ts`, `tools/EnterPlanModeTool/EnterPlanModeTool.ts`, `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`.
-- Claude Code planning helpers: `utils/plans.ts`, `utils/todo/types.ts`, `types/permissions.ts`.
-- learn-claude-code · s05_todo_write: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/TodoWriteTool/TodoWriteTool.ts`, `tools/EnterPlanModeTool/EnterPlanModeTool.ts`, `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`.
+- [Claude Code planning helpers](https://github.com/yasasbanukaofficial/claude-code): `utils/plans.ts`, `utils/todo/types.ts`, `types/permissions.ts`.
+- [learn-claude-code · s05_todo_write](https://github.com/shareAI-lab/learn-claude-code): section framing.
