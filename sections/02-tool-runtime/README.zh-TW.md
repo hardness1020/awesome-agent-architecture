@@ -2,7 +2,7 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 新增一項能力，就是註冊一個工具。 loop 維持不變。
+> 新增一項能力，就是註冊一個工具。loop 維持不變。
 
 agent loop 只能透過工具來行動。模型會發出一個結構化的 `tool_use` 區塊，帶有 `name` 與 `input`。
 

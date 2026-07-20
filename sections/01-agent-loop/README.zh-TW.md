@@ -57,7 +57,7 @@ def run_turn(messages, model, max_steps=10):        # src/loop.py · one turn ov
 - `messages` 是採用 Anthropic Messages 格式的共享狀態。
 - `max_steps` 是防止 loop 失控的安全上限。
 - `run_tool(name, input)` 解析出工具、執行它，並回傳供 `tool_result` 使用的文字。
-- [`src/demo.py`](src/demo.py) 中的 `model()` 是一次 `client.messages.create` 呼叫。 loop 不綁定單一供應商。
+- [`src/demo.py`](src/demo.py) 中的 `model()` 是一次 `client.messages.create` 呼叫。loop 不綁定單一供應商。
 
 外層 loop 每一輪附加一則使用者訊息，並保留整個緩衝區：
 
