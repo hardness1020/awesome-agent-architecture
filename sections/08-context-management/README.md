@@ -66,7 +66,7 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-This is a real loop change. Earlier sections added tools or dispatch behavior. Context must run before the model call, so it belongs in the loop.
+This section changes the loop body itself. Earlier sections added tools or dispatch behavior and left the loop alone. Context reduction must run before every model call, so it has to live in the loop.
 
 The loop still keeps the same invariant: it calls the model with a valid `messages[]`, then appends the response and any tool results.
 
@@ -76,23 +76,14 @@ The loop still keeps the same invariant: it calls the model with a valid `messag
 
 How each agent decides to make room and what it removes.
 
-| System | Trigger | Strategy | Budget rule |
-| --- | --- | --- | --- |
-| **Claude Code** | Token threshold plus overflow fallback. | Cheap reducers first, then LLM summary. | Reserve output and safety buffers. |
-
-### Claude Code
-
-- `query.ts` runs the passes before model calls.
-- `applyToolResultBudget` persists tool results over the per-message character cap.
-- Persisted results leave a preview and a path-like marker.
-- `microcompactMessages` clears old tool-result bodies to a stub.
-- `autoCompactIfNeeded` calls the model only after token count still exceeds the threshold.
-- After compaction, recent files can be restored within a token budget.
-- Reactive compaction handles a `prompt_too_long` response after proactive passes failed.
-
-> **Trade-off:** Layered reducers make long sessions possible and keep many reductions cheap.
-> They add ordering rules and summary risk.
-> A summary can omit detail the model later needs.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | Long sessions survive. Most reductions are cheap, and persisted outputs can be re-read. | Nothing to schedule or tune. Easy to audit. |
+| **Cons** | Passes need ordering rules. A summary can drop detail the model later needs. | History only grows. A run that outlives its budget dies on overflow. |
+| **Why** | Interactive sessions are open ended, so the window will fill. | Assumes a task ends, by submission or cost limit (section 21), before the window fills. |
+| **How: trigger** | Token threshold, plus a reactive fallback on `prompt_too_long`. | Every observation, at render time. |
+| **How: strategy** | Cheap reducers first (persist big results, stub old ones), LLM summary last. | Truncate long output to a head and a tail. No compaction. |
+| **How: budget** | Reserve output and safety buffers. | 10k characters per observation. |
 
 ---
 
@@ -124,10 +115,12 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 
 ## Sources
 
-- Claude Code source: `services/compact/autoCompact.ts`, `microCompact.ts`, `timeBasedMCConfig.ts`, `compact.ts`, `utils/toolResultStorage.ts`, `query.ts`, `query/tokenBudget.ts`.
-- learn-claude-code · s08_context_compact: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `services/compact/autoCompact.ts`, `microCompact.ts`, `timeBasedMCConfig.ts`, `compact.ts`, `utils/toolResultStorage.ts`, `query.ts`, `query/tokenBudget.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the observation template in `config/mini.yaml`, `abort_exceptions` in `models/litellm_model.py`.
+- [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code): section framing.
 
-Inferred, not fully in this clone:
+Inferred; not fully present in the Claude Code source repo above:
 
 - `snipCompact.ts`: only the `snipCompactIfNeeded(messages)` call site is visible.
 - `reactiveCompact.ts`: the reactive path appears to live in `compact.ts`.
