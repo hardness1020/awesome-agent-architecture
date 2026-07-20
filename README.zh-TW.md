@@ -23,22 +23,8 @@
 
 這個 repo 一章一章拆解 harness：迴圈、工具、記憶、權限、情境、任務和介面。學會這一套之後，你就有能力看懂很多種 agent，因為寫程式的工具、聊天助理和自動執行器，差別大多只在 harness 的設計選擇上。
 
-**目錄：** [研究的系統](#研究的系統) · [Agent 迴圈](#agent-迴圈) · [方法](#方法) ·
+**目錄：** [Agent 迴圈](#agent-迴圈) · [方法](#方法) · [研究的系統](#研究的系統) ·
 [各章節](#各章節) · [檔案結構](#檔案結構) · [執行示範](#執行示範)
-
----
-
-## 研究的系統
-
-每個系統都是下面各章節的實作範例。
-
-| 系統 | 大家為什麼用它 | 值得看的地方 | 覆蓋章節 | 研究版本 |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起 | 0 到 21（全部） | v2.1.88 |
-| **Hermes Agent** | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。 | Memory、skills、always-on channels | 7、9、14、16、19、21 | v2026.7.1 |
-| *(更多陸續加入)* | | | | |
-
-> 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
 
 ---
 
@@ -46,17 +32,7 @@
 
 大多數 agent 都共用同一套控制流程：呼叫模型、執行它要求的工具、把結果接回去，然後再呼叫模型。
 
-```mermaid
-flowchart LR
-    U([使用者意圖]) --> M["messages[]"]
-    M --> L{{LLM}}
-    L -->|stop_reason: tool_use| T[工具執行環境]
-    T --> P{有權限嗎?}
-    P -->|拒絕 / 詢問| M
-    P -->|允許| X[執行工具]
-    X --> R[工具結果] --> M
-    L -->|stop_reason: end_turn| D([回覆使用者])
-```
+![The agent loop](assets/the-agent-loop.png)
 
 這個迴圈很小。大部分的工程都在它周圍：派發工具、控管副作用、管理情境、保存狀態，還有協調其他迴圈。
 
@@ -76,6 +52,20 @@ flowchart LR
 - **照順序讀各章節。每一章都建立在前一層之上**。
 - 遇到可執行的章節，先讀 `src/loop.py`，再跑它的 `test.py` 和 `demo.py`。
 - 把某章的 `src/` 跟前一章對比（diff），這個差異就是這一章新增的那個機制。
+
+---
+
+## 研究的系統
+
+每個系統都是下面各章節的實作範例。
+
+| 系統 | 大家為什麼用它 | 值得看的地方 | 覆蓋章節 | 研究版本 |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起 | 0 到 21（全部） | v2.1.88 |
+| **Hermes Agent** | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。 | Memory、skills、always-on channels | 7、9、14、16、19、21 | v2026.7.1 |
+| *(更多陸續加入)* | | | | |
+
+> 之後可以再加入更多系統，例如 OpenClaw、aider 和 mini-swe-agent。
 
 ---
 
@@ -128,6 +118,7 @@ awesome-agent-architecture/
 ├── sections/                  # 每個章節一個資料夾
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可執行的程式碼鏈從這裡開始
+│   ├── ...
 │   └── 21-loop-engineering/
 └── references/                # 原始出處與前人成果
 ```
@@ -179,8 +170,13 @@ uv run python sections/01-agent-loop/src/demo.py  # 即時
 
 ## 參考資料
 
-| 出處                                                               | 提供什麼                                             |
-| ------------------------------------------------------------------ | ---------------------------------------------------- |
-| [claude-code](https://github.com/yasasbanukaofficial/claude-code)     | Claude Code 原始碼備份，用來對照機制名稱與實作路徑。 |
-| [hermes-agent](https://github.com/NousResearch/hermes-agent)          | 開源 agent harness（MIT），作為第二個研究系統。      |
-| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 以程式碼為主的 harness 重建與章節架構。              |
+- [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code 原始碼備份，用來對照機制名稱與實作路徑。
+- [hermes-agent](https://github.com/NousResearch/hermes-agent): 開源 agent harness（MIT），作為第二個研究系統。
+- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以程式碼為主的 harness 重建與章節架構。
+- [Anthropic Agent Skills 最佳實踐](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的漸進式揭露層級。
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache 斷點、TTL、計價與 token 下限。
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop 的組成模組與成熟度分級。
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): 四層堆疊的 loop。
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): 由模組組合出的 agent loop。
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): 自主工作流的目標條件。
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): 改進迴圈，以及放在迴圈外的把關。

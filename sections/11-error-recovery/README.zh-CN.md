@@ -18,17 +18,7 @@
 
 ## 机制
 
-```mermaid
-flowchart TD
-    C[model call] -->|ok| R([response])
-    C -->|error| K{classify}
-    K -->|"prompt_too_long · first time"| O[compact once] --> C
-    K -->|"429 · 408 · 409 · 5xx"| B{attempts left?}
-    B -->|yes| W[backoff, then retry] --> C
-    B -->|no| X([raise])
-    K -->|repeated 529| F([fallback model])
-    K -->|not retryable| X
-```
+![机制图](assets/11-error-recovery.png)
 
 把模型调用包在一个重试辅助函数里。这个辅助函数先分类失败，再采取一个有界限的行动。
 

@@ -24,16 +24,7 @@ Without this layer, a human is the outer loop. They prompt, read, judge, and ret
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    E["trigger · cron, webhook, channel"] --> A["agent loop"]
-    A --> O["candidate output"] --> G{"grader"}
-    G -->|"fail · budget left"| A
-    G -->|"budget spent"| X["escalate to human"]
-    G -->|"pass"| D["deliver"]
-    D --> T[("traces")]
-    T -.->|"tune harness"| E
-```
+![Mechanism diagram](assets/21-loop-engineering.png)
 
 The simple version: the agent loop, wrapped by three more loops. Each wraps the one inside it, and each answers a different question.
 

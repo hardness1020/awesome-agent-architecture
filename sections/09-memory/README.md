@@ -21,18 +21,7 @@ Without memory, the agent repeats questions and forgets user preferences between
 
 ## Mechanism
 
-```mermaid
-flowchart TD
-    Q([User query]) --> SEL{relevance selector}
-    IDX["index: name · type · description"] --> SEL
-    SEL -->|top hits| INJ[inject file bodies]
-    INJ --> L[(agent loop)]
-    L -->|run ends| EX[extract new memories]
-    EX --> STORE[(memory dir + index)]
-    STORE -.periodically.-> CON[dedupe · merge · prune]
-    CON --> STORE
-    STORE --> IDX
-```
+![Mechanism diagram](assets/09-memory.png)
 
 Memory is a file store plus an index plus on-demand recall.
 

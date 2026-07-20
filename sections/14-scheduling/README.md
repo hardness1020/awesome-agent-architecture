@@ -21,14 +21,7 @@ Without this layer, the agent can only react to user input.
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    C["fire time · optional repeat"] --> S{{"scheduler tick"}}
-    S -->|"time matches"| F["onFire(prompt)"]
-    F --> Q["pending queue"]
-    Q -->|"loop idle"| L["agent loop"]
-    D["durable store"] -.->|"reload on start"| S
-```
+![Mechanism diagram](assets/14-scheduling.png)
 
 Separate the clock from the loop. The scheduler watches time. It does not call the model directly.
 

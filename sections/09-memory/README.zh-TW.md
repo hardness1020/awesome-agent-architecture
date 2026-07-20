@@ -21,18 +21,7 @@
 
 ## 機制
 
-```mermaid
-flowchart TD
-    Q([User query]) --> SEL{relevance selector}
-    IDX["index: name · type · description"] --> SEL
-    SEL -->|top hits| INJ[inject file bodies]
-    INJ --> L[(agent loop)]
-    L -->|run ends| EX[extract new memories]
-    EX --> STORE[(memory dir + index)]
-    STORE -.periodically.-> CON[dedupe · merge · prune]
-    CON --> STORE
-    STORE --> IDX
-```
+![機制圖](assets/09-memory.png)
 
 記憶是一個檔案儲存區，加上一份索引，再加上按需回想。
 

@@ -25,22 +25,8 @@ it runs tools, keeps state across calls, gates side effects, and coordinates loo
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
 Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
-**Contents:** [Systems](#systems-under-study) · [Loop](#the-agent-loop) · [Method](#method) ·
+**Contents:** [Loop](#the-agent-loop) · [Method](#how-to-learn) · [Systems](#systems-under-study) ·
 [Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
-
----
-
-## Systems Under Study
-
-Each system is a worked example for the sections below.
-
-| System | Why people use it | Read it for | Sections | Version studied |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | v2.1.88 |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1 |
-| *(more soon)* | | | | |
-
-> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 
 ---
 
@@ -48,17 +34,7 @@ Each system is a worked example for the sections below.
 
 Most agents share the same control flow: call the model, run requested tools, append results, and call the model again.
 
-```mermaid
-flowchart LR
-    U([User intent]) --> M["messages[]"]
-    M --> L{{LLM}}
-    L -->|stop_reason: tool_use| T[Tool runtime]
-    T --> P{Permitted?}
-    P -->|deny / ask| M
-    P -->|allow| X[Execute tool]
-    X --> R[Tool result] --> M
-    L -->|stop_reason: end_turn| D([Reply to user])
-```
+![The agent loop](assets/the-agent-loop.png)
 
 The loop is small. Most engineering is around it: dispatch tools, gate side effects, manage context, persist state, and coordinate other loops.
 
@@ -81,42 +57,56 @@ To learn from this repo:
 
 ---
 
+## Systems Under Study
+
+Each system is a worked example for the sections below.
+
+| System                 | Why people use it                                                               | Read it for                        | Sections             | Version studied |
+| ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------- | -------------------- | --------------- |
+| **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 21 (all)        | v2.1.88         |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere.            | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1       |
+| *(more soon)*        |                                                                                 |                                    |                      |                 |
+
+> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
+
+---
+
 ## Sections
 
 Eight layers, from the basic loop to a harness that runs itself. Each row links to one self-contained writeup.
 
-| # | Section | Question | Key mechanisms |
-| --- | --- | --- | --- |
-| | **Layer 0 · Foundations** | | |
-| 0 | [Harness thesis](sections/00-harness-thesis/) | Where does agency come from? | Model vs harness, actions, observations, permissions |
-| | **Layer 1 · Core Loop** | | |
-| 1 | [Agent loop](sections/01-agent-loop/) | How does an agent keep going? | `messages[]`, loop, `stop_reason` |
-| 2 | [Tool runtime](sections/02-tool-runtime/) | How are tools called and routed? | Registry, schemas, dispatch, deferred search |
-| 3 | [Permission & sandbox](sections/03-permission-sandbox/) | How are side effects gated? | Permission modes, approvals, sandboxing |
-| 4 | [Hooks](sections/04-hooks/) | How do extensions attach to the loop? | `PreToolUse`, `PostToolUse`, lifecycle events |
-| | **Layer 2 · Complex Work** | | |
-| 5 | [Planning & todos](sections/05-planning-todos/) | How is big work decomposed? | Plan mode, todo list, approval before edits |
-| 6 | [Subagents](sections/06-subagents/) | How is a subproblem isolated? | Fresh `messages[]`, delegation, child loop |
-| 7 | [Skills](sections/07-skills/) | How are capabilities loaded on demand? | `SKILL.md`, catalog, progressive disclosure |
-| 8 | [Context management](sections/08-context-management/) | How do long sessions fit the window? | Budgeting, stubs, compaction, summaries |
-| | **Layer 3 · Knowledge & Resilience** | | |
-| 9 | [Memory](sections/09-memory/) | How does it remember across runs? | Selection, recall, extraction, consolidation |
-| 10 | [System prompt assembly](sections/10-system-prompt/) | How is the prompt built each turn? | Prompt sections, live state, cache boundaries |
-| 11 | [Error recovery](sections/11-error-recovery/) | How does a long task survive failure? | Retries, overflow recovery, fallback model |
-| | **Layer 4 · Long Running & Async** | | |
-| 12 | [Task system](sections/12-task-system/) | How does work persist beyond a turn? | Task records, dependencies, locks |
-| 13 | [Background execution](sections/13-background-execution/) | How does work run off the main loop? | Handles, task state, notification queue |
-| 14 | [Scheduling](sections/14-scheduling/) | How does an agent run later? | Cron, sleep, remote triggers, queues |
-| 15 | [Worktree isolation](sections/15-worktree-isolation/) | How does parallel work avoid collisions? | Git worktrees, cwd binding, safe cleanup |
-| | **Layer 5 · Multi Agent** | | |
-| 16 | [Coordination](sections/16-coordination/) | How do many agents talk? | Inboxes, broadcasts, permission bubbling |
-| 17 | [Protocols](sections/17-protocols/) | How do agents agree and stop cleanly? | Plan approval, shutdown handshakes |
-| 18 | [Autonomy](sections/18-autonomy/) | How do agents organize themselves? | Idle cycle, task claiming, self organization |
-| | **Layer 6 · Extension & Integration** | | |
-| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/) | How does the harness reach the world? | Transports, channels, tool pool assembly |
-| 20 | [Observability & evaluation](sections/20-observability/) | How do we know it works? | Tracing, metrics, evals, failure analysis |
-| | **Layer 7 · Composition** | | |
-| 21 | [Loop engineering](sections/21-loop-engineering/) | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
+| #  | Section                                                      | Question                                           | Key mechanisms                                        |
+| -- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------- |
+|    | **Layer 0 · Foundations**                             |                                                    |                                                       |
+| 0  | [Harness thesis](sections/00-harness-thesis/)                 | Where does agency come from?                       | Model vs harness, actions, observations, permissions  |
+|    | **Layer 1 · Core Loop**                               |                                                    |                                                       |
+| 1  | [Agent loop](sections/01-agent-loop/)                         | How does an agent keep going?                      | `messages[]`, loop, `stop_reason`                 |
+| 2  | [Tool runtime](sections/02-tool-runtime/)                     | How are tools called and routed?                   | Registry, schemas, dispatch, deferred search          |
+| 3  | [Permission &amp; sandbox](sections/03-permission-sandbox/)   | How are side effects gated?                        | Permission modes, approvals, sandboxing               |
+| 4  | [Hooks](sections/04-hooks/)                                   | How do extensions attach to the loop?              | `PreToolUse`, `PostToolUse`, lifecycle events     |
+|    | **Layer 2 · Complex Work**                            |                                                    |                                                       |
+| 5  | [Planning &amp; todos](sections/05-planning-todos/)           | How is big work decomposed?                        | Plan mode, todo list, approval before edits           |
+| 6  | [Subagents](sections/06-subagents/)                           | How is a subproblem isolated?                      | Fresh`messages[]`, delegation, child loop           |
+| 7  | [Skills](sections/07-skills/)                                 | How are capabilities loaded on demand?             | `SKILL.md`, catalog, progressive disclosure         |
+| 8  | [Context management](sections/08-context-management/)         | How do long sessions fit the window?               | Budgeting, stubs, compaction, summaries               |
+|    | **Layer 3 · Knowledge & Resilience**                  |                                                    |                                                       |
+| 9  | [Memory](sections/09-memory/)                                 | How does it remember across runs?                  | Selection, recall, extraction, consolidation          |
+| 10 | [System prompt assembly](sections/10-system-prompt/)          | How is the prompt built each turn?                 | Prompt sections, live state, cache boundaries         |
+| 11 | [Error recovery](sections/11-error-recovery/)                 | How does a long task survive failure?              | Retries, overflow recovery, fallback model            |
+|    | **Layer 4 · Long Running & Async**                    |                                                    |                                                       |
+| 12 | [Task system](sections/12-task-system/)                       | How does work persist beyond a turn?               | Task records, dependencies, locks                     |
+| 13 | [Background execution](sections/13-background-execution/)     | How does work run off the main loop?               | Handles, task state, notification queue               |
+| 14 | [Scheduling](sections/14-scheduling/)                         | How does an agent run later?                       | Cron, sleep, remote triggers, queues                  |
+| 15 | [Worktree isolation](sections/15-worktree-isolation/)         | How does parallel work avoid collisions?           | Git worktrees, cwd binding, safe cleanup              |
+|    | **Layer 5 · Multi Agent**                             |                                                    |                                                       |
+| 16 | [Coordination](sections/16-coordination/)                     | How do many agents talk?                           | Inboxes, broadcasts, permission bubbling              |
+| 17 | [Protocols](sections/17-protocols/)                           | How do agents agree and stop cleanly?              | Plan approval, shutdown handshakes                    |
+| 18 | [Autonomy](sections/18-autonomy/)                             | How do agents organize themselves?                 | Idle cycle, task claiming, self organization          |
+|    | **Layer 6 · Extension & Integration**                 |                                                    |                                                       |
+| 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/) | How does the harness reach the world?              | Transports, channels, tool pool assembly              |
+| 20 | [Observability &amp; evaluation](sections/20-observability/)  | How do we know it works?                           | Tracing, metrics, evals, failure analysis             |
+|    | **Layer 7 · Composition**                             |                                                    |                                                       |
+| 21 | [Loop engineering](sections/21-loop-engineering/)             | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
 
 ---
 
@@ -130,6 +120,7 @@ awesome-agent-architecture/
 ├── sections/                  # one folder per section
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
+│   ├── ...
 │   └── 21-loop-engineering/
 └── references/                # primary sources and prior art
 ```
@@ -181,8 +172,13 @@ Favor named, verifiable mechanisms over speculation. Cite sources.
 
 ## References
 
-| Source | What it offers |
-| --- | --- |
-| [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Claude Code source backup used for mechanism names and implementation paths. |
-| [hermes-agent](https://github.com/NousResearch/hermes-agent) | Open-source agent harness (MIT) used as the second system under study. |
-| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | Code-first harness reconstruction and section framing. |
+- [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code source backup used for mechanism names and implementation paths.
+- [hermes-agent](https://github.com/NousResearch/hermes-agent): Open-source agent harness (MIT) used as the second system under study.
+- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
+- [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): Cache breakpoints, TTLs, pricing, and token minimums.
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): Loop building blocks and readiness levels.
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): The four stacked loops.
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): Composed building blocks for agent loops.
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): Goal conditions for autonomous workflows.
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): The improvement loop, with gates outside the loop.

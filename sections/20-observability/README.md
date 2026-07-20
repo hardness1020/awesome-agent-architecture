@@ -16,16 +16,7 @@ Leave both out and every regression ships silently, every cost spike is a surpri
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    E["loop step · emit(event)"] --> Q{{sink ready?}}
-    Q -->|no| B[(pre-sink queue)]
-    B -.->|attach drains| S
-    Q -->|yes| S["sample · scrub"]
-    S --> K[[sinks · Datadog · logger]]
-    T[(eval task set)] --> RUN["run build · grade"]
-    RUN --> P([pass rate])
-```
+![Mechanism diagram](assets/20-observability.png)
 
 Two separable pipelines that never touch the loop's control flow.
 

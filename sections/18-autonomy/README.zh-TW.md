@@ -27,17 +27,7 @@
 
 ## 機制
 
-```mermaid
-flowchart TD
-    W[Run inner loop to end_turn] --> I[Send idle notification]
-    I --> A{Inbox: shutdown request?}
-    A -->|yes| C[Confirm, then stop] --> D([Stopped])
-    A -->|no| B{Inbox: a message?}
-    B -->|yes| M[Message becomes next prompt] --> W
-    B -->|no| E{Board: a task to claim?}
-    E -->|yes| T[Task becomes next prompt] --> W
-    E -->|no| S[Sleep] --> A
-```
+![機制圖](assets/18-autonomy.png)
 
 一個 outer loop 包住 agent loop。
 

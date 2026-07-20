@@ -21,15 +21,7 @@ task system 必須：
 
 ## 機制
 
-```mermaid
-flowchart LR
-    C[TaskCreate] --> F["{id}.json on disk"]
-    F --> U[TaskUpdate]
-    U -->|"pending -> in_progress -> completed"| F
-    F -->|"blockers complete?"| K{claimTask}
-    K -->|yes| W[claimed by agent]
-    K -->|no| X[rejected]
-```
+![機制圖](assets/12-task-system.png)
 
 一個 task 就是磁碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 是相依關係的邊。用一把 file lock 讓認領動作序列化。
 

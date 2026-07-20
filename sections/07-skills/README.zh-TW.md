@@ -26,15 +26,7 @@ skill 系統必須做到：
 
 ## 機制
 
-```mermaid
-flowchart LR
-    D["scan dirs · name + description + path"] --> C["catalog in system prompt"]
-    C --> M{{model call}}
-    M -->|Read SKILL.md| L["skill body enters messages[]"]
-    L --> M
-    M -->|body cites a file| R["Read resource file"]
-    R --> M
-```
+![機制圖](assets/07-skills.png)
 
 skill 使用 progressive disclosure。模型只會看到剛好足夠的資訊，來決定要不要載入更多。
 

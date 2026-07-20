@@ -27,17 +27,7 @@ Leave this out and every agent is a puppet. It waits for a human or a lead to pu
 
 ## Mechanism
 
-```mermaid
-flowchart TD
-    W[Run inner loop to end_turn] --> I[Send idle notification]
-    I --> A{Inbox: shutdown request?}
-    A -->|yes| C[Confirm, then stop] --> D([Stopped])
-    A -->|no| B{Inbox: a message?}
-    B -->|yes| M[Message becomes next prompt] --> W
-    B -->|no| E{Board: a task to claim?}
-    E -->|yes| T[Task becomes next prompt] --> W
-    E -->|no| S[Sleep] --> A
-```
+![Mechanism diagram](assets/18-autonomy.png)
 
 An outer loop wraps the agent loop.
 

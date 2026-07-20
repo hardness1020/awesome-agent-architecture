@@ -19,17 +19,7 @@ Without this layer, short tasks still work. Longer tasks can skip steps or act t
 
 ## Mechanism
 
-```mermaid
-flowchart TD
-    T["complex task"] --> P{plan mode?}
-    P -->|yes| E["EnterPlanMode · mode := 'plan'"]
-    E --> R["explore read-only, write plan"]
-    R --> X["ExitPlanMode · ask: approve?"]
-    X -->|approved| TW["TodoWrite: list steps"]
-    P -->|no| TW
-    TW --> S["mark one in_progress, do it, mark completed"]
-    S -->|next pending| S
-```
+![Mechanism diagram](assets/05-planning-and-todos.png)
 
 There are two tools. Both are normal model-called tools. Neither changes the core loop.
 

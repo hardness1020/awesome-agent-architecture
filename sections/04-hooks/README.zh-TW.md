@@ -14,16 +14,7 @@ hook 讓迴圈保持精簡。迴圈對外提供固定的事件。擴充行為則
 
 ## 機制
 
-```mermaid
-flowchart LR
-    U[tool_use] --> PRE{PreToolUse}
-    PRE -->|deny| T[tool_result]
-    PRE -->|"pass · args may be rewritten"| G{permission gate}
-    G -->|deny or unapproved| T
-    G -->|allow| R[run tool]
-    R --> POST[PostToolUse · observe]
-    POST --> T
-```
+![機制圖](assets/04-hooks.png)
 
 一個 `Hooks` 物件把事件名稱對應到 callback 清單。迴圈不會直接呼叫自訂的檢查。取而代之，`_dispatch` 觸發具名的事件。
 

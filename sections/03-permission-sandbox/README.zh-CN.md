@@ -23,18 +23,7 @@ permission 层必须做到：
 
 ## 机制
 
-```mermaid
-flowchart LR
-    U[tool_use] --> G{"decide · tool, mode, allow rules"}
-    G -->|allow| R[run tool]
-    G -->|ask| H{human approves?}
-    H -->|yes| R
-    H -->|no| D[denial message]
-    G -->|deny| D
-    R --> T[tool_result]
-    D --> T
-    T --> M[back to the model]
-```
+![机制图](assets/03-permission-and-sandbox.png)
 
 一个纯函数负责做出 permission 决策。它读取工具、当前的 mode，以及所有的 allow 规则，并返回三个值之一：
 

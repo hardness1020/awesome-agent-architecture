@@ -27,18 +27,7 @@ protocol 必須：
 
 ## 機制
 
-```mermaid
-sequenceDiagram
-    participant L as Lead
-    participant T as Teammate
-    L->>T: shutdown_request {requestId, reason}
-    Note over T: finish current step, flush state
-    T->>L: shutdown_approved {requestId}
-    Note over L: kill, mark notified, emit terminated
-    Note over T,L: plan approval is the same shape, inverted
-    T->>L: plan_approval_request {requestId, plan}
-    L->>T: plan_approval_response {requestId, approved}
-```
+![機制圖](assets/17-protocols.png)
 
 每一次交換都是一則具型別的請求和一則具型別的回應，兩者共用同一個 `requestId`。
 

@@ -21,15 +21,7 @@ Without this loop, the model can reason about actions but cannot act. If the loo
 
 ## Mechanism
 
-```mermaid
-flowchart LR
-    U([User turn]) --> M["messages[] · persists across turns"]
-    M --> L{{model call}}
-    L -->|stop_reason: tool_use| T[run tools]
-    T --> A[append results] --> M
-    L -->|stop_reason: end_turn| D([reply])
-    D -.next user turn appended.-> M
-```
+![Mechanism diagram](assets/01-agent-loop.png)
 
 There are two loops over one `messages[]`.
 

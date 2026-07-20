@@ -23,16 +23,7 @@ Without this layer, parallel writers can corrupt the shared tree.
 
 ## Mechanism
 
-```mermaid
-flowchart TB
-    T["unit of work · slug"] --> V["validate slug"]
-    V --> W["git worktree add · own branch"]
-    W --> B["bind cwd to this context"]
-    B --> R["agent loop · tools resolve in worktree"]
-    R --> C{"changes?"}
-    C -->|none| X["auto-remove"]
-    C -->|"changes"| K["keep for review"]
-```
+![Mechanism diagram](assets/15-worktree-isolation.png)
 
 There are two pieces:
 

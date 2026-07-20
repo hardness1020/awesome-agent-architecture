@@ -23,15 +23,7 @@ background execution 必须：
 
 ## 机制
 
-```mermaid
-flowchart LR
-    L[main loop] -->|run_in_background| S[start off-loop]
-    S --> H[return handle + placeholder result]
-    H --> L
-    S -.->|runs independently| W[worker or subprocess]
-    W -->|done| Q[[notification queue]]
-    Q -->|later turn| L
-```
+![机制图](assets/13-background-execution.png)
 
 这里有三个部件：
 
