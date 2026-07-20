@@ -170,8 +170,13 @@ uv run python sections/01-agent-loop/src/demo.py  # 实时
 
 ## 参考资料
 
-| 出处 | 提供什么 |
-| --- | --- |
-| [claude-code](https://github.com/yasasbanukaofficial/claude-code) | Claude Code 源码备份，用来对照机制名称与实现路径。 |
-| [hermes-agent](https://github.com/NousResearch/hermes-agent) | 开源 agent harness（MIT），作为第二个研究系统。 |
-| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | 以代码为主的 harness 重建与章节架构。 |
+- [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code 源码备份，用来对照机制名称与实现路径。
+- [hermes-agent](https://github.com/NousResearch/hermes-agent): 开源 agent harness（MIT），作为第二个研究系统。
+- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以代码为主的 harness 重建与章节架构。
+- [Anthropic Agent Skills 最佳实践](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的渐进式披露层级。
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache 断点、TTL、计价与 token 下限。
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): loop 的组成模块与成熟度分级。
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): 四层堆叠的 loop。
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): 由模块组合出的 agent loop。
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): 自主工作流的目标条件。
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): 改进循环，以及放在循环外的把关。

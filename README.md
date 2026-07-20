@@ -172,8 +172,13 @@ Favor named, verifiable mechanisms over speculation. Cite sources.
 
 ## References
 
-| Source                                                               | What it offers                                                               |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [claude-code](https://github.com/yasasbanukaofficial/claude-code)     | Claude Code source backup used for mechanism names and implementation paths. |
-| [hermes-agent](https://github.com/NousResearch/hermes-agent)          | Open-source agent harness (MIT) used as the second system under study.       |
-| [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code) | Code-first harness reconstruction and section framing.                       |
+- [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code source backup used for mechanism names and implementation paths.
+- [hermes-agent](https://github.com/NousResearch/hermes-agent): Open-source agent harness (MIT) used as the second system under study.
+- [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
+- [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
+- [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): Cache breakpoints, TTLs, pricing, and token minimums.
+- [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): Loop building blocks and readiness levels.
+- [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): The four stacked loops.
+- [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): Composed building blocks for agent loops.
+- [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): Goal conditions for autonomous workflows.
+- [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): The improvement loop, with gates outside the loop.
