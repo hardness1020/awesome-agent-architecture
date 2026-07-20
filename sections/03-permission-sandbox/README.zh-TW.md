@@ -2,7 +2,7 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 在每個動作抵達系統之前先做檢查。
+> 每個動作在真正碰到系統之前，都要先檢查。
 
 模型可以要求執行任何已啟用的工具。permission 層負責決定該次呼叫是否可以執行。
 
@@ -17,7 +17,7 @@ permission 層必須做到：
 3. 當高風險的呼叫尚未預先核准時，詢問人類。
 4. 當呼叫真的執行時，限制它造成的損害。
 
-沒有這一層，一次錯誤的工具呼叫就可能造成無法回復的副作用。
+沒有這一層，一次錯誤的工具呼叫就可能造成無法回復的後果。
 
 ---
 
@@ -69,7 +69,7 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
     return res(run_tool(tool, block.input))              # only now does it run
 ```
 
-- 迴圈主體和第 1、2 章相同，沒有改變。
+- loop 主體和第 1、2 章相同，沒有改變。
 - 只有 `_dispatch` 多了 gate。
 - `deny` 以及未核准的 `ask` 永遠不會抵達 `run_tool`。
 - 拒絕結果仍會以 `tool_result` 回傳，所以模型看得到發生了什麼，並能隨之調整。
@@ -85,27 +85,19 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 各個 agent 如何管制副作用、切換 mode，以及記住決策。
 
-| System | Gate point | Permission modes | Sandbox | Rule persistence |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | 每個工具執行前。 | Default、edit-approved、plan、deny 與 bypass 等 mode。 | Bash 可以在沙箱內執行。 | 規則可存在 session 或 settings 中。 |
-
-### Claude Code
-
-- `QueryEngine.ts` 對每次工具使用呼叫 `canUseTool`。
-- `useCanUseTool.tsx` 解析出一個 `PermissionDecision`：`allow`、`deny` 或 `ask`。
-- 對外的 mode 包含 `default`、`acceptEdits`、`plan`、`bypassPermissions` 與 `dontAsk`。
-- 內部的 mode 包含 `auto` 與 `bubble`。
-- 規則會依優先序，從 user、project、local、flag、policy、CLI、command 與 session 等來源合併。
-- 核准可以透過 `PermissionUpdate.ts` 存到 session 或 settings。
-- `Bash` 使用 `shouldUseSandbox.ts` 與 `SandboxManager`。
-- `WebFetch` 對選定的文件主機有一份獨立的預先核准清單。
-- MCP server 與遠端執行有各自的核准路徑。
-
-> **取捨：** mode、有序規則與沙箱化提供了精確的控制，但也帶來許多需要推敲的狀態。每一條 bypass 或預先核准的路徑都必須保持可見且範圍狹窄。
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | mode、有序規則與沙箱化提供精確的控制。 | 幾分鐘就能稽核完。拒絕會落回對話，模型讀得到原因，loop 繼續跑。 |
+| **Cons** | 要推敲的狀態很多。每條 bypass 或預先核准的路徑都必須保持可見且範圍狹窄。 | 對每條指令一視同仁，而且什麼都不記。 |
+| **Why** | 每次呼叫都問會造成核准疲勞，所以系統會把核准記下來。 | 損害交給環境去限制，一個確認提示加一份 regex 清單就夠了。 |
+| **How: gate point** | 每個工具執行前。Web、MCP 與遠端執行各有核准路徑。 | 每一步的指令執行前。按 Enter 就核准，留言就是拒絕。 |
+| **How: permission modes** | Default、edit-approved、plan、deny 與 bypass，另有內部 mode。 | `human`、`confirm` 與 `yolo`，執行期可用斜線指令切換。 |
+| **How: sandbox** | Bash 可以在沙箱內執行。 | 環境 class 就是沙箱，每次執行挑：主機本身、用完即丟的容器，或在共用主機上包住執行。 |
+| **How: rule persistence** | 規則依優先序從多個來源合併，可存到 session 或 settings。 | 白名單 regex 只寫在 config，符合的指令跳過確認。 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **Pattern-match bypass：**字串式的 deny 清單會漏掉 shell 的各種變體。優先採用行為檢查與沙箱化，而不是原始的子字串比對。
 - **Mode 開得太寬：**一條範圍過大的 allow 規則或 bypass mode，可能讓後續的高風險呼叫悄悄執行。限縮 bypass 的範圍，並讓目前的 mode 顯示出來。
@@ -131,6 +123,7 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 
 ## 出處
 
-- Claude Code 原始碼：`QueryEngine.ts`、`hooks/useCanUseTool.tsx`、`types/permissions.ts`、`utils/permissions/PermissionUpdate.ts`。
-- Claude Code 沙箱與 web gate：`tools/BashTool/shouldUseSandbox.ts`、`tools/WebFetchTool/preapproved.ts`。
-- learn-claude-code · s03_permission：section framing。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`hooks/useCanUseTool.tsx`、`types/permissions.ts`、`utils/permissions/PermissionUpdate.ts`。
+- [Claude Code 沙箱與 web gate](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/shouldUseSandbox.ts`、`tools/WebFetchTool/preapproved.ts`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/interactive.py`、`environments/docker.py`、`environments/extra/bubblewrap.py`。
+- [learn-claude-code · s03_permission](https://github.com/shareAI-lab/learn-claude-code)：section framing。
