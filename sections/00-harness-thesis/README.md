@@ -38,28 +38,30 @@ The loop in section 1 is the core control flow. Other sections add inputs, check
 
 These parts do not replace the loop. They feed it, gate it, or persist state for it.
 
+### More harness is not better
+
+Each layer covers something the current model cannot do alone. That gives every layer two costs:
+
+1. More code to maintain, and more places where bugs can appear.
+2. A design tied to one model generation. A newer model may plan, recover, or verify on its own. Forcing the old workaround then lowers performance instead of raising it.
+
+So harness engineering is not only adding. When the model changes, re-evaluate each layer: keep what still helps, delete what the new model covers.
+Sections 20 and 21 build the measurements for this. mini-swe-agent is the extreme case: almost no harness, so almost nothing to re-evaluate.
+
 ---
 
 ## Per system
 
 What the model decides versus what the surrounding code builds.
 
-| System | What the model owns | What the harness owns | Size signal |
-| --- | --- | --- | --- |
-| **Claude Code** | Judgment, tool choice, and stop decisions. | Loop, tools, permissions, hooks, knowledge, tasks, and coordination. | Most code sits outside the model call. |
-
-### Claude Code
-
-- The model is reached through `QueryEngine.ts`.
-- `tools/` defines actions.
-- `hooks/` defines lifecycle interception.
-- `skills/` and `memdir/` define knowledge loading and recall.
-- `tasks/` and `coordinator/` define longer-running and multi-agent work.
-- `Tool.ts` gives tools a shared contract: `name`, `inputSchema`, `isEnabled()`, `checkPermissions()`, and `prompt()`.
-- The model sees tool names, schemas, and results. It does not run dispatch or permission code.
-
-> **Trade-off:** The harness adds safety, persistence, subagents, and on-demand knowledge.
-> It also becomes the main code surface. Most behavior and most bugs live there.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | The harness adds safety, persistence, subagents, and on-demand knowledge. | Almost no harness code, so almost nothing to maintain. |
+| **Cons** | The harness becomes the main code surface. Most behavior and most bugs live there. | Every capability beyond running bash must come from the model. |
+| **Why** | A model call cannot act by itself, so the harness owns the environment. | Assumes one bash tool is enough. Hooks, skills, memory, and tasks are absent by design. |
+| **How: model owns** | Judgment, tool choice, and stop decisions. Sees tool names, schemas, and results. | Judgment, editing tactics, and when to submit. |
+| **How: harness owns** | Loop, tools, permissions, hooks, knowledge, tasks, and coordination. | One loop, one bash tool, a confirm gate, plus step and cost budgets. |
+| **How: size signal** | Most code sits outside the model call. | The whole agent class is about 150 lines. |
 
 ---
 
@@ -68,12 +70,14 @@ What the model decides versus what the surrounding code builds.
 - **Crediting the model for harness behavior.** Permission checks and error recovery are harness behavior. Fix the harness when they fail.
 - **Hard-coding decisions the model should make.** Rigid tool order and scripted planning can fight the model. Let the model decide when judgment is required.
 - **Too little harness.** A loop with no tools, permissions, or context management keeps the model at chatbot behavior. Add the missing layer.
-- **Too much harness.** Every new layer adds code to maintain. Use observability and evaluation to check that the harness still works.
+- **Too much harness.** Each layer adds maintenance, and a layer built for an older model can hold a newer one back. Re-evaluate on model change, delete what no longer helps.
 - **Mixed responsibilities.** Permission logic inside tool execution is harder to test and replace. Keep clear contracts such as `Tool.ts` and `PreToolUse`.
 
 ---
 
 ## Sources
 
-- Claude Code source (`cc-src/src`): `QueryEngine.ts`, `query/`, `Tool.ts`, `tools/`, `hooks/`, `types/permissions.ts`.
-- learn-claude-code · s20_comprehensive: section framing.
+- [Claude Code source (`cc-src/src`)](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`, `tools/`, `hooks/`, `types/permissions.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `environments/local.py`, protocols in `__init__.py`.
+- [mini-swe-agent README](https://github.com/swe-agent/mini-swe-agent): the case for a minimal harness as models improve.
+- [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code): section framing.
