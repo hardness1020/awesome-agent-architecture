@@ -4,7 +4,9 @@
 
 > Run a focused child loop and return only its result.
 
-A subagent is the agent loop run inside a tool call. The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.
+The main agent can hand work to a subagent: the delegating side is the parent, the one sent off is the child.
+
+To the parent, this is just one tool call. But inside that call runs a complete agent loop. The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.
 
 This keeps side investigations out of the parent context. The parent does not need every file read or command result from the child. It usually needs the conclusion.
 
@@ -53,25 +55,15 @@ Three properties matter:
 
 How each agent isolates a subproblem and returns the result.
 
-| System | Spawn primitive | Context isolation | Result return | Resume |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | `Agent` tool. | Fresh child messages. | Last child message text. | Most agents can resume. |
-
-### Claude Code
-
-- The tool lives in `tools/AgentTool/AgentTool.tsx`.
-- The legacy wire name is `Task`.
-- `subagent_type` selects a built-in persona.
-- Built-ins include general-purpose, explore, plan, status-line setup, guide, and verification agents.
-- The child loop runs in `runAgent.ts` with fresh `initialMessages`.
-- `extractTextContent` returns the last message to the parent.
-- `isInForkChild` prevents recursive fork spawning.
-- Background subagents become `LocalAgentTask`s.
-- Most agents can continue through `SendMessage` and `resumeAgent.ts`.
-
-> **Trade-off:** A child context keeps the parent focused.
-> The parent also loses the details of how the child reached its answer.
-> If the summary is thin, the parent must ask again or read files the child wrote.
+| | Claude Code |
+| --- | --- |
+| **Pros** | A child context keeps the parent focused. Side investigations stay out of the main transcript. |
+| **Cons** | The parent loses the details of how the child reached its answer. If the summary is thin, it must ask again or read files the child wrote. |
+| **Why** | The parent usually needs the conclusion, not every file read or command result from the child. |
+| **How: spawn primitive** | The `Agent` tool. `Task` is the legacy wire name. A subagent type picks a built-in persona, such as general-purpose, explore, or plan. |
+| **How: context isolation** | Fresh child messages. The child starts without the parent transcript. A fork child cannot spawn another fork. |
+| **How: result return** | The text of the child's last message goes back to the parent. The child transcript is discarded. |
+| **How: resume** | Most agents can resume. The parent sends a follow-up message to continue the child. Background subagents become tracked tasks. |
 
 ---
 
@@ -103,5 +95,6 @@ uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `tools/AgentTool/AgentTool.tsx`, `runAgent.ts`, `resumeAgent.ts`, `forkSubagent.ts`, `builtInAgents.ts`, `tasks/LocalAgentTask/`.
-- learn-claude-code · s06_subagent: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/AgentTool/AgentTool.tsx`, `runAgent.ts`, `resumeAgent.ts`, `forkSubagent.ts`, `builtInAgents.ts`, `tasks/LocalAgentTask/`.
+- [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code): section framing.

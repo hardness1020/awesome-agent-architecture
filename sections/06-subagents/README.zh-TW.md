@@ -2,9 +2,11 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 執行一個聚焦的子迴圈，只回傳它的結果。
+> 執行一個聚焦的子 loop，只回傳它的結果。
 
-subagent 就是在一次 tool call 裡執行的 agent 迴圈。parent 給 child 一段 prompt。child 拿到全新的 `messages[]`，一路執行到完成，然後回傳它的最終答案。
+主 agent 可以把工作派給 subagent：派工作的那端叫 parent，被派出去的叫 child。
+
+對 parent 來說，這只是一次 tool call。但這次呼叫裡面跑的，是一個完整的 agent loop。parent 給 child 一段 prompt。child 拿到全新的 `messages[]`，一路執行到完成，然後回傳它的最終答案。
 
 這樣可以把旁支調查排除在 parent 的情境之外。parent 不需要 child 讀過的每個檔案或每個指令結果。它通常只需要結論。
 
@@ -16,7 +18,7 @@ subagent 就是在一次 tool call 裡執行的 agent 迴圈。parent 給 child 
 
 ![機制圖](assets/06-subagents.png)
 
-一個 `Agent` tool 會啟動一個 child agent。child 有自己的 session 和 message 清單。它跑的是和 parent 一樣的迴圈。
+一個 `Agent` tool 會啟動一個 child agent。child 有自己的 session 和 message 清單。它跑的是和 parent 一樣的 loop。
 
 只有 child 的最終文字會回傳。它的 transcript 會被丟棄。檔案寫入和 shell 的副作用仍然會發生在工作目錄裡。
 
@@ -39,7 +41,7 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
 
 ### How it integrates
 
-迴圈不會改變。subagent 只是另一個呼叫迴圈的 tool handler。
+loop 不會改變。subagent 只是另一個呼叫 loop 的 tool handler。
 
 有三個特性很重要：
 
@@ -53,29 +55,19 @@ def agent_tool(model, child_registry, parent_session):     # src/subagents.py
 
 各 agent 如何隔離一個子問題，並回傳結果。
 
-| System | Spawn primitive | Context isolation | Result return | Resume |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | `Agent` tool。 | child 的 messages 是全新的。 | child 最後一則訊息的文字。 | 多數 agent 可以續跑。 |
-
-### Claude Code
-
-- 這個 tool 位於 `tools/AgentTool/AgentTool.tsx`。
-- 舊的 wire 名稱是 `Task`。
-- `subagent_type` 用來選擇一個內建 persona。
-- 內建的包含 general-purpose、explore、plan、status-line setup、guide 和 verification agent。
-- child 迴圈在 `runAgent.ts` 中執行，帶著全新的 `initialMessages`。
-- `extractTextContent` 把最後一則訊息回傳給 parent。
-- `isInForkChild` 防止遞迴的 fork spawning。
-- 背景 subagent 會變成 `LocalAgentTask`。
-- 多數 agent 可以透過 `SendMessage` 和 `resumeAgent.ts` 繼續執行。
-
-> **取捨：** child 的情境讓 parent 保持聚焦。
-> parent 同時也失去了 child 是如何得出答案的細節。
-> 如果摘要太單薄，parent 就必須再問一次，或去讀 child 寫下的檔案。
+| | Claude Code |
+| --- | --- |
+| **Pros** | child 的情境讓 parent 保持聚焦，旁支調查不會留在主 transcript 裡。 |
+| **Cons** | parent 失去了 child 是如何得出答案的細節。摘要太單薄時，parent 就得再問一次，或去讀 child 寫下的檔案。 |
+| **Why** | parent 通常只需要結論，不需要 child 讀過的每個檔案或每個指令結果。 |
+| **How: spawn primitive** | `Agent` tool，舊的 wire 名稱是 `Task`。用 subagent type 選一個內建 persona，例如 general-purpose、explore、plan。 |
+| **How: context isolation** | child 的 messages 是全新的，不帶 parent 的 transcript。fork 出來的 child 不能再 fork。 |
+| **How: result return** | child 最後一則訊息的文字回傳給 parent，child 的 transcript 會被丟棄。 |
+| **How: resume** | 多數 agent 可以續跑，parent 再發一則訊息就能讓 child 繼續。背景 subagent 會變成被追蹤的 task。 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **摘要遺漏資訊：**child 可能壓縮過頭。要求它把重要發現寫到磁碟上。
 - **失控遞迴：**child 生 child 可能無上限地成長。從 child registry 省略 `Agent` tool，或強制設一個深度上限。
@@ -103,5 +95,5 @@ uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- Claude Code 原始碼：`tools/AgentTool/AgentTool.tsx`、`runAgent.ts`、`resumeAgent.ts`、`forkSubagent.ts`、`builtInAgents.ts`、`tasks/LocalAgentTask/`。
-- learn-claude-code · s06_subagent：章節框架。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`tools/AgentTool/AgentTool.tsx`、`runAgent.ts`、`resumeAgent.ts`、`forkSubagent.ts`、`builtInAgents.ts`、`tasks/LocalAgentTask/`。
+- [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
