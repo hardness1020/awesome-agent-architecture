@@ -25,22 +25,8 @@ it runs tools, keeps state across calls, gates side effects, and coordinates loo
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
 Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
-**Contents:** [Systems](#systems-under-study) · [Loop](#the-agent-loop) · [Method](#method) ·
+**Contents:** [Loop](#the-agent-loop) · [Method](#how-to-learn) · [Systems](#systems-under-study) ·
 [Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
-
----
-
-## Systems Under Study
-
-Each system is a worked example for the sections below.
-
-| System | Why people use it | Read it for | Sections | Version studied |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | v2.1.88 |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1 |
-| *(more soon)* | | | | |
-
-> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 
 ---
 
@@ -68,6 +54,20 @@ To learn from this repo:
 - **Read the sections in order. Each builds on the layer before it**.
 - For a runnable section, read `src/loop.py`, then run its `test.py` and `demo.py`.
 - Diff a section's `src/` against the section before it. The diff is the one mechanism that section adds.
+
+---
+
+## Systems Under Study
+
+Each system is a worked example for the sections below.
+
+| System | Why people use it | Read it for | Sections | Version studied |
+| --- | --- | --- | --- | --- |
+| **Claude Code** | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here | 0 to 21 (all) | v2.1.88 |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1 |
+| *(more soon)* | | | | |
+
+> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
 
 ---
 
