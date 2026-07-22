@@ -43,7 +43,7 @@ class Hooks:                                     # src/hooks.py
 - pre-hook 可以回傳 `{"updated_args": ...}` 來改寫輸入。
 - `fire_post` 在執行之後跑觀察者。
 
-### How it integrates
+### 如何整合
 
 `_dispatch` 加入了兩個呼叫：
 

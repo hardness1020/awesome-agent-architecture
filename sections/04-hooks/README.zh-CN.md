@@ -43,7 +43,7 @@ class Hooks:                                     # src/hooks.py
 - pre-hook 可以返回 `{"updated_args": ...}` 来改写输入。
 - `fire_post` 在执行之后运行观察者。
 
-### How it integrates
+### 如何整合
 
 `_dispatch` 加入了两个调用：
 
