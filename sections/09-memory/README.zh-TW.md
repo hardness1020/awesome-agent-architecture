@@ -163,7 +163,7 @@ if response.stop_reason != "tool_use":
 | **Why** | 什麼都存，回想就會雜亂，所以 selector 每次只注入少數幾個記憶。 | extraction 可能漏掉事實，所以把原始歷史留成第二個儲存區，隨時搜得到。 |
 | **How: store** | 帶 frontmatter 的 Markdown 檔案。MEMORY.md 是索引，不是記憶內文。 | 兩個 markdown 檔案（agent 觀察和使用者輪廓），加一份 SQLite session log。 |
 | **How: recall** | 模型讀索引，最多選出 5 個記憶。內文注入時附上新鮮度註記。 | session 開始時把快照凍結進 prompt，過往 session 用關鍵字搜。 |
-| **How: extraction** | 分叉出的 agent 在執行結束時寫入記憶。 | memory tool 在 session 中途把條目寫進磁碟。寫入可以先暫存等待核准。 |
+| **How: extraction** | 分叉出的 agent 在執行結束時寫入記憶。 | memory tool 在 session 中途把條目寫進硬碟。寫入可以先暫存等待核准。 |
 | **How: consolidation** | 背景任務負責合併與清理，由時間、session 數量和一個 lock 控管。 | 字元預算爆掉時由模型改寫，並追蹤失敗。 |
 
 ---

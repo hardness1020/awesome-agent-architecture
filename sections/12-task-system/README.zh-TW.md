@@ -6,7 +6,7 @@
 
 第 5 章的 todo list 只放在記憶體裡，process 一結束就消失。它也沒辦法規定哪個工作要等哪個先完成。
 
-task system 把工作以記錄的形式存到磁碟上。每筆記錄都可以帶有相依關係。當阻擋條件完成後，worker 才能認領 task。
+task system 把工作以記錄的形式存到硬碟上。每筆記錄都可以帶有相依關係。當阻擋條件完成後，worker 才能認領 task。
 
 task system 必須：
 
@@ -23,12 +23,12 @@ task system 必須：
 
 ![機制圖](assets/12-task-system.png)
 
-一個 task 就是磁碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 這兩個欄位記著它跟其他 task 的先後關係。worker 認領 task 前要先拿到一把 file lock，所以一次只有一個 worker 在認領。
+一個 task 就是硬碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 這兩個欄位記著它跟其他 task 的先後關係。worker 認領 task 前要先拿到一把 file lock，所以一次只有一個 worker 在認領。
 
 - ID 是連續的，而且永不重複使用。
 - create、get、update、list 都是單純的 CRUD。
 - `claim` 是那道關卡。它在指派 owner 之前，會先檢查 ownership 和阻擋條件。
-- 磁碟上的圖儲存整個計畫。另一個 runtime 可以追蹤正在進行的背景執行工作。
+- 硬碟上的圖儲存整個計畫。另一個 runtime 可以追蹤正在進行的背景執行工作。
 
 ### New: task store 與 claim 關卡
 
@@ -96,7 +96,7 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 - **認領競態（Claim race）：**兩個 agent 可能搶同一個 task。把認領路徑加鎖。
 - **卡在 in_progress 的孤兒 task：**worker 可能在認領後死掉。在 worker 離開時清掉 ownership。
 - **無效記錄（Invalid record）：**手動編輯或舊版的檔案可能不符合 schema。安全地解析，並跳過壞掉的記錄。
-- **持久系統被關閉：**in-memory todo 仍可能遺失。對必須存活的工作，改用以磁碟為後盾的 task。
+- **持久系統被關閉：**in-memory todo 仍可能遺失。對必須存活的工作，改用以硬碟為後盾的 task。
 
 ---
 
@@ -104,7 +104,7 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 
 [`src/`](src/) 把 11 帶了過來，並加上：
 
-- [`tasks.py`](src/tasks.py)：一個以磁碟為後盾的 `TaskStore`、claim 關卡，以及 `Task*` 工具。
+- [`tasks.py`](src/tasks.py)：一個以硬碟為後盾的 `TaskStore`、claim 關卡，以及 `Task*` 工具。
 - [`test.py`](src/test.py)：檢查相依關係、認領關卡，以及一場 10-agent 的認領競態。
 - [`demo.py`](src/demo.py)：把一個三個 task 的計畫持久化成 JSON 檔。
 

@@ -69,7 +69,7 @@ loop 不會改變。subagent 只是另一個呼叫 loop 的 tool handler。
 
 ## 哪裡會出錯
 
-- **摘要遺漏資訊：**child 可能壓縮過頭。要求它把重要發現寫到磁碟上。
+- **摘要遺漏資訊：**child 可能壓縮過頭。要求它把重要發現寫到硬碟上。
 - **失控遞迴：**child 生 child 可能無上限地成長。從 child registry 省略 `Agent` tool，或強制設一個深度上限。
 - **child 停不下來：**child 和 parent 有一樣的停止風險。給每個 child 自己的 turn 或 token 上限。
 - **誤以為有權限隔離：**child 仍然需要正常的 permission gate。不要因為情境是分開的就跳過它。
