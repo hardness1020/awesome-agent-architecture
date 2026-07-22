@@ -4,7 +4,7 @@
 
 > 把工作以持久的 task 形式存储，并带有依赖关系。
 
-限定在单个 turn 内的检查清单，会在 turn 或 process 结束时消失。它也无法强制排定顺序。
+第 5 章的 todo list 只放在内存里，process 一结束就消失。它也没办法规定哪个工作要等哪个先完成。
 
 task system 把工作以记录的形式存到磁盘上。每条记录都可以带有依赖关系。当阻挡条件完成后，worker 才能认领 task。
 
@@ -23,14 +23,14 @@ task system 必须：
 
 ![机制图](assets/12-task-system.png)
 
-一个 task 就是磁盘上的一条 JSON 记录。`blockedBy` 和 `blocks` 是依赖关系的边。用一把 file lock 让认领动作序列化。
+一个 task 就是磁盘上的一条 JSON 记录。`blockedBy` 和 `blocks` 这两个字段记着它跟其他 task 的先后关系。worker 认领 task 前要先拿到一把 file lock，所以一次只有一个 worker 在认领。
 
 - ID 是连续的，而且永不重复使用。
 - create、get、update、list 都是单纯的 CRUD。
 - `claim` 是那道关卡。它在指派 owner 之前，会先检查 ownership 和阻挡条件。
 - 磁盘上的图存储整个计划。另一个 runtime 可以追踪正在进行的后台执行工作。
 
-### New：task store 与 claim 关卡
+### New: task store 与 claim 关卡
 
 `create` 会配置一个 id 并写入一条 task：
 
@@ -78,28 +78,21 @@ loop 没有改变。model 就像调用其他任何工具一样，调用 `TaskCre
 
 持久的 task 图如何塑形，又如何推进。
 
-| System | Task 记录 | 依赖关系 | 持久化 | 生命周期 |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | JSON task 文件。 | `blockedBy` 和 `blocks`。 | 每个 task 一个文件，外加一个 high-water mark。 | `pending -> in_progress -> completed`。 |
-
-### Claude Code
-
-- `TaskSchema` 定义 `id`、`subject`、`status`、`owner`、`blocks`、`blockedBy` 等字段。
-- 每个 task 都存在 `~/.claude/tasks/{taskListId}/{id}.json`。
-- `.highwatermark` 追踪已发出的最大 id。
-- `createTask` 可以写入被阻挡的 task。
-- `claimTask` 会拒绝一个 task，直到它所有的阻挡条件都完成。
-- `proper-lockfile` 让认领动作序列化。
-- `unassignTeammateTasks` 在某个 teammate 离开时清掉 ownership。
-- `isTodoV2Enabled()` 决定要不要用持久 task 取代 in-memory todo。
-
-> **取舍：** 以文件为后盾的 task 能在宕机后存活，也支持多个 worker。代价是文件系统的读、写和锁。它们也需要验证，以避免出现坏掉的图形状。
+| | Claude Code |
+| --- | --- |
+| **Pros** | 以文件为后盾的 task 能在宕机后存活，也支持多个 worker。 |
+| **Cons** | 代价是文件系统的读、写和锁。记录也要验证，避免依赖关系指到不存在的 task，或互相等待。 |
+| **Why** | 放在内存里的 todo list 会跟着 process 一起消失。计划必须撑过 session 和宕机，顺序也要用数据来表示。 |
+| **How: task record** | 每个 task 一个 JSON 文件。字段涵盖 id、subject、status、owner，以及依赖关系的边。 |
+| **How: dependencies** | `blockedBy` 和 `blocks` 两种边。可以直接建立被阻挡的 task。阻挡条件全部完成前，认领会被拒绝。 |
+| **How: persistence** | 每个 task 一个文件，外加一个 high-water mark 记录已发出的最大 id。一个开关决定要不要用持久 task 取代 in-memory todo。 |
+| **How: lifecycle** | `pending -> in_progress -> completed`。一把 file lock 让认领动作序列化。teammate 离开时会清掉 ownership。 |
 
 ---
 
-## 失效模式
+## 哪里会出错
 
-- **依赖循环（Dependency cycle）：**两个 task 可能互相阻挡。让图保持无环，或加上循环检查。
+- **依赖 loop（Dependency cycle）：**两个 task 可能互相阻挡。让图保持无环，或加上 loop 检查。
 - **认领竞态（Claim race）：**两个 agent 可能抢同一个 task。把认领路径加锁。
 - **卡在 in_progress 的孤儿 task：**worker 可能在认领后死掉。在 worker 离开时清掉 ownership。
 - **无效记录（Invalid record）：**手动编辑或旧版的文件可能不符合 schema。安全地解析，并跳过坏掉的记录。
@@ -124,5 +117,5 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 
 ## 来源
 
-- Claude Code source：`utils/tasks.ts`、`Task.ts`，以及 `Task*Tool/` 目录。
-- learn-claude-code · s12_task_system：章节框架。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`utils/tasks.ts`、`Task.ts`，以及 `Task*Tool/` 目录。
+- [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
