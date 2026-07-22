@@ -100,7 +100,7 @@ demo 为了清楚起见采用顺序 dispatch。真实的 runtime 会把安全调
 - **未知的工具名称：**模型指名了一个不存在或已停用的工具。返回一个 `tool_result` 错误，而不是让 loop 崩溃。
 - **schema 漂移：**schema 说一套，handler 期待另一套。在 dispatch 前先验证。
 - **不安全的并行：**两个写入可能损毁同一个文件。默认采用顺序执行，除非确知某工具是安全的。
-- **目录溢出：**太多工具 schema 会挤爆 prompt。把完整 schema 延后到需要时再给。
+- **目录 overflow：**太多工具 schema 会挤爆 prompt。把完整 schema 延后到需要时再给。
 - **结果过大：**庞大的输出可能塞满 context window。限制结果大小、保存完整输出，并返回一段预览加一个路径。
 
 ---
