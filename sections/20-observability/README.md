@@ -20,7 +20,9 @@ Leave both out and every regression ships silently, every cost spike is a surpri
 
 Two separable pipelines that never touch the loop's control flow.
 
-Telemetry runs inline: each step calls a fire-and-forget logger that queues until a sink attaches, then samples, scrubs sensitive fields, and fans out.
+Telemetry runs inline: each step calls a fire-and-forget logger.
+
+Events go to sinks, destinations such as the terminal, a file, or a backend like Datadog. The logger queues events until a sink attaches, then samples, scrubs sensitive fields, and fans out.
 
 Evaluation runs offline: replay a fixed task set against a candidate build and grade each output.
 
@@ -105,24 +107,14 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 
 How each agent emits telemetry, tracks spend, and measures quality.
 
-| System | Telemetry | Cost tracking | Evaluation |
-| --- | --- | --- | --- |
-| **Claude Code** | Queue then fan out to sinks, sampled and scrubbed. | Per-model tokens rolled into a session USD total. | Not in source; reconstruction. |
-
-### Claude Code
-
-- `services/analytics/index.ts` exposes `logEvent` with a queue, so the loop and tools emit before the sink is ready; `attachAnalyticsSink` drains the buffer.
-- `sink.ts` fans out to Datadog (`datadog.ts`) and a first-party logger (`firstPartyEventLogger.ts`); each sink is individually killable (`sinkKillswitch.ts`).
-- Sampling is `shouldSampleEvent` against `tengu_event_sampling_config`; events drop by rate before fan-out.
-- Sensitive data is guarded by marker types `AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS` and `_PII_TAGGED`; `stripProtoFields` removes privileged keys.
-- `cost-tracker.ts` accumulates per-model token cost (`addToTotalSessionCost`) from the pricing tiers in `utils/modelCost.ts`; `costHook.ts` prints `formatTotalCost()` on exit.
-- `diagnosticTracking.ts` diffs LSP errors against a pre-edit baseline, catching new code errors but not answer quality.
-- Enterprise deploys tunnel egress through `upstreamproxy/relay.ts`, which injects org credentials (for example `DD-API-KEY`), so routing is org-controlled.
-- Evaluation is not in this source. General practice: a held-out task set scored per build, seeded from scrubbed traces.
-
-> **Trade-off:** inline logging with sampling and scrubbing buys rich production visibility cheaply and safely, but it only tells you what happened.
-> Whether the answer was good needs a separate offline eval with graded tasks.
-> Telemetry catches crashes and cost spikes; only evaluation catches a quiet regression in answer quality.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | Rich production visibility, cheap and safe. A bad sink never stalls the loop. | Even a crashed run leaves a file. Files double as audit log and eval corpus. |
+| **Cons** | Only says what happened, not if the answer was good. No eval ships to catch a quiet regression. | Almost no production telemetry. No live event stream to watch. |
+| **Why** | Production must be watched for crashes and cost spikes, without touching the loop. | Quality is graded offline by benchmark, so the full run record matters most. |
+| **How: telemetry** | Events queue until a sink attaches, then sample, scrub, and fan out. | One trajectory file per run: messages, config, cost, exit status, saved each step. |
+| **How: cost tracking** | Per-model tokens priced into one session USD total, shown on exit. | litellm prices each call into run and global totals; unknown models raise errors. |
+| **How: evaluation** | Not in source; reconstruction: held-out tasks scored per build. | A SWE-bench batch runner ships in the repo, one container per task; batches resume. |
 
 ---
 
@@ -155,7 +147,11 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code analytics: `services/analytics/index.ts` (queue + `logEvent`), `sink.ts`, `datadog.ts`, `firstPartyEventLogger.ts`, `sinkKillswitch.ts`, `shouldSampleEvent`.
-- Claude Code cost and diagnostics: `cost-tracker.ts`, `utils/modelCost.ts`, `costHook.ts` (`formatTotalCost`), `diagnosticTracking.ts`, `upstreamproxy/relay.ts`.
+- [Claude Code analytics](https://github.com/yasasbanukaofficial/claude-code):
+  `services/analytics/index.ts` (queue + `logEvent`), `sink.ts`, `datadog.ts`, `firstPartyEventLogger.ts`, `sinkKillswitch.ts`, `shouldSampleEvent`.
+- [Claude Code cost and diagnostics](https://github.com/yasasbanukaofficial/claude-code):
+  `cost-tracker.ts`, `utils/modelCost.ts`, `costHook.ts` (`formatTotalCost`), `diagnosticTracking.ts`, `upstreamproxy/relay.ts`.
 - Evaluation is not present in this source. Eval harnesses, SWE-bench-style suites, and LLM-as-judge are described as reconstruction and general practice.
-- Framing: learn-claude-code · s20_comprehensive.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
+  `serialize` and `save` in `agents/default.py`, `GLOBAL_MODEL_STATS` in `models/__init__.py`, `run/benchmarks/swebench.py`, `run/utilities/inspector.py`.
+- Framing: [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code).
