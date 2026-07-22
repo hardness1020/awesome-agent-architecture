@@ -80,7 +80,7 @@ def write_skill(skills_dir, name, description, body) -> Path:   # src/skills.py
 ```
 
 - `WriteSkill` 是包住這個函式、面向模型的 tool。寫入 skill 會改動檔案系統，屬於有副作用的操作，所以第 3 章的權限閘門預設會先徵詢使用者；只有 allow 規則預先核准過，才會直接放行。
-- 寫出來的檔案就是普通的 `SKILL.md`。沒有任何特殊標記：下一次 `load_skills` 掃描會像收錄手寫 skill 一樣把它編入 catalog。
+- 寫出來的檔案就是普通的 `SKILL.md`。沒有任何特殊標記：下一次 `load_skills` 掃描會把它當成一般的 skill 編入 catalog。
 - 名稱的解析和檢查方式跟 `read_tool` 檢查路徑一樣，所以不論讀或寫，都逃不出 skills 目錄。
 
 要汰舊，得先量測。載入 skill 本身就是使用訊號，所以 `read_tool` 在讀檔的同時順手記錄：
@@ -138,7 +138,7 @@ loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照
 
 ## 哪裡會出錯
 
-- **skill 從不觸發：**描述太含糊。寫成帶有觸發條件形狀的描述。
+- **skill 從不觸發：**描述太含糊。把觸發條件直接寫進描述裡。
 - **catalog 變得太大：**skill 太多會擠爆 prompt。讓 skill 保持聚焦，並讓 loader 做裁剪。
 - **壓縮後本文遺失：**重新讀取該 skill 檔案，或讓本文保持簡短。
 - **Path traversal：**catalog 會把路徑交給模型。把 Read tool 的範圍限制在 skills 目錄，讓 `../` 無法逃出去。
