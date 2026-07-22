@@ -6,7 +6,7 @@
 
 A single working directory is shared mutable state. If two agents write the same file at the same time, one can overwrite the other's work.
 
-The task system decides what work exists. Subagents decide how work is split. Worktree isolation decides where file writes happen.
+The task system decides what work exists. Subagents decide how work is split. Worktree isolation keeps the writes separate: each agent writes in its own directory, so they do not interfere.
 
 Each unit of work gets its own checkout and branch. The agent's file and shell tools resolve paths inside that checkout.
 
@@ -17,7 +17,7 @@ The isolation layer must:
 3. Reject names that would escape the worktree root.
 4. Remove clean worktrees and keep dirty ones for review.
 
-Without this layer, parallel writers can corrupt the shared tree.
+Without this layer, agents editing the same directory at once can corrupt each other's files.
 
 ---
 
@@ -88,25 +88,14 @@ To make this model-selectable, add an `isolation` option to the `Agent` tool sch
 
 How each system isolates parallel work and cleans it up.
 
-| System | Isolation unit | Binding | Cleanup |
-| --- | --- | --- | --- |
-| **Claude Code** | Git worktree per task or session. | Scoped cwd for subagents; process cwd for session mode. | Remove clean worktrees. Keep dirty ones. |
-
-### Claude Code
-
-- `utils/worktree.ts` validates slugs and creates or removes worktrees.
-- Worktrees live under `.claude/worktrees/<slug>`.
-- Branches are named `worktree-<slug>`.
-- `AgentTool` can use `isolation: 'worktree'`.
-- Subagents use `runWithCwdOverride` and `AsyncLocalStorage`.
-- Session-level worktree mode uses `process.chdir`.
-- `ExitWorktreeTool` refuses dirty teardown unless `discard_changes` is true.
-- A periodic sweep removes old ephemeral `agent-*` worktrees.
-- Task records do not store the worktree binding. The binding lives in cwd scope.
-
-> **Trade-off:** Worktrees give real filesystem isolation and clean diffs.
-> They cost disk, setup time, and a later merge step.
-> A shared directory is simpler but cannot safely support parallel writers.
+| | Claude Code |
+| --- | --- |
+| **Pros** | Real filesystem isolation and clean diffs. Dirty worktrees stay for review, so no work is lost silently. |
+| **Cons** | Worktrees cost disk, setup time, and a later merge step. |
+| **Why** | Several agents cannot safely write to one shared directory, so each unit of work writes in its own checkout. |
+| **How: isolation unit** | Git worktree per task or session, each on its own branch. The model can request one when it spawns a subagent. |
+| **How: binding** | Scoped cwd for subagents, so concurrent agents do not affect each other. Session mode changes the process cwd. Task records never store the binding. |
+| **How: cleanup** | Remove clean worktrees. Keep dirty ones unless the user explicitly discards changes. A periodic sweep removes old ephemeral worktrees. |
 
 ---
 
@@ -125,7 +114,7 @@ How each system isolates parallel work and cleans it up.
 [`src/`](src/) carries 14 forward and adds:
 
 - [`worktree.py`](src/worktree.py): slug validation, worktree creation, context-local cwd, and safe removal.
-- [`test.py`](src/test.py): checks two isolated writers and the clean/dirty removal gate.
+- [`test.py`](src/test.py): checks two agents writing in separate worktrees and the clean/dirty removal gate.
 - [`demo.py`](src/demo.py): runs a live turn inside a worktree.
 
 The loop and subagent path are unchanged. Isolation wraps the turn by binding cwd.
@@ -139,5 +128,6 @@ uv run python sections/15-worktree-isolation/src/demo.py  # live demo, needs a k
 
 ## Sources
 
-- Claude Code source: `tools/EnterWorktreeTool/`, `tools/ExitWorktreeTool/`, `utils/worktree.ts`, `utils/cwd.ts`, `tools/AgentTool/AgentTool.tsx`.
-- learn-claude-code · s18_worktree_isolation: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/EnterWorktreeTool/`, `tools/ExitWorktreeTool/`, `utils/worktree.ts`, `utils/cwd.ts`, `tools/AgentTool/AgentTool.tsx`.
+- [learn-claude-code · s18_worktree_isolation](https://github.com/shareAI-lab/learn-claude-code): section framing.
