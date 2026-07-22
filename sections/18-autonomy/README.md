@@ -21,7 +21,7 @@ Autonomy must let an idle agent:
 3. Claim one without racing other idle agents for it.
 4. Re-enter the loop on the claimed task, and repeat until the board is empty.
 
-Leave this out and every agent is a puppet. It waits for a human or a lead to push the next prompt, so throughput is capped by how fast the dispatcher types.
+Leave this out and every agent is a puppet. It waits for a human or a lead to push the next prompt, so throughput is capped by how fast the dispatcher hands out prompts.
 
 ---
 
@@ -148,25 +148,14 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 How an idle agent finds and claims its own work.
 
-| System | Idle behavior | Work claim | Self-organization |
-| --- | --- | --- | --- |
-| **Claude Code** | Short poll loop, announces availability. | Claim an unblocked, unowned task under a lock. | Workers pull from a shared board; the lead delegates. |
-
-### Claude Code
-
-- `inProcessRunner.ts`: `runInProcessTeammate()` is the outer loop, `waitForNextPromptOrShutdown()` is the poll, a `500ms` cycle.
-- The poll scans for a shutdown request first, then unread messages (lead before peers), then calls `tryClaimNextTask()`.
-- It announces idleness with `sendIdleNotification()` and `idleReason: 'available'`.
-- `findAvailableTask()` picks a task that is `pending`, has no `owner`, and whose `blockedBy` are all `completed`.
-- `claimTask()` writes ownership under a `proper-lockfile` lock, so two idle agents cannot both win one task.
-- `claimTaskWithBusyCheck()` takes a task-list lock so the busy check and the claim are atomic, closing the TOCTOU window.
-- The board is the `TaskList` tool's task files (section 12).
-- `useTaskListWatcher.ts` is a second entry point: `fs.watch` on the tasks dir (`1000ms` debounce) auto-claims externally created tasks via the same `claimTask()`.
-- `coordinatorMode.ts` frames the lead as a synthesizer that spawns workers, not a task router (`isCoordinatorMode()`).
-
-> **Trade-off:** Self organization removes the dispatcher bottleneck and keeps idle agents working.
-> It costs a real lock and a freshness check to settle races when two agents eye one task.
-> A lead-assigns model needs no locking but cannot scale past the lead.
+| | Claude Code |
+| --- | --- |
+| **Pros** | No dispatcher bottleneck. Idle agents keep pulling work until the board is empty, and externally created tasks are picked up too. |
+| **Cons** | Two idle agents can eye one task, so a real lock and a freshness check settle the race. A lead-assigns model needs no lock but cannot scale past the lead. |
+| **Why** | A lead that hands out every task becomes the bottleneck, and a worker that idles wastes its loaded context. So workers organize themselves. |
+| **How: idle behavior** | Short poll loop, a 500ms cycle. Checks shutdown first, then unread messages (lead before peers), then tries a claim. Announces it is available. |
+| **How: work claim** | Picks an unowned task that nothing blocks, then writes ownership under a lock, so one claimer wins. A watcher also auto-claims tasks created outside. |
+| **How: self-organization** | Workers pull from the shared task board (section 12). The lead is a synthesizer that spawns workers, not a task router. |
 
 ---
 
@@ -205,6 +194,8 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code autonomy: `utils/swarm/inProcessRunner.ts` (`runInProcessTeammate`, `waitForNextPromptOrShutdown`, `findAvailableTask`, `tryClaimNextTask`, `sendIdleNotification`).
-- Claude Code claim and watch: `utils/tasks.ts` (`claimTask`, `claimTaskWithBusyCheck` under `proper-lockfile`), `hooks/useTaskListWatcher.ts`, `coordinator/coordinatorMode.ts`.
-- learn-claude-code · s17 autonomous agents: section framing.
+- [Claude Code autonomy](https://github.com/yasasbanukaofficial/claude-code):
+  `utils/swarm/inProcessRunner.ts` (`runInProcessTeammate`, `waitForNextPromptOrShutdown`, `findAvailableTask`, `tryClaimNextTask`, `sendIdleNotification`).
+- [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code):
+  `utils/tasks.ts` (`claimTask`, `claimTaskWithBusyCheck` under `proper-lockfile`), `hooks/useTaskListWatcher.ts`, `coordinator/coordinatorMode.ts`.
+- [learn-claude-code · s17 autonomous agents](https://github.com/shareAI-lab/learn-claude-code): section framing.
