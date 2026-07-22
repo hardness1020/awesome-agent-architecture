@@ -4,9 +4,9 @@
 
 > 把工作以持久的 task 形式儲存，並帶有相依關係。
 
-限定在單一 turn 內的檢查清單，會在 turn 或 process 結束時消失。它也無法強制排定順序。
+第 5 章的 todo list 只放在記憶體裡，process 一結束就消失。它也沒辦法規定哪個工作要等哪個先完成。
 
-task system 把工作以記錄的形式存到磁碟上。每筆記錄都可以帶有相依關係。當阻擋條件完成後，worker 才能認領 task。
+task system 把工作以記錄的形式存到硬碟上。每筆記錄都可以帶有相依關係。當阻擋條件完成後，worker 才能認領 task。
 
 task system 必須：
 
@@ -23,14 +23,14 @@ task system 必須：
 
 ![機制圖](assets/12-task-system.png)
 
-一個 task 就是磁碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 是相依關係的邊。用一把 file lock 讓認領動作序列化。
+一個 task 就是硬碟上的一筆 JSON 記錄。`blockedBy` 和 `blocks` 這兩個欄位記著它跟其他 task 的先後關係。worker 認領 task 前要先拿到一把 file lock，所以一次只有一個 worker 在認領。
 
 - ID 是連續的，而且永不重複使用。
 - create、get、update、list 都是單純的 CRUD。
 - `claim` 是那道關卡。它在指派 owner 之前，會先檢查 ownership 和阻擋條件。
-- 磁碟上的圖儲存整個計畫。另一個 runtime 可以追蹤正在進行的背景執行工作。
+- 硬碟上的圖儲存整個計畫。另一個 runtime 可以追蹤正在進行的背景執行工作。
 
-### New：task store 與 claim 關卡
+### New: task store 與 claim 關卡
 
 `create` 會配置一個 id 並寫入一筆 task：
 
@@ -78,32 +78,25 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 
 持久的 task 圖如何塑形，又如何推進。
 
-| System | Task 記錄 | 相依關係 | 持久化 | 生命週期 |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | JSON task 檔。 | `blockedBy` 和 `blocks`。 | 每個 task 一個檔，外加一個 high-water mark。 | `pending -> in_progress -> completed`。 |
-
-### Claude Code
-
-- `TaskSchema` 定義 `id`、`subject`、`status`、`owner`、`blocks`、`blockedBy` 等欄位。
-- 每個 task 都存在 `~/.claude/tasks/{taskListId}/{id}.json`。
-- `.highwatermark` 追蹤已發出的最大 id。
-- `createTask` 可以寫入被阻擋的 task。
-- `claimTask` 會拒絕一個 task，直到它所有的阻擋條件都完成。
-- `proper-lockfile` 讓認領動作序列化。
-- `unassignTeammateTasks` 在某個 teammate 離開時清掉 ownership。
-- `isTodoV2Enabled()` 決定要不要用持久 task 取代 in-memory todo。
-
-> **取捨：** 以檔案為後盾的 task 能在當機後存活，也支援多個 worker。代價是檔案系統的讀、寫和鎖。它們也需要驗證，以避免出現壞掉的圖形狀。
+| | Claude Code |
+| --- | --- |
+| **Pros** | 以檔案為後盾的 task 能在當機後存活，也支援多個 worker。 |
+| **Cons** | 代價是檔案系統的讀、寫和鎖。記錄也要驗證，避免相依關係指到不存在的 task，或互相等待。 |
+| **Why** | 放在記憶體裡的 todo list 會跟著 process 一起消失。計畫必須撐過 session 和當機，順序也要用資料來表示。 |
+| **How: task record** | 每個 task 一個 JSON 檔。欄位涵蓋 id、subject、status、owner，以及相依關係的邊。 |
+| **How: dependencies** | `blockedBy` 和 `blocks` 兩種邊。可以直接建立被阻擋的 task。阻擋條件全部完成前，認領會被拒絕。 |
+| **How: persistence** | 每個 task 一個檔，外加一個 high-water mark 記錄已發出的最大 id。一個開關決定要不要用持久 task 取代 in-memory todo。 |
+| **How: lifecycle** | `pending -> in_progress -> completed`。一把 file lock 讓認領動作序列化。teammate 離開時會清掉 ownership。 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **相依循環（Dependency cycle）：**兩個 task 可能互相阻擋。讓圖保持無環，或加上循環檢查。
 - **認領競態（Claim race）：**兩個 agent 可能搶同一個 task。把認領路徑加鎖。
 - **卡在 in_progress 的孤兒 task：**worker 可能在認領後死掉。在 worker 離開時清掉 ownership。
 - **無效記錄（Invalid record）：**手動編輯或舊版的檔案可能不符合 schema。安全地解析，並跳過壞掉的記錄。
-- **持久系統被關閉：**in-memory todo 仍可能遺失。對必須存活的工作，改用以磁碟為後盾的 task。
+- **持久系統被關閉：**in-memory todo 仍可能遺失。對必須存活的工作，改用以硬碟為後盾的 task。
 
 ---
 
@@ -111,7 +104,7 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 
 [`src/`](src/) 把 11 帶了過來，並加上：
 
-- [`tasks.py`](src/tasks.py)：一個以磁碟為後盾的 `TaskStore`、claim 關卡，以及 `Task*` 工具。
+- [`tasks.py`](src/tasks.py)：一個以硬碟為後盾的 `TaskStore`、claim 關卡，以及 `Task*` 工具。
 - [`test.py`](src/test.py)：檢查相依關係、認領關卡，以及一場 10-agent 的認領競態。
 - [`demo.py`](src/demo.py)：把一個三個 task 的計畫持久化成 JSON 檔。
 
@@ -124,5 +117,5 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- Claude Code source：`utils/tasks.ts`、`Task.ts`，以及 `Task*Tool/` 目錄。
-- learn-claude-code · s12_task_system：章節框架。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`utils/tasks.ts`、`Task.ts`，以及 `Task*Tool/` 目錄。
+- [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

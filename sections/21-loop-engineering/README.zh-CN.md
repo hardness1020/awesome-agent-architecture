@@ -39,7 +39,7 @@ Loop engineering 说的是工程重心的转移。
 没过而且 budget 还有剩，就带着 feedback 重试；过了就通过该 task 的 channel 投递出去。
 这次执行做了什么，会记录成 trace 留在 telemetry（第 20 章）。改进 loop 之后就是读这些记录，来决定 harness 哪里该改。
 
-### New：验证 loop
+### New: 验证 loop
 
 这是前面章节唯一没做过的 loop。内层 loop 是 model 自己说完成就停。有了验证 loop，“完成”不再是 model 说了算，要通过检查才算数：
 
@@ -108,39 +108,18 @@ result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, bud
 
 各个 agent 如何组合自己的外层 loop。
 
-| System | 验证 | 事件 loop | 改进 loop |
+| | Claude Code | Hermes Agent | mini-swe-agent |
 | --- | --- | --- | --- |
-| **Claude Code** | 以代码编排的 verify 阶段，含对抗式模式。 | Cron、自定节奏唤醒、remote trigger。 | workflow 可断点续跑；源码中没有闭环。 |
-| **Hermes Agent** | 靠 delegation 分出 maker 和 checker；没有内置评分者。 | gateway cron 加受限 toolset。 | curator agent 从使用情况整合 skill。 |
-
-### Claude Code
-
-- `/loop <interval> <prompt>` 让一个 prompt 按节奏重复执行。不给 interval 时，model 用 `ScheduleWakeup` 自定节奏，`stop: true` 结束 loop。
-- 哨兵 prompt（`<<autonomous-loop>>`、`<<autonomous-loop-dynamic>>`）在 fire 的时刻才解析 loop 指令，而不是在创建时就把内容冻结。
-- `Workflow` tool 直接用代码描述组合方式：`agent()`、`pipeline()` 和 `parallel()` 把工作扇出。
-  它文档里的质量模式本身就是各种验证 loop：adversarial verify、judge panel、loop-until-dry。
-- `budget.remaining()` 把 token 目标变成硬上限。超过之后，`agent()` 会直接抛出错误。
-- 每个 workflow 一生最多 1000 个 agent，为失控的 workflow 兜底。
-- `resumeFromRunId` 会从缓存重放已完成的 `agent()` 调用，所以修好的 workflow 是接着跑，不是从头跑。
-- 事件 loop 由 cron 条目和 remote trigger（第 14 章）提供。
-
-### Hermes Agent
-
-- `agent/iteration_budget.py` 限制内层 loop 的迭代次数。上限在 harness 这一侧。
-- `cron/scheduler.py` 用受限的 toolset fire job；执行后没发现值得说的东西时，`[SILENT]` 会抑制投递（第 14 章）。
-- `tools/process_registry.py` 的 watch pattern 在 process 输出匹配到时唤醒 agent，带 rate limit 和 circuit breaker。
-- 没有内置的评分重试 loop。检查靠 `delegate_task()` 的 maker 和 checker 分工（第 6 章）和离线测试。
-- 改进 loop 是 skill curator：`tools/skill_manager_tool.py` fork 一个后台审查 agent，从使用情况整合、修剪 skill。
-  `hermes_cli/curator.py` 可以 pin、归档和回滚它改过的东西。
-- `agent/trajectory.py` 和 `trajectory_compressor.py` 把执行过程变成训练数据，把这个 loop 一路闭合到 model 本身。
-
-> **取舍：**无人看管的 loop 把产出放大几倍，也把错误放大几倍。
-> 让 L3 可以放着跑的，正是验证和 budget。
-> 没有评分者的 loop，自动化的是工作；没有 budget 的 loop，自动化的是账单。
+| **Pros** | 验证和 budget 两半都有：verify 用代码编排，budget 是硬上限。 | 有 budget，改进 loop 也能回滚。 | 每趟 run 的账单都有硬上限；撞到预算可以当检查点。 |
+| **Cons** | 改进 loop 在源码中没有闭环。 | 没有内置的评分重试 loop。 | 只做了 budget 这一半，评分要等离线 eval。 |
+| **Why** | 把外层 loop 当成一段可以编排、可以设上限的程序。 | 目标是让改进 loop 一路闭合到 model 本身。 | 假设一趟 run 就是一个 benchmark 任务，评分离线做。 |
+| **How: verification** | verify 阶段用代码编排：adversarial verify、judge panel。 | maker 和 checker 靠 delegation 分工，加上离线测试。 | 没有内置，评分在 SWE-bench 离线进行。 |
+| **How: event loop** | Cron、自定节奏唤醒、remote trigger。 | gateway cron 加受限 toolset，watch pattern 也能唤醒。 | 没有，batch runner 排的是 instance，不是时间。 |
+| **How: improvement loop** | workflow 可断点续跑，跑完的步骤从 cache 重放。 | curator 从使用情况整合、修剪 skill；run 变成训练数据。 | 没有，budget 是唯一的外层控制。 |
 
 ---
 
-## 失效模式
+## 哪里会出错
 
 - **没有停止条件（No stop condition）：**没有上限的重试 loop 会一直烧 token，直到有人看到账单。缓解：由 harness 强制执行的迭代、token 和时间 budget。
 - **自己评自己（Self-grading）：**worker 给自己的输出打分，验证 loop 等于什么都没验。缓解：独立的 checker agent，加上定在 loop 之外的 rubric。
@@ -179,5 +158,6 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/)：building block 的组合方式。
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows)：目标条件。
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/)：深入讲改进 loop；关卡要放在 loop 之外。
-- Claude Code：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依据 tool schema 与文档记载的行为描述，非 source backup。
-- Hermes Agent 源码：`agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
+- [Claude Code](https://code.claude.com/docs)：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依据 tool schema 与文档记载的行为描述，非 source backup。
+- [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 与 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。

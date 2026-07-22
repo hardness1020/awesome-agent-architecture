@@ -4,15 +4,15 @@
 
 > Give messages a contract: approve before acting, confirm before stopping.
 
-Coordination (section 16) gives agents a channel, but a channel only moves text. Text alone has no contract.
+Coordination (section 16) gives agents a channel, but a channel only moves text. Text alone has no rules: nothing tells a request from a reply, and nothing makes one side wait for an answer before acting.
 
 A protocol is the agreed rule on top of the channel: how a request and its reply are shaped, and how a reply is matched to the request it answers.
 
-Two exchanges need this most. A lead that kills a teammate mid edit leaves a half written file and an open task record.
+Two situations need this most. A lead that kills a teammate mid edit leaves a half written file and an open task record.
 
 A teammate that runs a risky refactor without asking acts first and reports afterward.
 
-Both want the same shape: one side requests, the other replies, and an id ties them together.
+Both need the same thing: one side requests, the other replies, and an id ties them together.
 
 A protocol must:
 
@@ -39,7 +39,7 @@ Three rules make it a protocol, not just two messages:
 - **Correlation id.** `requestId` is set when the request goes out and echoed in the reply. The sender knows which pending request a reply resolves.
 - **A small state machine.** A request goes `pending` then `approved` or `rejected`. A reply for an already resolved id is ignored, so duplicates are harmless.
 
-The shutdown and plan flows are mirror images. In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
+The shutdown and plan flows are the same exchange in opposite directions. In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
 
 The approval can also carry the permission mode the work runs under, so the verdict and the mode travel together (section 3).
 
@@ -146,23 +146,14 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 How one design shapes requests, gates plans, and stops agents cleanly.
 
-| System                | Message shape                                  | Plan approval                     | Shutdown                     |
-| --------------------- | ---------------------------------------------- | --------------------------------- | ---------------------------- |
-| **Claude Code** | Typed union on`type`, with a `request_id`. | Teammate requests, lead approves. | Request, confirm, then kill. |
-
-### Claude Code
-
-- `SendMessageTool` carries a `StructuredMessage` union discriminated on `type`.
-- `request_id` correlates a reply to its request.
-- The message schemas live in `utils/teammateMailbox.ts`.
-- A `plan_mode_required` teammate calling `ExitPlanModeV2Tool` writes a `plan_approval_request` to the `team-lead` mailbox and sets `awaitingPlanApproval`.
-- The lead replies with `plan_approval_response`: `approved`, optional `feedback`, optional `permissionMode`.
-- `tasks/stopTask.ts` requires `status === 'running'`, calls `taskImpl.kill`, marks the task `notified`, and emits a terminated event.
-- The graceful path runs `shutdown_request` then `shutdown_approved` or `shutdown_rejected` before `gracefulShutdown`.
-
-> **Trade-off:** A typed handshake makes every stop confirmed and every risky plan gated.
-> It costs round trips and protocol state.
-> A fire and forget kill is faster but loses in flight work and leaks task records.
+| | Claude Code |
+| --- | --- |
+| **Pros** | Every stop is confirmed and every risky plan is gated. In flight work and task records survive a stop. |
+| **Cons** | Each handshake costs round trips and protocol state. A fire and forget kill is faster. |
+| **Why** | A kill mid edit leaves a half written file and an open task record. A risky plan should be approved before work starts. |
+| **How: message shape** | One typed union on a `type` field. A `request_id` ties each reply to its request. |
+| **How: plan approval** | The teammate requests and waits. The lead's reply carries the verdict, optional feedback, and the permission mode the work runs under. |
+| **How: shutdown** | The lead requests, the teammate confirms, then the kill runs. The task is marked notified and a terminated event goes out. |
 
 ---
 
@@ -195,6 +186,7 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code protocol shape: `tools/SendMessageTool/SendMessageTool.ts`, `utils/teammateMailbox.ts`.
-- Claude Code plan and stop: `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tasks/stopTask.ts`, `coordinator/coordinatorMode.ts`.
-- learn-claude-code · s16_team_protocols: section framing.
+- [Claude Code protocol shape](https://github.com/yasasbanukaofficial/claude-code): `tools/SendMessageTool/SendMessageTool.ts`, `utils/teammateMailbox.ts`.
+- [Claude Code plan and stop](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tasks/stopTask.ts`, `coordinator/coordinatorMode.ts`.
+- [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code): section framing.

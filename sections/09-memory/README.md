@@ -154,40 +154,17 @@ if response.stop_reason != "tool_use":
 
 ## Per system
 
-Rows are systems. Columns are the four memory operations.
+How each agent stores, recalls, extracts, and consolidates memory.
 
-| System | Store | Recall | Extraction | Consolidation |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | Markdown files with frontmatter. | Selector chooses a small set. | Forked agent writes memories at run end. | Background process merges and prunes. |
-| **Hermes Agent** | Two markdown files plus a SQLite index. | Prompt snapshot plus session search. | Memory tool writes entries. | Model rewrite on char-budget overflow. |
-
-### Claude Code
-
-- Memories live under `~/.claude/projects/<sanitized-git-root>/memory/`.
-- Each memory is a `.md` file with YAML frontmatter.
-- Memory types include `user`, `feedback`, `project`, and `reference`.
-- `MEMORY.md` is an index, not a memory body.
-- Recall builds a manifest from names, types, descriptions, and age.
-- A Sonnet side query chooses up to 5 memories.
-- Bodies are injected with freshness notes.
-- Extraction runs as a forked agent at run end.
-- Consolidation is the "Dream" background task, gated by time, session count, and a lock.
-
-### Hermes Agent
-
-- Two files, two subjects: `MEMORY.md` holds agent observations, `USER.md` holds the user profile. Entries split on a `§` delimiter (`ENTRY_DELIMITER`).
-- Both files are frozen into the system prompt at session start (`load_from_disk` captures a snapshot).
-- Mid-session writes hit disk but not the prompt, which keeps the prompt cache warm.
-- Budgets are characters, not tokens: 2200 for memory, 1375 for the user profile. Overflow triggers a model-driven consolidation pass, with failure tracking.
-- `_scan_memory_content` checks entries for injection patterns before they enter the prompt.
-- Cross-session recall is a separate path: `session_search` queries `state.db` (SQLite FTS5, `SessionDB`) and returns actual past messages, no model call needed.
-- `session_search` has three modes: DISCOVERY by query, SCROLL around one message, BROWSE recent sessions.
-- Ranking demotes cron-sourced sessions below interactive ones (`_DEMOTED_SESSION_SOURCES`) and hides subagent and tool sessions.
-- Memory writes can be staged for approval (`write_approval.py`) instead of landing directly.
-
-> **Trade-off:** LLM-based recall can judge relevance better than simple keywords.
-> It costs an extra model call.
-> A vector store is cheaper at lookup time, but it adds an index to maintain.
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | Recall judges relevance better than keywords. A background task cleans the store. | Memory sits in the prompt and the cache stays warm. Search needs no model call. |
+| **Cons** | Each recall adds a model call. Consolidation needs its own gating. | Keyword recall is less precise. New writes only reach the prompt next session. |
+| **Why** | Saving everything makes recall noisy, so a selector injects only a few memories. | Extraction can miss facts, so raw history stays searchable as a second store. |
+| **How: store** | Markdown files with frontmatter. MEMORY.md is the index, not a memory body. | Two markdown files (observations, user profile) plus a SQLite session log. |
+| **How: recall** | A model reads the index and picks up to 5. Bodies get freshness notes. | Frozen prompt snapshot at session start, plus keyword search of past sessions. |
+| **How: extraction** | A forked agent writes new memory files at run end. | A memory tool writes entries to disk mid-session. Writes can be staged for approval. |
+| **How: consolidation** | Background task merges and prunes, gated by time, session count, and a lock. | Model rewrite on character-budget overflow, with failure tracking. |
 
 ---
 
@@ -220,7 +197,8 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `memdir/findRelevantMemories.ts`, `memdir/memdir.ts`, `services/SessionMemory/sessionMemory.ts`.
-- Claude Code memory services: `services/extractMemories/extractMemories.ts`, `services/autoDream/autoDream.ts`.
-- Hermes Agent source: `tools/memory_tool.py`, `hermes_state.py` (`SessionDB`), `tools/session_search_tool.py`, `tools/write_approval.py`.
-- learn-claude-code · s09_memory: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `memdir/findRelevantMemories.ts`, `memdir/memdir.ts`, `services/SessionMemory/sessionMemory.ts`.
+- [Claude Code memory services](https://github.com/yasasbanukaofficial/claude-code): `services/extractMemories/extractMemories.ts`, `services/autoDream/autoDream.ts`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `tools/memory_tool.py`, `hermes_state.py` (`SessionDB`), `tools/session_search_tool.py`, `tools/write_approval.py`.
+- [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code): section framing.

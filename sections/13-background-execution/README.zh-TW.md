@@ -2,13 +2,13 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-> 把慢工作移出主 loop 開始執行，稍後再回報。
+> 把跑很久的工作移出主 loop 去跑，稍後再回報。
 
 有些操作要花很久：安裝、建置、測試套件、記憶整併，或是一個跑著自己 loop 的 subagent。
 
 基本的 agent loop 會等工具呼叫完成後，才再次呼叫 model。
 
-對快速的讀取來說這沒問題。但對可以邊做別的事邊跑的慢工作來說，這很浪費。
+對快速的讀取來說這沒問題。但有些工作跑很久，明明可以讓它自己跑，agent 同時做別的事。這種工作讓 loop 乾等就很浪費。
 
 background execution 必須：
 
@@ -31,14 +31,14 @@ background execution 必須：
 2. 一個追蹤 task 狀態的 runtime。
 3. 一個 queue，會在稍後的某個 turn 注入一則完成 notification。
 
-loop 不會等這個慢工作。
+loop 不會停下來等這件工作跑完。
 
 - 背景執行是一個執行選項，而不是一種特殊的工具型別。
 - 被背景化的呼叫會立刻回傳一個正常的 `tool_result`。
-- 真正的完成結果稍後才會以一則獨立的 notification 抵達。
+- 真正的結果稍後才會用另一則 notification 送進來。
 - 一整個 subagent 也可以在背景執行。
 
-### New：移出 loop 的啟動，以及 notification 排空
+### New: 在 loop 外啟動工作，把 notification 收進對話
 
 `start` 在一個 worker thread 上跑工作，並回傳一個 task id：
 
@@ -81,7 +81,7 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
 
 ### 如何整合
 
-loop 在一個 turn 開始時排空待處理的完成 notification：
+loop 在一個 turn 開始時，把 queue 裡累積的完成 notification 收進對話：
 
 ```python
 background.drain_into(messages, runtime)               # src/loop.py
@@ -95,28 +95,18 @@ background.drain_into(messages, runtime)               # src/loop.py
 
 各個 agent 如何把工作移出 loop，又如何回報完成。
 
-| System | 移出 loop 的原語 | Notification | 重新進入 |
-| --- | --- | --- | --- |
-| **Claude Code** | 背景 shell task 和背景 agent task。 | `<task_notification>`。 | queue 在 turn 之間排空 notification。 |
-
-### Claude Code
-
-- `BashTool` 支援 `run_in_background`。
-- `LocalShellTask` 追蹤背景 shell 指令。
-- `ShellCommand.background(taskId)` 讓 subprocess 繼續執行並轉導輸出。
-- `DreamTask` 在背景執行記憶整併。
-- `Task.ts` 追蹤背景 task 的狀態。
-- `enqueueTaskNotification` 把完成訊息送到共享 queue。
-- 這個 queue 有 `now`、`next` 和 `later` 三種優先級。
-- `Sleep` 是一種非阻塞的等待，不會佔住一個 shell process。
-
-> **取捨：** 背景執行提升吞吐量，也避免閒置的等待。
-> 但它也意味著結果可能較晚抵達，而且順序可能顛倒。
-> runtime 需要 task 狀態、notification 和清理機制。
+|                                   | Claude Code                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Pros**                    | 吞吐量提升，也不再有閒置的等待。連單純的等待都是非阻塞的，不會佔住一個 shell process。           |
+| **Cons**                    | 結果可能較晚抵達，順序也可能顛倒。runtime 需要 task 狀態、notification 和清理機制。              |
+| **Why**                     | 一個跑很久的指令不該凍結整個 agent。這種工作可以趁 agent 做別的事時繼續跑。                      |
+| **How: off-loop primitive** | 背景 shell task 和背景 agent task，連記憶整併都用這種方式跑。subprocess 會繼續執行，輸出被轉導。 |
+| **How: notification**       | 一則`<task_notification>` 訊息。完成訊息走同一個共享 queue，runtime 會追蹤每個 task 的狀態。   |
+| **How: re-entry**           | notification 在 turn 之間從 queue 收進對話，分`now`、`next`、`later` 三種優先級。                 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **互動式提示卡住（Interactive prompt stalls）：**某個背景指令在等輸入。偵測像提示的輸出，並通知 model 去 kill 它，或以非互動方式重跑。
 - **完成訊息遺失（Lost completion）：**某個完成的 task 從沒抵達 loop。讓完成訊息走同一個共享 queue，並把 task 標記為已通知。
@@ -131,7 +121,7 @@ background.drain_into(messages, runtime)               # src/loop.py
 [`src/`](src/) 把 12 帶了過來，並加上：
 
 - [`background.py`](src/background.py)：一個 runtime、notification queue、`drain_into`，以及 `backgroundable`。
-- [`loop.py`](src/loop.py)：在呼叫 model 前排空待處理的 notification。
+- [`loop.py`](src/loop.py)：在呼叫 model 前，把待處理的 notification 收進對話。
 - [`test.py`](src/test.py)：檢查 start、failure、drain，以及背景 subagent。
 - [`demo.py`](src/demo.py)：在背景啟動一個 subagent，稍後再讀取它的結果。
 
@@ -144,6 +134,6 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 
 ## 出處
 
-- Claude Code task sources：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
-- Claude Code tool and queue sources：`tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
-- learn-claude-code · s13_background_tasks：章節框架。
+- [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
+- [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
+- [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

@@ -85,23 +85,15 @@ Real systems add rule priority, remembered approvals, and sandboxed execution. T
 
 How each agent gates side effects, changes modes, and remembers decisions.
 
-| System | Gate point | Permission modes | Sandbox | Rule persistence |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | Before each tool runs. | Default, edit-approved, plan, deny, and bypass modes. | Bash can run inside a sandbox. | Rules can live in the session or settings. |
-
-### Claude Code
-
-- `QueryEngine.ts` calls `canUseTool` for every tool use.
-- `useCanUseTool.tsx` resolves a `PermissionDecision`: `allow`, `deny`, or `ask`.
-- External modes include `default`, `acceptEdits`, `plan`, `bypassPermissions`, and `dontAsk`.
-- Internal modes include `auto` and `bubble`.
-- Rules are priority-merged from user, project, local, flag, policy, CLI, command, and session sources.
-- Approvals can be saved to the session or to settings through `PermissionUpdate.ts`.
-- `Bash` uses `shouldUseSandbox.ts` and `SandboxManager`.
-- `WebFetch` has a separate preapproval list for selected docs hosts.
-- MCP servers and remote runs have separate approval paths.
-
-> **Trade-off:** Modes, ordered rules, and sandboxing give precise control. They also add many states to reason about. Each bypass or preapproval path must stay visible and narrow.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | Modes, ordered rules, and sandboxing give precise control. | Auditable in minutes. A rejection feeds back to the model, so the loop keeps running. |
+| **Cons** | Many states to reason about. Each bypass or preapproval path must stay visible and narrow. | Treats every command the same and remembers nothing. |
+| **Why** | Asking on every call breeds approval fatigue, so approvals can be remembered. | One prompt plus a regex list is enough when the environment limits the damage. |
+| **How: gate point** | Before each tool runs. Web, MCP, and remote runs have their own gates. | Before a step's commands execute. Enter approves, a typed comment rejects. |
+| **How: permission modes** | Default, edit-approved, plan, deny, and bypass, plus internal modes. | `human`, `confirm`, and `yolo`. Slash commands switch them at runtime. |
+| **How: sandbox** | Bash can run inside a sandbox. | The environment class is the sandbox, picked per run: host, throwaway container, or wrappers on shared hosts. |
+| **How: rule persistence** | Rules merge by priority from many sources, saved to the session or settings. | Whitelist regexes in config only. Matches skip the confirm prompt. |
 
 ---
 
@@ -131,6 +123,8 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 
 ## Sources
 
-- Claude Code source: `QueryEngine.ts`, `hooks/useCanUseTool.tsx`, `types/permissions.ts`, `utils/permissions/PermissionUpdate.ts`.
-- Claude Code sandbox and web gates: `tools/BashTool/shouldUseSandbox.ts`, `tools/WebFetchTool/preapproved.ts`.
-- learn-claude-code · s03_permission: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `QueryEngine.ts`, `hooks/useCanUseTool.tsx`, `types/permissions.ts`, `utils/permissions/PermissionUpdate.ts`.
+- [Claude Code sandbox and web gates](https://github.com/yasasbanukaofficial/claude-code): `tools/BashTool/shouldUseSandbox.ts`, `tools/WebFetchTool/preapproved.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/interactive.py`, `environments/docker.py`, `environments/extra/bubblewrap.py`.
+- [learn-claude-code · s03_permission](https://github.com/shareAI-lab/learn-claude-code): section framing.

@@ -39,7 +39,7 @@ Loop engineering 說的是工程重心的轉移。
 沒過而且 budget 還有剩，就帶著 feedback 重試；過了就透過該 task 的 channel 投遞出去。
 這次執行做了什麼，會記錄成 trace 留在 telemetry（第 20 章）。改進 loop 之後就是讀這些紀錄，來決定 harness 哪裡該改。
 
-### New：驗證 loop
+### New: 驗證 loop
 
 這是前面章節唯一沒做過的 loop。內層 loop 是 model 自己說完成就停。有了驗證 loop，「完成」不再是 model 說了算，要通過檢查才算數：
 
@@ -108,39 +108,18 @@ result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, bud
 
 各個 agent 如何組合自己的外層 loop。
 
-| System                 | 驗證                                                  | 事件 loop                            | 改進 loop                               |
-| ---------------------- | ----------------------------------------------------- | ------------------------------------ | --------------------------------------- |
-| **Claude Code**  | 以程式編排的 verify 階段，含對抗式模式。              | Cron、自訂節奏喚醒、remote trigger。 | workflow 可斷點續跑；原始碼中沒有閉環。 |
-| **Hermes Agent** | 靠 delegation 分出 maker 和 checker；沒有內建評分者。 | gateway cron 加受限 toolset。        | curator agent 從使用情況整併 skill。    |
-
-### Claude Code
-
-- `/loop <interval> <prompt>` 讓一個 prompt 按節奏重複執行。不給 interval 時，model 用 `ScheduleWakeup` 自訂節奏，`stop: true` 結束 loop。
-- 哨兵 prompt（`<<autonomous-loop>>`、`<<autonomous-loop-dynamic>>`）在 fire 的時刻才解析 loop 指令，而不是在建立時就把內容凍結。
-- `Workflow` tool 直接用程式描述組合方式：`agent()`、`pipeline()` 和 `parallel()` 把工作扇出。
-  它文件裡的品質模式本身就是各種驗證 loop：adversarial verify、judge panel、loop-until-dry。
-- `budget.remaining()` 把 token 目標變成硬上限。超過之後，`agent()` 會直接拋出錯誤。
-- 每個 workflow 一生最多 1000 個 agent，替失控的 workflow 兜底。
-- `resumeFromRunId` 會從快取重放已完成的 `agent()` 呼叫，所以修好的 workflow 是接著跑，不是從頭跑。
-- 事件 loop 由 cron 項目和 remote trigger（第 14 章）提供。
-
-### Hermes Agent
-
-- `agent/iteration_budget.py` 限制內層 loop 的迭代次數。上限在 harness 這一側。
-- `cron/scheduler.py` 用受限的 toolset fire job；執行後沒發現值得說的東西時，`[SILENT]` 會抑制投遞（第 14 章）。
-- `tools/process_registry.py` 的 watch pattern 在 process 輸出比對到時喚醒 agent，帶 rate limit 和 circuit breaker。
-- 沒有內建的評分重試 loop。檢查靠 `delegate_task()` 的 maker 和 checker 分工（第 6 章）和離線測試。
-- 改進 loop 是 skill curator：`tools/skill_manager_tool.py` fork 一個背景審查 agent，從使用情況整併、修剪 skill。
-  `hermes_cli/curator.py` 可以 pin、封存和回滾它改過的東西。
-- `agent/trajectory.py` 和 `trajectory_compressor.py` 把執行過程變成訓練資料，把這個 loop 一路閉合到 model 本身。
-
-> **取捨：**無人看管的 loop 把產出放大幾倍，也把錯誤放大幾倍。
-> 讓 L3 可以放著跑的，正是驗證和 budget。
-> 沒有評分者的 loop，自動化的是工作；沒有 budget 的 loop，自動化的是帳單。
+| | Claude Code | Hermes Agent | mini-swe-agent |
+| --- | --- | --- | --- |
+| **Pros** | 驗證和 budget 兩半都有：verify 用程式編排，budget 是硬上限。 | 有 budget，改進 loop 也能回滾。 | 每趟 run 的帳單都有硬上限；撞到預算可以當檢查點。 |
+| **Cons** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半，評分要等離線 eval。 |
+| **Why** | 把外層 loop 當成一段可以編排、可以設上限的程式。 | 目標是讓改進 loop 一路閉合到 model 本身。 | 假設一趟 run 就是一個 benchmark 任務，評分離線做。 |
+| **How: verification** | verify 階段用程式編排：adversarial verify、judge panel。 | maker 和 checker 靠 delegation 分工，加上離線測試。 | 沒有內建，評分在 SWE-bench 離線進行。 |
+| **How: event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset，watch pattern 也能喚醒。 | 沒有，batch runner 排的是 instance，不是時間。 |
+| **How: improvement loop** | workflow 可斷點續跑，跑完的步驟從 cache 重放。 | curator 從使用情況整併、修剪 skill；run 變成訓練資料。 | 沒有，budget 是唯一的外層控制。 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **沒有停止條件（No stop condition）：**沒有上限的重試 loop 會一直燒 token，直到有人看到帳單。緩解：由 harness 強制執行的迭代、token 和時間 budget。
 - **自己評自己（Self-grading）：**worker 給自己的輸出打分數，驗證 loop 等於什麼都沒驗。緩解：獨立的 checker agent，加上定在 loop 之外的 rubric。
@@ -179,5 +158,6 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/)：building block 的組合方式。
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows)：目標條件。
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/)：深入談改進 loop；關卡要放在 loop 之外。
-- Claude Code：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依據 tool schema 與文件記載的行為描述，非 source backup。
-- Hermes Agent 原始碼：`agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
+- [Claude Code](https://code.claude.com/docs)：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依據 tool schema 與文件記載的行為描述，非 source backup。
+- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 與 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。

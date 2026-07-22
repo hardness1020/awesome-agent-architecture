@@ -106,35 +106,14 @@ A fired prompt becomes a new user-style turn. It uses the same loop, permissions
 
 How each agent decides when to run scheduled work.
 
-| System | Trigger | Durability | Wakeup |
-| --- | --- | --- | --- |
-| **Claude Code** | Cron, sleep, and remote triggers. | Session or durable local schedules. | Fired prompts enter the queue. |
-| **Hermes Agent** | Cron expressions on a gateway tick. | JSON job store with cross-process locks. | Job output delivers to a chat platform. |
-
-### Claude Code
-
-- `CronCreate`, `CronList`, and `CronDelete` manage cron entries.
-- A cron entry stores `id`, `cron`, `prompt`, `recurring`, and `durable`.
-- `cronScheduler.ts` ticks on an interval and calls `onFire(prompt)`.
-- `useScheduledTasks.ts` enqueues fired prompts at `priority: 'later'`.
-- The queue drains when no turn is in flight.
-- `durable: true` writes `.claude/scheduled_tasks.json`.
-- A lock prevents multiple open sessions from firing the same file-backed schedule.
-- `RemoteTriggerTool` uses a hosted trigger so work can fire without a local process.
-
-### Hermes Agent
-
-- The gateway is a server process, so durable schedules fire unattended without a hosted trigger.
-- `cron/scheduler.py` `tick()` runs on a gateway thread. Due jobs spawn agent runs in parallel threads.
-- Jobs persist in `~/.hermes/cron/jobs.json`. `_jobs_lock()` combines a thread lock with fcntl or msvcrt file locks so the CLI and the gateway do not clobber each other.
-- `claim_dispatch` claims a due job atomically, preventing double fire across processes.
-- Cron runs get restricted toolsets: `_resolve_cron_disabled_toolsets` always disables `cronjob`, `messaging`, and `clarify`, then layers user config on top.
-- Output saves to `~/.hermes/cron/output/<job_id>/` and delivers to the job's routed platform and channel.
-- A `[SILENT]` token in the output suppresses chat delivery. The output file still saves.
-- Heartbeat and last-success files let `hermes cron status` tell a dead ticker from a live but failing one.
-- `hermes_time.now()` resolves a configured IANA timezone, so schedules follow the user's clock, not the server's.
-
-> **Trade-off:** Local schedules are simple and private, but they only tick while the process runs. Remote triggers can fire unattended, but they require a hosted service and auth.
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | Simple and private. Durable schedules survive restart. | Fires unattended, no hosted service. Heartbeat files tell a dead ticker from a failing one. |
+| **Cons** | Only ticks while a session runs. Remote triggers need a hosted service and auth. | Needs a running gateway. The shared job store needs locks against double fire. |
+| **Why** | Assumes a local session is running. A hosted trigger covers firing with no local process. | The gateway is a server process, so schedules fire unattended. |
+| **How: trigger** | Cron, sleep, and remote triggers. A ticker checks entries on an interval. | Cron expressions on a gateway tick, in the user's configured timezone. |
+| **How: durability** | Session, or durable in a JSON file with a lock across open sessions. | A JSON job store shared by CLI and gateway, with locks and an atomic claim. |
+| **How: wakeup** | Fired prompts queue at low priority and run between turns. | Due jobs spawn parallel runs with a restricted toolset. Output delivers to chat unless silent. |
 
 ---
 
@@ -167,6 +146,8 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `tools/ScheduleCronTool/`, `tools/RemoteTriggerTool/`, `tools/SleepTool/`, `utils/cronScheduler.ts`, `hooks/useScheduledTasks.ts`, `utils/queueProcessor.ts`.
-- Hermes Agent source: `cron/scheduler.py` (`tick`, `_resolve_cron_disabled_toolsets`), `cron/jobs.py` (`_jobs_lock`, `claim_dispatch`), `hermes_time.py`.
-- learn-claude-code · s14_cron_scheduler: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/ScheduleCronTool/`, `tools/RemoteTriggerTool/`, `tools/SleepTool/`, `utils/cronScheduler.ts`, `hooks/useScheduledTasks.ts`, `utils/queueProcessor.ts`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `cron/scheduler.py` (`tick`, `_resolve_cron_disabled_toolsets`), `cron/jobs.py` (`_jobs_lock`, `claim_dispatch`), `hermes_time.py`.
+- [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code): section framing.

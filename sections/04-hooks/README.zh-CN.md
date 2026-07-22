@@ -2,13 +2,13 @@
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
 
-> hook 在循环周围的固定点加入行为。
+> hook 在 loop 周围的固定点加入行为。
 
 hook 是用户配置的 callback。它们可以在工具调用前、工具调用后、prompt 发送时，或 session 开始或结束时运行。
 
-用 hook 来做记录、验证、通知，以及小型的策略检查。没有 hook，每一个新行为都得改动循环或另外分叉它。
+用 hook 来做记录、验证、通知，以及小型的策略检查。没有 hook，每一个新行为都得改动 loop 或另外分叉它。
 
-hook 让循环保持精简。循环对外提供固定的事件。扩展行为则挂接到那些事件上。
+hook 让 loop 保持精简。loop 对外提供固定的事件。扩展行为则挂接到那些事件上。
 
 ---
 
@@ -16,7 +16,7 @@ hook 让循环保持精简。循环对外提供固定的事件。扩展行为则
 
 ![机制图](assets/04-hooks.png)
 
-一个 `Hooks` 对象把事件名称映射到 callback 列表。循环不会直接调用自定义的检查。取而代之，`_dispatch` 触发具名的事件。
+一个 `Hooks` 对象把事件名称映射到 callback 列表。loop 不会直接调用自定义的检查。取而代之，`_dispatch` 触发具名的事件。
 
 在工具执行方面，有两个重要的点：
 
@@ -43,7 +43,7 @@ class Hooks:                                     # src/hooks.py
 - pre-hook 可以返回 `{"updated_args": ...}` 来改写输入。
 - `fire_post` 在执行之后运行观察者。
 
-### How it integrates
+### 如何整合
 
 `_dispatch` 加入了两个调用：
 
@@ -70,31 +70,25 @@ demo 用一个 `PreToolUse` hook，即使在 `bypassPermissions` 之下也拦截
 
 ## 各系统做法
 
-各个 agent 如何在循环周围提供拦截点。
+各个 agent 如何在 loop 周围提供拦截点。
 
-| System | Hook events | Fire point | Can block or modify? |
-| --- | --- | --- | --- |
-| **Claude Code** | 固定的生命周期事件。 | 从 settings 配置。`PreToolUse` 在 gate 之前运行。 | 可以。拒绝、询问、更新输入、加入 context，或停止。 |
-
-### Claude Code
-
-- `HOOK_EVENTS` 定义了 27 个生命周期事件。
-- 重要事件包含 tool、prompt、session、stop、subagent、compact 与 setup 等事件。
-- hook 从 `.claude/settings.json` 加载。
-- `captureHooksConfigSnapshot()` 在启动时冻结当前生效的 hook 集合。
-- `toolExecution.ts` 在解析 permission 之前运行 `runPreToolUseHooks`。
-- `HookResult` 可以包含 `permissionBehavior`、`updatedInput`、`additionalContext`、`preventContinuation` 与 `blockingError`。
-
-> **取舍：** hook 让用户不必改动循环就能扩展行为。而固定的事件列表同时也是它的边界。hook 只能在系统对外提供事件的地方进行拦截。
+| | Claude Code |
+| --- | --- |
+| **Pros** | 用户不必改动 loop 就能扩展行为。适合做记录、验证、通知和策略检查。 |
+| **Cons** | 固定的事件列表同时也是它的边界。hook 只能在系统对外提供事件的地方进行拦截。 |
+| **Why** | 让 loop 保持精简。新行为挂接到固定事件上，不用改动或分叉 loop。 |
+| **How: hook events** | 固定的 27 个生命周期事件，涵盖 tool、prompt、session、stop、subagent、compact 与 setup。 |
+| **How: fire point** | 从 settings 加载，启动时冻结。`PreToolUse` 在 permission gate 之前触发。 |
+| **How: can block or modify?** | 可以。拒绝、询问、更新输入、加入 context，或停止。hook 输出会和基于规则的 permission 加以协调。 |
 
 ---
 
-## 失效模式
+## 哪里会出错
 
 - **hook 绕过 permission：**hook 可能试图允许一个已被拒绝的动作。要把 hook 输出对照基于规则的 permission 来解析。
-- **Stop hook 无限循环：**一个 `Stop` hook 可能拦截、触发自我修正，然后又再次触发。要追踪 stop hook 是否已经在运行中。
+- **Stop hook 无限 loop：**一个 `Stop` hook 可能拦截、触发自我修正，然后又再次触发。要追踪 stop hook 是否已经在运行中。
 - **hook 配置在 session 中途改变：**某个进程可能在启动后修改 settings。要对 hook 配置做一次快照。
-- **慢速 hook 卡住循环：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
+- **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 返回 `preventContinuation`，要把它呈现为一次优雅的停止，而不是崩溃。
 
 ---
@@ -116,5 +110,5 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ## 出处
 
-- Claude Code 源码：`types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
-- learn-claude-code · s04_hooks：section framing。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
+- [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code)：section framing。

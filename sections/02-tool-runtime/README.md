@@ -83,23 +83,15 @@ The demo dispatches sequentially for clarity. Real runtimes batch safe calls and
 
 How each agent defines tools, routes calls, handles parallelism, and exposes a large catalog.
 
-| System | Tool definition | Dispatch | Parallel calls | Discovery |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | Schema, handler, and predicates. | Name lookup with aliases. | Safe calls batch. Unsafe calls are serial. | Names first. Schemas on request. |
-
-### Claude Code
-
-- `buildTool` sets safe defaults. `isConcurrencySafe` and `isReadOnly` default to `false`.
-- `getAllBaseTools()` lists built-in tools such as `BashTool`, `FileReadTool`, `FileEditTool`, `GrepTool`, and `AgentTool`.
-- `getTools()` and `assembleToolPool()` filter tools by permissions and merge MCP tools.
-- `findToolByName` resolves by `name` and `aliases`.
-- `partitionToolCalls` groups concurrency-safe calls and runs them through `runToolsConcurrently`.
-- Unsafe calls break the batch and run alone.
-- Tools marked `shouldDefer` ship as names first. `ToolSearchTool` loads full schemas by exact name or keyword.
-
-> **Trade-off:** A per-tool object model gives validation, permissions, safe parallelism, and lazy discovery.
-> It also makes every tool carry a contract.
-> A single `bash` tool is smaller, but it cannot validate inputs or gate actions separately.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | Per-tool validation, permissions, safe parallelism, and lazy discovery. | One `bash` tool keeps the runtime small. No catalog to manage. |
+| **Cons** | Every tool has to carry a contract. | No per-tool validation or permissions. The confirm gate (section 3) sees only a command string. |
+| **Why** | Adding a capability should mean registering a tool, with the loop unchanged. | Assumes every action can be a shell command, so one tool is enough. |
+| **How: tool definition** | Schema, handler, and predicates. | One hardcoded `bash` schema is the whole catalog: one command field. Any other name is an error. |
+| **How: dispatch** | Name lookup with aliases, over a permission-filtered pool with MCP tools. | No registry. Every call is a shell command. |
+| **How: parallel calls** | Safe calls batch. Unsafe calls run alone. Safety flags default to off. | No. The legacy text mode requires exactly one action per response. |
+| **How: discovery** | Names ship first. Full schemas load on request, by exact name or keyword. | Not needed with one tool. |
 
 ---
 
@@ -131,5 +123,7 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `Tool.ts`, `tools.ts`, `services/tools/toolOrchestration.ts`, `services/tools/toolExecution.ts`, `tools/ToolSearchTool/ToolSearchTool.ts`.
-- learn-claude-code · s02_tool_use: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `Tool.ts`, `tools.ts`, `services/tools/toolOrchestration.ts`, `services/tools/toolExecution.ts`, `tools/ToolSearchTool/ToolSearchTool.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `models/utils/actions_toolcall.py`, `models/utils/actions_text.py`, `environments/__init__.py`.
+- [learn-claude-code · s02_tool_use](https://github.com/shareAI-lab/learn-claude-code): section framing.

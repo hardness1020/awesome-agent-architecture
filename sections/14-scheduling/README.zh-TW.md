@@ -4,9 +4,9 @@
 
 > 讓 agent 的 turn 由時鐘啟動，而不只是由 user 輸入啟動。
 
-背景工作仍然需要有人或有東西來啟動它。很多 task 應該稍後才跑或重複跑：一份報告、一則提醒，或一個輪詢 task。
+背景工作仍然需要有人或有東西來啟動它。很多 task 應該稍後才跑或重複跑：一份報告、一則提醒，或一個定期檢查狀態的 task。
 
-排程儲存一個未來的觸發。當它 fire 時，就把一個 prompt 放進 queue。正常的 loop 會把那個 prompt 當成一個新的 turn 來處理。
+排程就是先記下什麼時候要做什麼。時間一到（fire），就把一個 prompt 放進 queue。正常的 loop 會把那個 prompt 當成一個新的 turn 來處理。
 
 排程必須：
 
@@ -25,14 +25,14 @@
 
 把時鐘和 loop 分開。scheduler 監看時間。它不會直接呼叫 model。
 
-在 fire 的時刻，scheduler 只把一個 prompt 放進 queue。driver 會等到沒有 turn 正在跑的時候（也就是兩個 turn 之間）才排空 queue，把每個 prompt 交給處理 user 輸入的同一個 agent loop，當成新的一輪跑。
+在 fire 的時刻，scheduler 只把一個 prompt 放進 queue。driver 會等到沒有 turn 正在跑的時候（也就是兩個 turn 之間）才把 queue 裡的 prompt 拿出來，交給處理 user 輸入的同一個 agent loop，當成新的一輪跑。
 
 - 一個 schedule 就是資料：要跑的 prompt、一個 fire 時間，以及選擇性的重複間隔。scheduler 把每一筆存成一個 task。
 - 一次性（one-shot）的 schedule fire 一次後就把自己刪掉。
 - 週期性（recurring）的 schedule 會重新裝填到下一個間隔。
 - 一個 durable 的 schedule 能在重啟後存活，但在 host 關機時它不會 fire。
 
-### New：scheduler 與 fire queue
+### New: scheduler 與 fire queue
 
 `tick` 檢查哪些 task 已經到了預定時間。fire 就是把一個 prompt 放進 queue：
 
@@ -54,11 +54,11 @@ def tick(self):                                       # src/scheduler.py; called
 - `_save` 把 durable task 持久化成 JSON。
 - 在相同路徑上建立一個新的 `Scheduler`，會重新載入 durable task 並接續 id。
 
-### New：投遞答案
+### New: 投遞答案
 
 排程觸發的 turn 跑起來時，螢幕前沒有使用者，跑完的答案不主動送出去就沒人看到。所以每個 task 可以指定一個 channel。
 channel 就存在 task 裡，是那筆排程資料的一個欄位：`create(..., channel="console")` 存進去，`tick` fire 時再把它和 prompt 一起放進 queue。
-所以 driver 排空 queue 時，拿到的每個項目已經是 `{"prompt": ..., "channel": ...}`，不用再去別處查這個答案要送哪。
+所以 driver 從 queue 拿出來的每個項目，已經是 `{"prompt": ..., "channel": ...}`，不用再去別處查這個答案要送哪。
 
 `deliver` 負責把這個 turn 的答案送到 channel（Hermes 會把 cron 輸出投遞到該 job 的聊天平台）：
 
@@ -90,7 +90,7 @@ def run(self):                                        # src/scheduler.py; starte
     threading.Thread(target=loop, daemon=True).start()    # daemon: never keeps the process alive
 ```
 
-真正執行 turn 的是前景的 driver：它在兩個 turn 之間排空 queue，替每個 fire 出來的 task 呼叫一次 `run_turn`：
+真正執行 turn 的是前景的 driver：它在兩個 turn 之間把 queue 清空，替每個 fire 出來的 task 呼叫一次 `run_turn`：
 
 ```python
 for task in sched.drain():                            # src/demo.py · between turns
@@ -106,45 +106,24 @@ for task in sched.drain():                            # src/demo.py · between t
 
 各個 agent 如何決定何時執行排程工作。
 
-| System                 | 觸發                               | 持久性                               | 喚醒                            |
-| ---------------------- | ---------------------------------- | ------------------------------------ | ------------------------------- |
-| **Claude Code**  | Cron、sleep，以及 remote trigger。 | session 或 durable 的本地 schedule。 | fire 出來的 prompt 進入 queue。 |
-| **Hermes Agent** | gateway tick 上的 cron 表達式。    | 帶跨 process 鎖的 JSON job store。   | job 輸出投遞到聊天平台。        |
-
-### Claude Code
-
-- `CronCreate`、`CronList` 和 `CronDelete` 管理 cron 項目。
-- 一個 cron 項目儲存 `id`、`cron`、`prompt`、`recurring` 和 `durable`。
-- `cronScheduler.ts` 以固定間隔 tick，並呼叫 `onFire(prompt)`。
-- `useScheduledTasks.ts` 以 `priority: 'later'` 把 fire 出來的 prompt 放進 queue。
-- 當沒有 turn 正在進行時，queue 就排空。
-- `durable: true` 會寫入 `.claude/scheduled_tasks.json`。
-- 一把鎖避免多個開啟中的 session 對同一個以檔案為後盾的 schedule 重複 fire。
-- `RemoteTriggerTool` 使用一個託管的 trigger，讓工作不需本地 process 就能 fire。
-
-### Hermes Agent
-
-- gateway 是一個 server process，所以 durable schedule 能在無人看管下 fire，不需要託管 trigger。
-- `cron/scheduler.py` 的 `tick()` 在一個 gateway thread 上執行。到了預定時間的 job 會在平行的 thread 上啟動 agent 執行。
-- job 持久化在 `~/.hermes/cron/jobs.json`。`_jobs_lock()` 結合 thread 鎖與 fcntl 或 msvcrt 檔案鎖，讓 CLI 和 gateway 不會互相覆寫。
-- `claim_dispatch` 原子性地認領到了預定時間的 job，避免跨 process 重複 fire。
-- cron 執行使用受限的 toolset：`_resolve_cron_disabled_toolsets` 一律停用 `cronjob`、`messaging` 和 `clarify`，再疊上使用者設定。
-- 輸出存到 `~/.hermes/cron/output/<job_id>/`，並投遞到該 job 指定的平台與 channel。
-- 輸出裡的 `[SILENT]` token 會抑制聊天投遞。輸出檔案照樣儲存。
-- heartbeat 與 last-success 檔案讓 `hermes cron status` 分得出 ticker 是死了，還是活著但一直失敗。
-- `hermes_time.now()` 解析設定好的 IANA 時區，所以 schedule 跟著使用者的時鐘走，而不是伺服器的。
-
-> **取捨：** 本地 schedule 簡單又私密，但它們只在 process 運行時才會 tick。remote trigger 可以在無人看管下 fire，但它們需要一個託管服務和 auth。
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | 簡單又私密。durable 的 schedule 能在重啟後存活。 | 不需要託管服務，無人看管也能 fire。heartbeat 檔案分得出 ticker 是整個停掉，還是還在跑但一直失敗。 |
+| **Cons** | 只在 session 運行時才會 tick。remote trigger 需要託管服務和 auth。 | gateway 得一直跑著才行。共享的 job store 需要鎖來避免重複 fire。 |
+| **Why** | 假設本地有 session 開著。要在沒有本地 process 時 fire，就交給託管 trigger。 | gateway 是一個 server process，所以 schedule 能在無人看管下 fire。 |
+| **How: trigger** | Cron、sleep，以及 remote trigger。ticker 以固定間隔檢查 cron 項目。 | gateway tick 上的 cron 表達式，跟著使用者設定的時區走。 |
+| **How: durability** | 分成 session 和 durable 兩種。durable 的存成本地 JSON 檔案，一把鎖避免多個 session 重複 fire。 | CLI 和 gateway 共享一個 JSON job store，靠鎖保護，一個 job 只會被認領走一次。 |
+| **How: wakeup** | fire 出來的 prompt 進 queue 排在後面，在 turn 之間執行。 | 到了預定時間的 job 在平行 thread 上跑，toolset 受限。輸出投遞到聊天平台，除非標了 [SILENT]。 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **重複 fire（Double fire）：**一次很快的 tick 可能在同一個 cron 分鐘內比對到不只一次。追蹤上一次 fire 的分鐘。
-- **許多 schedule 一起 fire：**對週期性 task 加上具決定性的 jitter。
+- **許多 schedule 一起 fire：**把每個週期性 task 的時間錯開一點。錯開量從 task 本身算出來，每次都一樣。
 - **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
 - **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
-- **loop 正忙：**把 prompt 放進 queue，並在 turn 之間排空它。
+- **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。
 
 ---
 
@@ -167,6 +146,6 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- Claude Code source：`tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。
-- Hermes Agent 原始碼：`cron/scheduler.py`（`tick`、`_resolve_cron_disabled_toolsets`）、`cron/jobs.py`（`_jobs_lock`、`claim_dispatch`）、`hermes_time.py`。
-- learn-claude-code · s14_cron_scheduler：章節框架。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。
+- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`cron/scheduler.py`（`tick`、`_resolve_cron_disabled_toolsets`）、`cron/jobs.py`（`_jobs_lock`、`claim_dispatch`）、`hermes_time.py`。
+- [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

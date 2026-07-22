@@ -72,20 +72,14 @@ This section covers lifecycle hooks. React render hooks in a `hooks/` folder are
 
 How each agent exposes interception points around the loop.
 
-| System | Hook events | Fire point | Can block or modify? |
-| --- | --- | --- | --- |
-| **Claude Code** | Fixed lifecycle events. | Config from settings. `PreToolUse` runs before the gate. | Yes. Deny, ask, update input, add context, or stop. |
-
-### Claude Code
-
-- `HOOK_EVENTS` defines 27 lifecycle events.
-- Important events include tool, prompt, session, stop, subagent, compact, and setup events.
-- Hooks are loaded from `.claude/settings.json`.
-- `captureHooksConfigSnapshot()` freezes the active hook set at startup.
-- `toolExecution.ts` runs `runPreToolUseHooks` before permission resolution.
-- `HookResult` can include `permissionBehavior`, `updatedInput`, `additionalContext`, `preventContinuation`, and `blockingError`.
-
-> **Trade-off:** Hooks let users extend behavior without editing the loop. The fixed event list is also the limit. A hook can only intercept where the system exposes an event.
+| | Claude Code |
+| --- | --- |
+| **Pros** | Users extend behavior without editing the loop. Good for logging, validation, notifications, and policy checks. |
+| **Cons** | The fixed event list is also the limit. A hook can only intercept where the system exposes an event. |
+| **Why** | Keeps the loop small. New behavior attaches to fixed events instead of editing or forking the loop. |
+| **How: hook events** | A fixed list of 27 lifecycle events, covering tool, prompt, session, stop, subagent, compact, and setup. |
+| **How: fire point** | Loaded from settings and frozen at startup. `PreToolUse` fires before the permission gate. |
+| **How: can block or modify?** | Yes. Deny, ask, update input, add context, or stop. Hook output is reconciled with rule-based permissions. |
 
 ---
 
@@ -116,5 +110,6 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
-- learn-claude-code · s04_hooks: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
+- [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): section framing.

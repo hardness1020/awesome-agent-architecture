@@ -4,9 +4,9 @@
 
 > 先分類失敗，再重試、調整，或停止。
 
-一次 agent 執行可能橫跨很多次模型呼叫。任何一次呼叫都可能因為網路問題、過載、rate limit、輸出上限或 context 溢位而失敗。
+一次 agent 執行可能橫跨很多次模型呼叫。任何一次呼叫都可能因為網路問題、過載、rate limit、輸出上限或 context overflow 而失敗。
 
-迴圈對不同的失敗需要不同的回應：
+loop 對不同的失敗需要不同的回應：
 
 1. 對暫時性錯誤重試。
 2. 當問題出在 prompt 或輸出上限時，調整後再重試。
@@ -23,11 +23,11 @@
 把模型呼叫包在一個重試輔助函式裡。這個輔助函式先分類失敗，再採取一個有界限的行動。
 
 - 暫時性的狀態碼會退避後重試。
-- prompt 溢位會執行一次壓縮 callback，然後重試。
+- prompt overflow 會執行一次壓縮 callback，然後重試。
 - 反覆的過載可以觸發 fallback model。
 - 未知或不可重試的錯誤會被拋出。
 
-### New: classification, backoff, and the retry helper
+### New: 分類、backoff 與 retry helper
 
 ```python
 RETRY_STATUS = {408, 409, 429}                         # src/recovery.py; these plus any 5xx
@@ -42,7 +42,7 @@ def retry_delay(attempt, retry_after=None) -> float:   # exponential backoff + j
     return base + base * 0.25 * random()
 ```
 
-溢位會在一般狀態處理之前先檢查。如果壓縮能縮小 prompt，`prompt_too_long` 錯誤就是可復原的。
+overflow 會在一般狀態處理之前先檢查。如果壓縮能縮小 prompt，`prompt_too_long` 錯誤就是可復原的。
 
 ```python
 def _status(e):
@@ -81,9 +81,9 @@ def with_retry(call, on_overflow=None, fallback_model=None,
             sleep(retry_delay(attempt, getattr(e, "retry_after", None)))
 ```
 
-### How it integrates
+### 如何整合
 
-迴圈把它的模型呼叫包起來：
+loop 把它的模型呼叫包起來：
 
 ```python
 response = recovery.with_retry(
@@ -93,38 +93,31 @@ response = recovery.with_retry(
 ```
 
 - Recovery 只包住模型呼叫。
-- `_reactive_trim` 就地修改 `messages[]`，供一次溢位重試使用。
+- `_reactive_trim` 就地修改 `messages[]`，供一次 overflow 重試使用。
 - 當 recovery 放棄時，錯誤會被浮現出來，而不是被藏起來。
 
 ---
 
 ## 各系統做法
 
-Recovery 包住模型呼叫。迴圈主體維持不變。
+Recovery 包住模型呼叫。loop 主體維持不變。
 
-| System | Retry | Token handling | Model fallback |
-| --- | --- | --- | --- |
-| **Claude Code** | 由狀態決定、帶退避的重試。 | 提高輸出 token、續寫，或壓縮。 | 反覆過載後改用 fallback。 |
-
-### Claude Code
-
-- `withRetry` 會重試 429、408、409 和 5xx 錯誤。
-- `retry-after` 優先於計算出來的退避。
-- 對背景來源的 529 重試次數有限制。
-- 輸出被截斷時，可以用更高的輸出上限重試。
-- 續寫 prompt 能救回一些 `max_tokens` 的停止。
-- Reactive compaction 處理 `prompt_too_long`。
-- 反覆的 529 可能拋出 `FallbackTriggeredError`。
-
-> **取捨：** 針對性的復原路徑救回的執行比一概重試更多。它們也多了更多要維護的分支與界限。
+|                               | Claude Code                                                                    | mini-swe-agent                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| **Pros**                | 針對性的復原路徑救回的 run 比一概重試更多。                                    | 只有三條路徑要維護。就算 crash，硬碟上也留有完整軌跡。                 |
+| **Cons**                | 要維護的分支與界限更多。                                                       | 救回的 run 較少。context overflow 直接中止，連續三次格式錯誤也會結束 run。  |
+| **Why**                 | 一次暫時的 API 失敗不該終結長任務。                                            | 只留三條路：暫時性錯誤就重試、格式錯誤還給模型、其餘帶著具名狀態退出。 |
+| **How: retry**          | 帶退避重試 429、408、409 和 5xx，`retry-after` 優先。                        | tenacity 退避 4 到 60 秒，最多 10 次。救不回的錯誤直接跳過。           |
+| **How: token handling** | 提高輸出 token、在`max_tokens` 停止後續寫，或在 `prompt_too_long` 時壓縮。 | 沒有，context overflow 直接中止 run。                                       |
+| **How: model fallback** | 反覆過載（529）後改用 fallback。背景來源的 529 重試次數有限制。                | 沒有。                                                                 |
 
 ---
 
-## 失效模式
+## 哪裡會出錯
 
 - **Retry storm：**許多 client 同時對過載重試會讓負載更糟。限制重試次數並尊重 `retry-after`。
-- **無限復原：**提高上限、續寫和壓縮都可能無限迴圈。為每條路徑設界限。
-- **溢位無法縮小：**如果一次 reactive compaction 失敗，就停止，而不是永無止境地壓縮。
+- **無限復原：**提高上限、續寫和壓縮都可能無限 loop。為每條路徑設界限。
+- **overflow 無法縮小：**如果一次 reactive compaction 失敗，就停止，而不是永無止境地壓縮。
 - **錯誤消失：**一個被吞掉的錯誤會讓 transcript 少了結果。在復原用盡之後，把失敗浮現出來。
 - **Stop hook 重播 API 錯誤：**對 API 錯誤訊息略過 stop hook。
 
@@ -134,7 +127,7 @@ Recovery 包住模型呼叫。迴圈主體維持不變。
 
 [`src/`](src/) 承接 10 並加入：
 
-- [`recovery.py`](src/recovery.py)：重試分類、退避、溢位處理，以及 fallback 觸發。
+- [`recovery.py`](src/recovery.py)：重試分類、退避、overflow 處理，以及 fallback 觸發。
 - [`loop.py`](src/loop.py)：把它的模型呼叫包在 `with_retry` 裡。
 - [`test.py`](src/test.py)：用一個假的不穩定呼叫驅動每一條路徑。
 - [`demo.py`](src/demo.py)：在一次 live 執行中注入一次模擬過載。
@@ -148,5 +141,6 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- Claude Code 原始碼：`services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
-- learn-claude-code · s11_error_recovery：章節框架。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 與 `max_consecutive_format_errors`。
+- [learn-claude-code · s11_error_recovery](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

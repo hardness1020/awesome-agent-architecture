@@ -86,21 +86,15 @@ This bare loop has no permission gate. Section 3 adds that gate before tool exec
 
 How each agent owns the loop and decides when to stop.
 
-| System | Loop driver | Stop signal | Parallel tools | Streaming |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | `QueryEngine.ts` and `query/`. | `stop_reason: end_turn`. | Yes. | Yes. |
-
-### Claude Code
-
-- The `query/` module is an async generator.
-- It yields model tokens, tool calls, and tool results as they happen.
-- Tool calls in one model turn can run in parallel.
-- Each tool plugs into dispatch through the `Tool.ts` contract.
-- The core branch is still the same: tool use continues the loop; final answer stops it.
-
-> **Trade-off:** A tiny loop is easy to read and audit.
-> It cannot gate side effects, stream progress, or run tools in parallel.
-> Claude Code adds those features, but the loop sits inside a larger runtime.
+|                               | Claude Code                                                             | mini-swe-agent                                                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Pros**                | Streams progress, gates side effects, and runs tools in parallel.       | A tiny loop that is easy to read and audit.                                                                                |
+| **Cons**                | The loop sits inside a larger runtime.                                  | No side-effect gate, no streaming, no parallel tools.                                                                      |
+| **Why**                 | Keep the same core branch and add features around it.                   | A minimal loop is the point. The environment, not the model, detects when the task is done.                                |
+| **How: loop driver**    | An async generator. Each tool plugs into dispatch through one contract. | A while loop. Each step asks the model for a command, then runs it.                                                        |
+| **How: stop signal**    | `stop_reason: end_turn`.                                              | An appended`role: "exit"` message. The environment detects the submit marker. A reply with no command is a format error. |
+| **How: parallel tools** | Yes. Tool calls in one model turn can run in parallel.                  | No. Actions run in order.                                                                                                  |
+| **How: streaming**      | Yes. Yields model tokens, tool calls, and tool results as they happen.  | No.                                                                                                                        |
 
 ---
 
@@ -133,4 +127,5 @@ uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 ## Sources
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `exceptions.py`, `environments/local.py`.
 - [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code): section framing.

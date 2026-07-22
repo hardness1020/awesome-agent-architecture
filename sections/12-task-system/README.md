@@ -4,7 +4,7 @@
 
 > Store work as durable tasks with dependencies.
 
-A turn-scoped checklist disappears when the turn or process ends. It also does not enforce ordering.
+The todo list from section 5 lives only in memory and disappears when the process ends. It also cannot say which task must wait for another.
 
 A task system stores work as records on disk. Each record can have dependencies. Workers claim tasks when their blockers are complete.
 
@@ -78,22 +78,15 @@ The loop does not change. The model calls `TaskCreate`, `TaskUpdate`, `TaskGet`,
 
 How the durable task graph is shaped and advanced.
 
-| System | Task record | Dependencies | Persistence | Lifecycle |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | JSON task file. | `blockedBy` and `blocks`. | One file per task plus a high-water mark. | `pending -> in_progress -> completed`. |
-
-### Claude Code
-
-- `TaskSchema` defines fields such as `id`, `subject`, `status`, `owner`, `blocks`, and `blockedBy`.
-- Each task is stored at `~/.claude/tasks/{taskListId}/{id}.json`.
-- `.highwatermark` tracks the largest issued id.
-- `createTask` can write blocked tasks.
-- `claimTask` refuses a task until all blockers are complete.
-- `proper-lockfile` serializes claims.
-- `unassignTeammateTasks` clears ownership when a teammate exits.
-- `isTodoV2Enabled()` decides whether durable tasks replace in-memory todos.
-
-> **Trade-off:** File-backed tasks survive crashes and support multiple workers. They cost filesystem reads, writes, and locks. They also need validation to avoid bad graph shapes.
+| | Claude Code |
+| --- | --- |
+| **Pros** | File-backed tasks survive crashes and support multiple workers. |
+| **Cons** | Costs filesystem reads, writes, and locks. Records need validation to catch missing or circular dependencies. |
+| **Why** | An in-memory todo list dies with the process. The plan must survive sessions and crashes, with ordering stored as data. |
+| **How: task record** | A JSON file per task. Fields cover id, subject, status, owner, and the dependency edges. |
+| **How: dependencies** | `blockedBy` and `blocks` edges. A task can be created already blocked. A claim is refused until every blocker completes. |
+| **How: persistence** | One file per task, plus a high-water mark for the largest issued id. A switch decides whether durable tasks replace in-memory todos. |
+| **How: lifecycle** | `pending -> in_progress -> completed`. A file lock serializes claims. Ownership is cleared when a teammate exits. |
 
 ---
 
@@ -124,5 +117,5 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `utils/tasks.ts`, `Task.ts`, and the `Task*Tool/` directories.
-- learn-claude-code · s12_task_system: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `utils/tasks.ts`, `Task.ts`, and the `Task*Tool/` directories.
+- [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code): section framing.

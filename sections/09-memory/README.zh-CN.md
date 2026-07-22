@@ -25,7 +25,7 @@
 
 记忆是一个文件存储区，加上一份索引，再加上按需回想。
 
-循环不会读取整个存储区。它先读一份便宜的索引，然后只加载少数几个符合当前查询的记忆文件。
+loop 不会读取整个存储区。它先读一份便宜的索引，然后只加载少数几个符合当前查询的记忆文件。
 
 一共有四种操作：
 
@@ -36,7 +36,7 @@
 
 Recall 只读取。Extraction 只写入。把这两个方向分开，可以避免存储区意外膨胀。
 
-### New: index, recall, extraction, and the store
+### New: index、recall、extraction 与 store
 
 存储区是一个放 `.md` 文件的目录。`load_index` 只读取 frontmatter：
 
@@ -117,7 +117,7 @@ def search_sessions(db_path, query, k=SEARCH_K) -> list[tuple]:
 - `search_tool` 把它包成只读的 `SessionSearch` tool，所以要不要查过去的 session，是模型在 turn 进行中自己决定的。
   抽取记忆的 recall 则是 harness 在 turn 开始前决定的。两条路径的差别在于由谁发起。
 
-`Store` 是循环使用的句柄，现在它在执行结束时同时喂两个存储区：
+`Store` 是 loop 使用的句柄，现在它在执行结束时同时喂两个存储区：
 
 ```python
 def write(self, messages) -> list[Path]:               # Store.write, called at run end
@@ -128,9 +128,9 @@ def write(self, messages) -> list[Path]:               # Store.write, called at 
 
 selector、extractor 和 session db 都是可选的，所以测试可以离线执行。
 
-### How it integrates
+### 如何整合
 
-记忆在循环的两端包住它：
+记忆在 loop 的两端包住它：
 
 ```python
 if memory is not None:                                 # before the loop
@@ -147,51 +147,28 @@ if response.stop_reason != "tool_use":
 
 - Recall 在这一轮之前执行一次，并注入被选中的记忆文字。
 - Extract 在模型停下且没有再调用工具时执行。
-- `memory=None` 会维持第 8 章的循环行为。
+- `memory=None` 会维持第 8 章的 loop 行为。
 - 回想的文字会进入 `messages[]`，所以之后 context 管理可以把它压缩。
 
 ---
 
 ## 各系统做法
 
-各行是系统。各列是四种记忆操作。
+各 agent 如何存储、回想、抽取和整理记忆。
 
-| System | Store | Recall | Extraction | Consolidation |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | 带 frontmatter 的 Markdown 文件。 | Selector 选出一小组。 | 分叉出的 agent 在执行结束时写入记忆。 | 后台进程负责合并与清理。 |
-| **Hermes Agent** | 两个 markdown 文件加一份 SQLite 索引。 | prompt 快照加 session 搜索。 | memory tool 写入条目。 | 字符预算爆掉时由模型改写。 |
-
-### Claude Code
-
-- 记忆放在 `~/.claude/projects/<sanitized-git-root>/memory/` 底下。
-- 每个记忆都是一个带 YAML frontmatter 的 `.md` 文件。
-- 记忆类型包含 `user`、`feedback`、`project` 和 `reference`。
-- `MEMORY.md` 是索引，不是记忆内文。
-- Recall 从名称、类型、描述和存在时间建出一份 manifest。
-- 一个 Sonnet 侧查询最多选出 5 个记忆。
-- 内文注入时会附上新鲜度注记。
-- Extraction 在执行结束时以分叉出的 agent 执行。
-- Consolidation 是「Dream」后台任务，由时间、session 数量和一个 lock 控管。
-
-### Hermes Agent
-
-- 两个文件、两个主题：`MEMORY.md` 放 agent 的观察，`USER.md` 放用户画像。条目以 `§` 分隔符切开（`ENTRY_DELIMITER`）。
-- 两个文件在 session 开始时冻结进 system prompt（`load_from_disk` 获取一份快照）。
-- session 中途的写入只落到磁盘、不动 prompt，让 prompt cache 保持有效。
-- 预算以字符计，不是 token：记忆 2200 字符，用户画像 1375。爆掉会触发由模型执行的合并整理，并跟踪失败。
-- `_scan_memory_content` 在条目进入 prompt 之前检查注入模式。
-- 跨 session 的回想是另一条路：`session_search` tool 查询 `state.db`（SQLite FTS5，`SessionDB`），返回真正的过往消息，不需要模型调用。
-- `session_search` 有三种模式：DISCOVERY 用查询、SCROLL 绕着一条消息、BROWSE 看最近的 session。
-- 排序会把 cron 来源的 session 压到交互 session 之下（`_DEMOTED_SESSION_SOURCES`），并隐藏 subagent 和 tool 的 session。
-- 记忆写入可以先暂存等待批准（`write_approval.py`），而不是直接落地。
-
-> **取舍：** 以 LLM 为基础的 recall 在判断相关性上比单纯的关键字更准。
-> 它的代价是多一次模型调用。
-> 向量存储在查询时比较便宜，但它多了一份要维护的索引。
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | recall 判断相关性比单纯的关键字更准。存储区由后台任务清理。 | 记忆一直在 prompt 里，cache 保持有效。session 搜索不需要模型调用。 |
+| **Cons** | 每次 recall 都多一次模型调用。consolidation 需要另外一套控管。 | 关键字回想不如 LLM 准。中途写入要等下一个 session 才会进 prompt。 |
+| **Why** | 什么都存，回想就会杂乱，所以 selector 每次只注入少数几个记忆。 | extraction 可能漏掉事实，所以把原始历史留成第二个存储区，随时搜得到。 |
+| **How: store** | 带 frontmatter 的 Markdown 文件。MEMORY.md 是索引，不是记忆内文。 | 两个 markdown 文件（agent 观察和用户画像），加一份 SQLite session log。 |
+| **How: recall** | 模型读索引，最多选出 5 个记忆。内文注入时附上新鲜度注记。 | session 开始时把快照冻结进 prompt，过往 session 用关键字搜。 |
+| **How: extraction** | 分叉出的 agent 在执行结束时写入记忆。 | memory tool 在 session 中途把条目写进磁盘。写入可以先暂存等待批准。 |
+| **How: consolidation** | 后台任务负责合并与清理，由时间、session 数量和一个 lock 控管。 | 字符预算爆掉时由模型改写，并跟踪失败。 |
 
 ---
 
-## 失效模式
+## 哪里会出错
 
 - **Recall 漏掉有用的记忆：**调整 selector，并把描述写得具体。
 - **Recall 灌爆这一轮：**限制注入记忆的数量，并以精准度为优先。
@@ -220,7 +197,7 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 
 ## 来源
 
-- Claude Code 源码：`memdir/findRelevantMemories.ts`、`memdir/memdir.ts`、`services/SessionMemory/sessionMemory.ts`。
-- Claude Code 记忆服务：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
-- Hermes Agent 源码：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
-- learn-claude-code · s09_memory：章节框架。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`memdir/findRelevantMemories.ts`、`memdir/memdir.ts`、`services/SessionMemory/sessionMemory.ts`。
+- [Claude Code 记忆服务](https://github.com/yasasbanukaofficial/claude-code)：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
+- [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
+- [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code)：章节框架。

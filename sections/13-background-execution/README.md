@@ -95,24 +95,14 @@ The one-tool-call-to-one-tool-result rule still holds. A late completion is not 
 
 How each agent moves work off the loop and reports completion.
 
-| System | Off-loop primitive | Notification | Re-entry |
-| --- | --- | --- | --- |
-| **Claude Code** | Background shell tasks and background agent tasks. | `<task_notification>`. | Queue drains notifications between turns. |
-
-### Claude Code
-
-- `BashTool` supports `run_in_background`.
-- `LocalShellTask` tracks background shell commands.
-- `ShellCommand.background(taskId)` lets the subprocess continue and redirects output.
-- `DreamTask` runs memory consolidation in the background.
-- `Task.ts` tracks background task states.
-- `enqueueTaskNotification` sends completions to the shared queue.
-- The queue has `now`, `next`, and `later` priorities.
-- `Sleep` is a non-blocking wait and does not hold a shell process.
-
-> **Trade-off:** Backgrounding improves throughput and avoids idle waits.
-> It also means results can arrive later and out of order.
-> The runtime needs task state, notifications, and cleanup.
+| | Claude Code |
+| --- | --- |
+| **Pros** | Throughput improves and idle waits go away. Even a plain wait is non-blocking and holds no shell process. |
+| **Cons** | Results can arrive later and out of order. The runtime needs task state, notifications, and cleanup. |
+| **Why** | One slow command must not freeze the whole agent. Slow work can run while the agent does something else. |
+| **How: off-loop primitive** | Background shell tasks and background agent tasks, memory consolidation included. The subprocess keeps running with output redirected. |
+| **How: notification** | A `<task_notification>` message. Completions go through one shared queue, and the runtime tracks each task's state. |
+| **How: re-entry** | The queue drains notifications between turns, with `now`, `next`, and `later` priorities. |
 
 ---
 
@@ -144,6 +134,7 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 
 ## Sources
 
-- Claude Code task sources: `tasks/LocalShellTask/`, `tasks/DreamTask/`.
-- Claude Code tool and queue sources: `tools/BashTool/BashTool.tsx`, `tools/SleepTool/prompt.ts`, `utils/task/framework.ts`, `utils/messageQueueManager.ts`.
-- learn-claude-code · s13_background_tasks: section framing.
+- [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code): `tasks/LocalShellTask/`, `tasks/DreamTask/`.
+- [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/BashTool/BashTool.tsx`, `tools/SleepTool/prompt.ts`, `utils/task/framework.ts`, `utils/messageQueueManager.ts`.
+- [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code): section framing.

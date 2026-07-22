@@ -170,36 +170,15 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 
 How one design spawns cooperating agents and spreads work across them.
 
-| System | Teammates | Channel | Shared memory | Permission bubbling |
-| --- | --- | --- | --- | --- |
-| **Claude Code** | In-process or remote; each on its own loop. | Inbox messages, memory or disk. | Team task list and memory dir. | Remote requests route to local UI. |
-| **Hermes Agent** | Delegated children on threads. | Completion queue plus gateway RPCs. | Shared session DB with lineage markers. | Clarify requests route to the user's chat. |
-
-### Claude Code
-
-- `TeamCreateTool` creates a team. `TeamDeleteTool` removes it.
-- The lead spawns an `InProcessTeammateTask` or a `RemoteAgentTask`; each teammate runs its own loop.
-- In-process teammates poll their inbox (`utils/mailbox.ts`) and fold messages between turns.
-- `SendMessageTool` writes to an inbox.
-- Cross-process teammates use file inboxes under `~/.claude/teams/{team}/inboxes/`, with `proper-lockfile`.
-- `to: "*"` broadcasts.
-- A team owns a task list. Team memory lives under `memdir/teamMemPaths.ts`.
-- `remotePermissionBridge.ts` turns remote permission requests into local approval prompts.
-- Coordinator mode drains inboxes and folds messages between turns.
-
-### Hermes Agent
-
-- No peer inboxes. Coordination stays parent to child: `delegate_task` spawns children, and results return only to the parent (section 6 covers the spawn).
-- Async children post results to `process_registry.completion_queue`; the parent folds them into a new turn when idle.
-- `_active_subagents` tracks live children. Gateway RPCs `delegation.pause`, `delegation.status`, and `subagent.interrupt` control them from any connected surface.
-- `set_spawn_paused` is a global pause flag the TUI or gateway can flip mid-run to stop new spawns.
-- Interrupts are per-thread (`tools/interrupt.py`), so stopping one session does not kill tools in concurrent sessions.
-- Permission bubbling targets a human on chat, not a lead agent. `register()` in `clarify_gateway.py` queues the question and `wait_for_response()` blocks the agent thread.
-- The platform adapter answers via `resolve_gateway_clarify()`, which unblocks the waiting tool call.
-- Children get auto-deny or auto-approve permission callbacks (`delegation.subagent_auto_approve`), logged for audit.
-- Parents and children share `state.db`; `_delegate_from` markers record lineage for cascade cleanup.
-
-> **Trade-off:** File inboxes are durable and can cross process or machine boundaries. They add polling and lock cost. In-memory inboxes are fast, but they die with the process.
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | Peers talk directly. File inboxes are durable and cross processes or machines. | Children can be paused, checked, and interrupted from any connected surface. |
+| **Cons** | File inboxes add polling and lock cost. In-memory inboxes die with the process. | No peer inboxes, so children cannot collaborate. A clarify blocks its thread. |
+| **Why** | Teammates are peers that need inboxes to talk and a route to a human approver. | Coordination stays parent to child. A human on chat answers escalations. |
+| **How: teammates** | In-process or remote. Each runs its own loop, folding messages between turns. | Delegated children on threads. A pause flag stops new spawns mid-run. |
+| **How: channel** | SendMessage writes to memory or locked file inboxes and can broadcast. | Completion queue plus gateway RPCs. The parent folds results in when idle. |
+| **How: shared memory** | Team task list and a team memory directory. | Shared session DB. Lineage markers record who spawned whom, for cascade cleanup. |
+| **How: permission bubbling** | Remote requests become local approval prompts. | Clarify requests route to the user's chat. Children get auto-deny or auto-approve, logged. |
 
 ---
 
@@ -234,7 +213,9 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code tools and inboxes: `tools/SendMessageTool/`, `tools/TeamCreateTool/`, `utils/mailbox.ts`, `utils/teammateMailbox.ts`.
-- Claude Code teammates: `tasks/InProcessTeammateTask/`, `tasks/RemoteAgentTask/`, `remote/remotePermissionBridge.ts`, `memdir/teamMemPaths.ts`.
-- Hermes Agent source: `tools/delegate_tool.py`, `tools/async_delegation.py`, `tools/clarify_gateway.py`, `tools/interrupt.py`.
-- learn-claude-code · s15_agent_teams: section framing.
+- [Claude Code tools and inboxes](https://github.com/yasasbanukaofficial/claude-code):
+  `tools/SendMessageTool/`, `tools/TeamCreateTool/`, `utils/mailbox.ts`, `utils/teammateMailbox.ts`.
+- [Claude Code teammates](https://github.com/yasasbanukaofficial/claude-code):
+  `tasks/InProcessTeammateTask/`, `tasks/RemoteAgentTask/`, `remote/remotePermissionBridge.ts`, `memdir/teamMemPaths.ts`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent): `tools/delegate_tool.py`, `tools/async_delegation.py`, `tools/clarify_gateway.py`, `tools/interrupt.py`.
+- [learn-claude-code · s15_agent_teams](https://github.com/shareAI-lab/learn-claude-code): section framing.

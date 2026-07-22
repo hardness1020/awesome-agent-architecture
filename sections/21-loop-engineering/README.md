@@ -108,35 +108,14 @@ What is new is the discipline: grade before done, budget before start, report al
 
 How each agent composes its outer loops.
 
-| System | Verification | Event loop | Improvement loop |
+| | Claude Code | Hermes Agent | mini-swe-agent |
 | --- | --- | --- | --- |
-| **Claude Code** | Scripted verify stages with adversarial patterns. | Cron, self-paced wakeups, remote triggers. | Resumable workflow runs; no closed loop in source. |
-| **Hermes Agent** | Maker and checker via delegation; no built-in grader. | Gateway cron with restricted toolsets. | A curator agent consolidates skills from usage. |
-
-### Claude Code
-
-- `/loop <interval> <prompt>` re-runs a prompt on a cadence. Without an interval, the model self-paces with `ScheduleWakeup`, and `stop: true` ends the loop.
-- Sentinel prompts (`<<autonomous-loop>>`, `<<autonomous-loop-dynamic>>`) resolve loop instructions at fire time instead of freezing them at create time.
-- The `Workflow` tool scripts composition directly: `agent()`, `pipeline()`, and `parallel()` fan work out.
-  Its documented quality patterns are verification loops by name: adversarial verify, judge panel, loop-until-dry.
-- `budget.remaining()` makes a token target a hard ceiling. Past it, `agent()` throws.
-- A lifetime cap of 1000 agents per workflow backstops a runaway script.
-- `resumeFromRunId` replays completed `agent()` calls from cache, so a fixed script resumes instead of restarting.
-- Cron entries and remote triggers (section 14) supply the event loop.
-
-### Hermes Agent
-
-- `agent/iteration_budget.py` caps inner-loop iterations. The ceiling is harness-side.
-- `cron/scheduler.py` fires jobs with restricted toolsets, and `[SILENT]` suppresses delivery when a run finds nothing (section 14).
-- Watch patterns in `tools/process_registry.py` wake the agent on matching process output, rate limited with a circuit breaker.
-- There is no built-in grade-and-retry loop. Checking runs through `delegate_task()` maker and checker splits (section 6) and offline tests.
-- The improvement loop is the skill curator. `tools/skill_manager_tool.py` forks a background review agent that consolidates and prunes skills from usage.
-  `hermes_cli/curator.py` can pin, archive, and roll back what it changes.
-- `agent/trajectory.py` and `trajectory_compressor.py` turn runs into training data, closing the loop into the model itself.
-
-> **Trade-off:** an unattended loop multiplies output and multiplies mistakes at the same rate.
-> Verification and budgets are what make L3 safe to leave running.
-> A loop without a grader automates the work. A loop without a budget automates the bill.
+| **Pros** | Both halves: scripted verify and hard budgets. | Budgets plus an improvement loop with rollback. | Every run has a hard bill. A budget stop can be a checkpoint. |
+| **Cons** | No closed improvement loop in source. | No built-in grade-and-retry loop. | Only the budget half. Grading waits for offline eval. |
+| **Why** | The outer loop is a program you script and cap. | Goal: an improvement loop that reaches the model itself. | Assumes one run is one benchmark task, graded offline. |
+| **How: verification** | Scripted verify stages: adversarial verify, judge panel. | Maker and checker via delegation, plus offline tests. | None. SWE-bench grades offline. |
+| **How: event loop** | Cron, self-paced wakeups, remote triggers. | Cron with restricted toolsets, plus watch patterns. | None. The batch runner schedules instances, not time. |
+| **How: improvement loop** | Resumable runs: finished steps replay from cache. | A curator prunes skills; runs become training data. | None. Budgets are the only outer control. |
 
 ---
 
@@ -179,5 +158,7 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): goal conditions.
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): the improvement loop in depth; gates outside the loop.
-- Claude Code: `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
-- Hermes Agent source: `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
+- [Claude Code](https://code.claude.com/docs): `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `AgentConfig` and `query()` in `agents/default.py`, `agents/interactive.py`, `run/benchmarks/swebench.py`.

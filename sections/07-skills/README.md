@@ -6,7 +6,7 @@
 
 A skill turns a general agent into a specialist for one job.
 It packages a workflow: the instructions to follow, plus any scripts to run and reference files to consult.
-The agent loads a skill only when a task calls for it, so one agent can reach many specialized capabilities without carrying them all up front.
+The agent loads a skill only when a task calls for it, so one agent can reach many specialized capabilities without loading them all up front.
 
 Each skill is a folder with a `SKILL.md` file. The frontmatter names and describes the skill.
 The body holds the instructions, and the folder can bundle extra scripts and reference files that load only when the skill uses them.
@@ -118,7 +118,7 @@ The loop does not change. Reading a skill returns a tool result that enters `mes
 
 The catalog belongs in the system prompt. The body enters the conversation only after the model reads the file. Resource files are read later only if needed.
 
-Because loaded skill text lives in `messages[]`, it can be compacted like any other message. Keep skill bodies short and point to files for large references.
+Because loaded skill text lives in `messages[]`, it can be compacted like any other message when the context fills (section 8). Keep skill bodies short and point to files for large references.
 
 ---
 
@@ -126,34 +126,14 @@ Because loaded skill text lives in `messages[]`, it can be compacted like any ot
 
 How each agent describes, triggers, and finds skills.
 
-| System | Skill format | Load trigger | Discovery |
-| --- | --- | --- | --- |
-| **Claude Code** | `SKILL.md` folder with frontmatter and body. | `Skill` tool invocation. | Built-in, user, project, plugin, and MCP sources. |
-| **Hermes Agent** | `SKILL.md` folder with frontmatter and body. | `skill_view` tool invocation. | Bundled, optional, user, plugin, and GitHub hub sources. |
-
-### Claude Code
-
-- `loadSkillsDir.ts` builds the visible catalog within a budget.
-- `SkillTool.ts` returns the body as `newMessages`.
-- The visible result is a short launch message.
-- Frontmatter can include `when_to_use`, `allowed-tools`, `context`, `paths`, `model`, and `user-invocable`.
-- `context: 'fork'` runs the skill in a forked subagent.
-- `paths` can activate skills when matching files are touched.
-- MCP-served skills and legacy `.claude/commands/` use the same machinery.
-- A skill that only loads instructions needs no dedicated tool. Claude Code uses `SkillTool.ts` because its skills also fork and scope tools.
-
-### Hermes Agent
-
-- Two tools do the disclosure: `skills_list` returns the catalog, `skill_view` returns the body plus a `linked_files` dict of references, templates, and scripts.
-- Skills sort into category folders. Bundled skills ship in `skills/`, extras in `optional-skills/`, and plugin skills use the qualified `plugin:skill` form.
-- Hub skills install from GitHub (`skills_hub.py`). `HubLockFile` records repo and content hash, and a quarantine dir holds rejected skills.
-- `skills_ast_audit.py` scans skill scripts for dynamic imports and flags them as review hints, not gates.
-- Skills evolve. Every `skill_view` bumps view and use counts in `.usage.json` (`skill_usage.py`). The curator's stale timer keys off `last_used_at`.
-- The curator (`agent/curator.py`, `hermes_cli/curator.py`) runs a forked background review agent that consolidates agent-written skills and archives stale ones.
-- Guards refuse curator writes to pinned, hub-installed, or bundled skills. `hermes curator pin` protects a skill; `PROTECTED_BUILTIN_SKILLS` keeps `plan` from being archived.
-- Skill writes can be staged for approval (`write_approval.py`) instead of landing directly.
-
-> **Trade-off:** A cheap catalog keeps context small. It also depends on good descriptions. If the description is vague, the model may never load the skill.
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | The catalog fits a budget. A skill can fork into a subagent and scope its tools. | A curator merges new skills and archives stale ones. Hub installs are checked. |
+| **Cons** | Vague descriptions hide skills. Forked skills lose live context. | Vague descriptions hide skills too. Automatic changes need pins and staged approvals. |
+| **Why** | Skills also fork and scope tools, so a plain file read is not enough. | Loading is half the job. The store itself must grow and decay. |
+| **How: skill format** | `SKILL.md` folder with frontmatter and body. Frontmatter can limit tools or pick a model. | Same shape, sorted into category folders. |
+| **How: load trigger** | A `Skill` tool call injects the body. Matching files can also fire it. | `skill_view` returns the body plus linked files and bumps use counts. |
+| **How: discovery** | Built-in, user, project, plugin, and MCP sources. Legacy slash commands use the same machinery. | Bundled, optional, user, plugin, and GitHub hub sources. |
 
 ---
 
@@ -186,7 +166,9 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `skills/loadSkillsDir.ts`, `skills/bundledSkills.ts`, `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts`, `tools/SkillTool/prompt.ts`.
-- Hermes Agent source: `tools/skills_tool.py` (`skills_list`, `skill_view`), `tools/skill_usage.py`, `hermes_cli/curator.py`, `tools/skills_hub.py`, `tools/skills_ast_audit.py`.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `skills/loadSkillsDir.ts`, `skills/bundledSkills.ts`, `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts`, `tools/SkillTool/prompt.ts`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `tools/skills_tool.py` (`skills_list`, `skill_view`), `tools/skill_usage.py`, `hermes_cli/curator.py`, `tools/skills_hub.py`, `tools/skills_ast_audit.py`.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure levels.
-- learn-claude-code · s07_skill_loading: section framing.
+- [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code): section framing.

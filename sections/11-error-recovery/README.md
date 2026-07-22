@@ -102,21 +102,14 @@ response = recovery.with_retry(
 
 Recovery wraps the model call. The loop body stays the same.
 
-| System | Retry | Token handling | Model fallback |
-| --- | --- | --- | --- |
-| **Claude Code** | Status-gated retries with backoff. | Escalate output tokens, continue, or compact. | Fallback after repeated overload. |
-
-### Claude Code
-
-- `withRetry` retries 429, 408, 409, and 5xx errors.
-- `retry-after` wins over computed backoff.
-- 529 retries are limited for background sources.
-- Output truncation can retry with a higher output limit.
-- Continuation prompts recover some `max_tokens` stops.
-- Reactive compaction handles `prompt_too_long`.
-- Repeated 529s can raise `FallbackTriggeredError`.
-
-> **Trade-off:** Specific recovery paths save more runs than a blanket retry. They also add more branches and bounds to maintain.
+| | Claude Code | mini-swe-agent |
+| --- | --- | --- |
+| **Pros** | Specific recovery paths save more runs than a blanket retry. | Only three bounded paths to maintain. A crash still leaves a complete trajectory on disk. |
+| **Cons** | More branches and bounds to maintain. | Saves fewer runs. Context overflow aborts, and three format errors in a row end the run. |
+| **Why** | One temporary API failure should not end a long task. | Keeps three paths: retry transient errors, return format errors to the model, named exit for the rest. |
+| **How: retry** | Backoff retries on 429, 408, 409, and 5xx. A server `retry-after` wins. | tenacity backoff, 4 to 60 seconds, 10 attempts. Skips errors a retry cannot fix. |
+| **How: token handling** | Escalate output tokens, continue after a `max_tokens` stop, or compact on `prompt_too_long`. | None. Context overflow aborts the run. |
+| **How: model fallback** | Fallback model after repeated overload (529). Background 529 retries are capped. | None. |
 
 ---
 
@@ -148,5 +141,8 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 
 ## Sources
 
-- Claude Code source: `services/api/withRetry.ts`, `query.ts`, `services/api/claude.ts`, `services/api/errors.ts`, `query/tokenBudget.ts`, `utils/context.ts`.
-- learn-claude-code · s11_error_recovery: section framing.
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
+  `services/api/withRetry.ts`, `query.ts`, `services/api/claude.ts`, `services/api/errors.ts`, `query/tokenBudget.ts`, `utils/context.ts`.
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
+  `models/utils/retry.py`, `models/litellm_model.py`, `run()` and `max_consecutive_format_errors` in `agents/default.py`.
+- [learn-claude-code · s11_error_recovery](https://github.com/shareAI-lab/learn-claude-code): section framing.
