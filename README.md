@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
-  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-2+-0a7bbb?style=for-the-badge" alt="Systems"></a>
+  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-3+-0a7bbb?style=for-the-badge" alt="Systems"></a>
   <a href="#sections"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
 </p>
@@ -32,9 +32,9 @@ Learn it once and you can read many agents, since a coding tool, chat assistant,
 
 ## The Agent Loop
 
-Most agents share the same control flow: call the model, run requested tools, append results, and call the model again.
-
 ![The agent loop](assets/the-agent-loop.png)
+
+Most agents share the same control flow: call the model, run requested tools, append results, and call the model again.
 
 The loop is small. Most engineering is around it: dispatch tools, gate side effects, manage context, persist state, and coordinate other loops.
 
@@ -52,7 +52,7 @@ Every section is self-contained and uses the same four-part lens:
 To learn from this repo:
 
 - **Read the sections in order. Each builds on the layer before it**.
-- For a runnable section, read `src/loop.py`, then run its `test.py` and `demo.py`.
+- For a runnable section, read `src/loop.py`, then run its `demo.py`.
 - Diff a section's `src/` against the section before it. The diff is the one mechanism that section adds.
 
 ---
@@ -65,9 +65,10 @@ Each system is a worked example for the sections below.
 | ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------- | -------------------- | --------------- |
 | **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 21 (all)        | v2.1.88         |
 | **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere.            | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1       |
+| **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20, 21 | v2.4.5 |
 | *(more soon)*        |                                                                                 |                                    |                      |                 |
 
-> More systems can be added later, including OpenClaw, aider, and mini-swe-agent.
+> More systems can be added later, including OpenClaw and aider.
 
 ---
 
@@ -174,6 +175,7 @@ Favor named, verifiable mechanisms over speculation. Cite sources.
 
 - [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code source backup used for mechanism names and implementation paths.
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): Open-source agent harness (MIT) used as the second system under study.
+- [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): Minimal SWE agent (MIT) used as the third system under study.
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): Cache breakpoints, TTLs, pricing, and token minimums.
