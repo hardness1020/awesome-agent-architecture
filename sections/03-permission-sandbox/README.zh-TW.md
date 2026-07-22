@@ -14,7 +14,7 @@ permission 層必須做到：
 
 1. 在每個工具呼叫執行前先檢視它。
 2. 決定 `allow`、`ask` 或 `deny`。
-3. 當高風險的呼叫尚未預先核准時，詢問人類。
+3. 當高風險的呼叫尚未預先核准時，詢問使用者。
 4. 當呼叫真的執行時，限制它造成的損害。
 
 沒有這一層，一次錯誤的工具呼叫就可能造成無法回復的後果。
@@ -28,7 +28,7 @@ permission 層必須做到：
 一個純函式負責做出 permission 決策。它讀取工具、目前的 mode，以及所有的 allow 規則，並回傳三個值之一：
 
 - `allow`：執行工具。
-- `ask`：暫停並詢問人類。
+- `ask`：暫停並詢問使用者。
 - `deny`：不執行工具。
 
 mode 會改變預設行為。舉例來說，plan mode 允許唯讀工具，但在計畫核准前拒絕編輯。
@@ -73,7 +73,7 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 - 只有 `_dispatch` 多了 gate。
 - `deny` 以及未核准的 `ask` 永遠不會抵達 `run_tool`。
 - 拒絕結果仍會以 `tool_result` 回傳，所以模型看得到發生了什麼，並能隨之調整。
-- `approver` 預設為 `False`，所以 `ask` 代表「否」，除非人類核准。
+- `approver` 預設為 `False`，所以 `ask` 代表「否」，除非使用者核准。
 
 關鍵不變條件維持不變：每個工具呼叫都會產生一則結果訊息，即使真正的動作沒有執行。
 
