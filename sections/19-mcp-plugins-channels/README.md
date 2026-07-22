@@ -4,7 +4,7 @@
 
 > Not enough capability? Plug in more. The harness reaches the world through one standard protocol.
 
-A harness can only do what its tools let it do, and every built-in tool is hand written: input schema, execution, error handling, all of it.
+A harness can only do what its tools let it do, and every built-in tool is predefined: input schema, execution, error handling, all of it.
 
 That does not scale to the services a user wants: issue trackers, deploy systems, knowledge bases. You cannot hand write a tool for each, in each language it uses.
 
@@ -12,7 +12,7 @@ MCP (Model Context Protocol) is the open contract that closes the gap. An extern
 
 So the agent gains a Jira tool or a deploy tool without anyone editing the harness. Leave MCP out and capability is frozen at whatever shipped in the binary.
 
-A plugin bundles servers with hooks and skills. A channel lets a server push messages back in. Both ride the same protocol.
+Two more pieces build on MCP. A plugin bundles servers with hooks and skills, so they install as one unit. A channel lets a server push messages back in. Both ride the same protocol.
 
 ---
 
@@ -130,38 +130,14 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 How the harness reaches outside itself.
 
-| System | Transports | Plugin format | Tool pool assembly |
-| --- | --- | --- | --- |
-| **Claude Code** | Six, from stdio to http/sse/ws. | A plugin bundles servers, hooks, skills. | Each server tool cloned, namespaced, merged with built-ins. |
-| **Hermes Agent** | MCP both ways, plus chat platform adapters. | `plugin.yaml` manifest with a `register(ctx)` entry. | Plugin and MCP tools join one import-time registry. |
-
-### Claude Code
-
-- `types.ts` `TransportSchema` lists six transports: `stdio`, `sse`, `sse-ide`, `http`, `ws`, `sdk`.
-- `client.ts` clones each discovered tool from `MCPTool`, names it with `buildMcpToolName`, and binds `call()` to the server.
-- Local servers (`stdio`/`sdk`) and remote (`http`/`sse`/`ws`) connect in separate pools (defaults 3 local, 20 remote) because spawning a process is heavier than opening a socket.
-- `normalizeNameForMCP` (`normalization.ts`) sanitizes names; `mcpInfoFromString` documents that a server name containing `__` parses wrong.
-- The clone's `isReadOnly()` / `isDestructive()` / `isOpenWorld()` read the server's `readOnlyHint` / `destructiveHint` / `openWorldHint` annotations (section 3).
-- `config.ts` merges by precedence `plugin < user < project < local`, with `claude.ai` connectors lowest and an enterprise `managed-mcp.json` able to override.
-- `builtinPlugins.ts` bundles `mcpServers` + `hooks` + `skills` under id `{name}@builtin`.
-- Four built-in tools manage the surface itself: `MCPTool`, `McpAuthTool` (`mcp__<server>__authenticate`), `ListMcpResourcesTool`, `ReadMcpResourceTool`.
-- `channelNotification.ts` wraps a server push in `CHANNEL_TAG`; `SleepTool` polls and wakes within 1s.
-
-### Hermes Agent
-
-- Hermes is MCP client and MCP server at once. `mcp_serve.py` (FastMCP over stdio) exposes sessions, messages, events, and pending approvals to clients like Claude Code or Cursor.
-- Plugins load from four sources: bundled `plugins/*/`, user, project, and pip entry points (`hermes_agent.plugins`).
-- A plugin ships a `plugin.yaml` manifest plus a `register(ctx)` function.
-- `PluginContext` grants `register_tool`, `register_hook`, `register_command`, and a config-gated `llm` facade.
-- A plugin overriding a built-in tool needs `override=True` plus operator opt-in config.
-- Channels are gateway platform adapters (`gateway/platforms/base.py:PlatformAdapter`) registered in `platform_registry.py`.
-- Telegram, Discord, Slack, and a dozen more adapters ship as bundled platform plugins under `plugins/platforms/`.
-- Every incoming platform message passes the `pre_gateway_dispatch` hook, which can drop or rewrite it before the agent sees it.
-- Voice rides the same channels: `transcription_tools.py` transcribes chat voice notes across six STT providers, and `tts_tool.py` speaks replies across ten TTS providers.
-
-> **Trade-off:** a standard protocol buys open-ended capability (any service, any language, no harness edits) and pushes permission decisions onto server-declared annotations.
-> The cost is trust and surface: every connected server is new attack surface, its annotations are self reported, and its tools inflate the tool list.
-> You trade a sealed, auditable tool set for an extensible but partly trusted one.
+| | Claude Code | Hermes Agent |
+| --- | --- | --- |
+| **Pros** | Any service, any language, no harness edits. Loop and gate stay unchanged. | Other clients can drive it as an MCP server. Inbound messages are gated first. |
+| **Cons** | Each server is new attack surface with self reported annotations. The tool list bloats. | Anyone can send to a channel: spam or steering instructions arrive too. |
+| **Why** | Without MCP, capability is frozen at whatever shipped in the binary. | The agent is MCP client and server at once, and chat platforms are its two-way surface. |
+| **How: transports** | Six, from local stdio to remote http/sse/ws, in separate connection pools. | MCP both ways, plus chat platform adapters. Voice rides the same channels. |
+| **How: plugin format** | A plugin bundles servers, hooks, skills. Config merges by precedence. | A manifest plus a register entry. Built-in overrides need operator opt-in. |
+| **How: tool pool assembly** | Each server tool cloned, namespaced, merged with built-ins. Annotations feed the gate. | Plugin and MCP tools join one import-time registry. |
 
 ---
 
@@ -194,8 +170,11 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 
 ## Sources
 
-- Claude Code MCP transport: `services/mcp/types.ts` (`TransportSchema`), `client.ts` (`MCPTool` cloning, `buildMcpToolName`), `normalization.ts` (`normalizeNameForMCP`).
-- Claude Code MCP config and channels: `config.ts` (precedence), `channelNotification.ts` (`CHANNEL_TAG`), plus `McpAuthTool`, `ListMcpResourcesTool`, `ReadMcpResourceTool`.
-- Claude Code plugins: `plugins/builtinPlugins.ts`, `plugins/bundled/`, `types/plugin.ts`, plus `remote/` and `bridge/`.
-- Hermes Agent source: `mcp_serve.py`, `hermes_cli/plugins.py` (`PluginManager`, `VALID_HOOKS`), `gateway/platforms/`, `gateway/platform_registry.py`, `plugins/platforms/`.
-- Framing: learn-claude-code · s19_mcp_plugin.
+- [Claude Code MCP transport](https://github.com/yasasbanukaofficial/claude-code):
+  `services/mcp/types.ts` (`TransportSchema`), `client.ts` (`MCPTool` cloning, `buildMcpToolName`), `normalization.ts` (`normalizeNameForMCP`).
+- [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code):
+  `config.ts` (precedence), `channelNotification.ts` (`CHANNEL_TAG`), plus `McpAuthTool`, `ListMcpResourcesTool`, `ReadMcpResourceTool`.
+- [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code): `plugins/builtinPlugins.ts`, `plugins/bundled/`, `types/plugin.ts`, plus `remote/` and `bridge/`.
+- [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
+  `mcp_serve.py`, `hermes_cli/plugins.py` (`PluginManager`, `VALID_HOOKS`), `gateway/platforms/`, `gateway/platform_registry.py`, `plugins/platforms/`.
+- Framing: [learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code).
