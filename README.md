@@ -76,6 +76,8 @@ Each system is a worked example for the sections below.
 
 Eight layers, from the basic loop to a harness that runs itself. Each row links to one self-contained writeup.
 
+![The learning path](assets/learning-path.png)
+
 | #  | Section                                                      | Question                                           | Key mechanisms                                        |
 | -- | ------------------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------------- |
 |    | **Layer 0 · Foundations**                             |                                                    |                                                       |
