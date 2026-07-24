@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <strong>繁體中文</strong> · <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md">English</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a>
 </p>
 
 模型負責推理。harness（外層架構）則給它行動、狀態和界線：它負責跑工具、在多次呼叫之間保留狀態、控管副作用，還要協調各個 loop，這些都不是單一次模型呼叫做得到的。
