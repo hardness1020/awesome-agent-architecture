@@ -36,6 +36,61 @@ loop 不會讀取整個儲存區。它先讀一份便宜的索引，然後只載
 
 Recall 只讀取。Extraction 只寫入。把這兩個方向分開，可以避免儲存區意外膨脹。
 
+```mermaid
+flowchart TB
+    user["User turn"]
+    loop["run_turn"]
+    store["Store"]
+    model["Model"]
+    tools["Tools"]
+    final["Final answer"]
+
+    subgraph durable["Durable memory store"]
+        md["*.md memory files"]
+        fm["frontmatter index<br/>name / type / description"]
+        body["selected memory bodies"]
+    end
+
+    subgraph recall["Recall before the model call"]
+        load["load_index<br/>read frontmatter only"]
+        manifest["manifest<br/>one cheap line per memory"]
+        relevant{"Relevant selector?"}
+        llm["selector<br/>usually an LLM in live mode"]
+        overlap["_overlap fallback<br/>word overlap, offline"]
+        chosen["chosen memory names<br/>max RECALL_K"]
+        reminder["system-reminder injection"]
+    end
+
+    subgraph rawlog["Raw session history"]
+        sqlite["state.db<br/>SQLite FTS5 session_log"]
+        search["search_sessions<br/>MATCH query ORDER BY rank"]
+        sessiontool["SessionSearch tool"]
+    end
+
+    subgraph writeback["Run-end write paths"]
+        logrun["log_run<br/>append transcript text"]
+        extractor["extractor<br/>usually an LLM in live mode"]
+        newmem["new *.md memory files"]
+        consolidate["Consolidation<br/>rare background cleanup"]
+    end
+
+    user --> loop --> store
+    store --> load --> fm --> manifest --> relevant
+    md --> load
+    relevant -- selector provided --> llm --> chosen
+    relevant -- no selector --> overlap --> chosen
+    chosen --> body --> reminder --> model
+    loop --> model
+    model --> tools --> model
+    model -- may call --> sessiontool --> search --> sqlite
+    model --> final
+    final --> store
+    store --> logrun --> sqlite
+    store --> extractor --> newmem --> md
+    md -. occasionally .-> consolidate
+    consolidate -. prune or merge .-> md
+```
+
 ### New: index、recall、extraction 與 store
 
 儲存區是一個放 `.md` 檔案的目錄。`load_index` 只讀取 frontmatter：
