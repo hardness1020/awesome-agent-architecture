@@ -66,6 +66,12 @@ def recall(mems, query, k=RECALL_K, selector=None) -> list[Memory]:
     return [m for _score, m in hits[:k]]
 ```
 
+這裡的「相關」不是先讀完所有記憶內文。`load_index` 只讀 frontmatter，`manifest` 把每個記憶壓成一行 `name / type / description`，接著才做相關性判斷：
+
+- 如果 `Store(selector=...)` 有傳入 selector，selector 讀 manifest 和 query，回傳要注入的記憶名稱。live 版通常由 LLM 做這個選擇；只有被選中的檔案才會在 `recall_block` 讀出 body。
+- 如果沒有 selector，就走離線 fallback：`_overlap(query, mem)` 把 query 和 `mem.name + mem.description` 經 `_words` 切詞後做交集，分數大於 0 的項目排序後取前 `k`。這不是 embedding，也不是 SQLite 搜尋。
+- `SessionSearch` 是另一條路：它查的是原始 session log，用 SQLite FTS5 的 `MATCH ... ORDER BY rank` 搜過去訊息。搜尋本身沒有模型呼叫；模型只是在 turn 中決定要不要呼叫這個 tool。
+
 Extraction 是唯一會讓儲存區成長的操作：
 
 ```python
