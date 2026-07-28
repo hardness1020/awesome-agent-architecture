@@ -170,6 +170,7 @@ uv run python sections/01-agent-loop/src/demo.py  # 实时
 - **修正内容。** 这些都是从源码、文档和实际行为重建出来的。欢迎附上出处的修正。
 
 请优先采用有名字、可查证的机制，而不是臆测。记得引用出处。
+完整的 PR 检查清单见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 

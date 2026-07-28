@@ -170,6 +170,7 @@ uv run python sections/01-agent-loop/src/demo.py  # 即時
 - **修正內容。** 這些都是從原始碼、文件和實際行為重建出來的。歡迎附上出處的修正。
 
 請優先採用有名字、可查證的機制，而不是臆測。記得引用出處。
+完整的 PR 檢查清單見 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
