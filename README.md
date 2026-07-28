@@ -170,6 +170,7 @@ uv run python sections/01-agent-loop/src/demo.py  # live
 - **Correct the record.** These are reconstructions from source, docs, and behavior. Sourced corrections are welcome.
 
 Favor named, verifiable mechanisms over speculation. Cite sources.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 
 ---
 
