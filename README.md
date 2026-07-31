@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
   <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-3+-0969da" alt="Systems"></a>
-  <a href="#sections"><img src="https://img.shields.io/badge/Sections-22-2da44e" alt="Sections"></a>
+  <a href="#sections"><img src="https://img.shields.io/badge/Sections-23-2da44e" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
 </p>
 
@@ -63,9 +63,9 @@ Each system is a worked example for the sections below.
 
 | System                 | Why people use it                                                               | Read it for                        | Sections             | Version studied |
 | ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------- | -------------------- | --------------- |
-| **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 21 (all)        | v2.1.88         |
-| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere.            | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21 | v2026.7.1       |
-| **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20, 21 | v2.4.5 |
+| **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 22 (all)        | v2.1.88         |
+| **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
+| **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20 to 22 | v2.4.5 |
 | *(more soon)*        |                                                                                 |                                    |                      |                 |
 
 > More systems can be added later, including OpenClaw and aider.
@@ -113,12 +113,13 @@ Eight layers, from the basic loop to a harness that runs itself. Each row links 
 | 20 | [Observability &amp; evaluation](sections/20-observability/)  | How do we know it works?                           | Tracing, metrics, evals, failure analysis             |
 |    | **Layer 7 · Composition**                             |                                                    |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/)             | How do loops stack into a system that runs itself? | Verification loop, triggers, budgets, maturity levels |
+| 22 | [Graph engineering](sections/22-graph-engineering/)           | When does control flow move from the model to code? | Nodes, coded edges, cycles, agents as nodes           |
 
 ---
 
 ## Repository Structure
 
-All 22 section writeups are present, from `00-harness-thesis/` through `21-loop-engineering/`.
+All 23 section writeups are present, from `00-harness-thesis/` through `22-graph-engineering/`.
 
 ```text
 awesome-agent-architecture/
@@ -127,13 +128,13 @@ awesome-agent-architecture/
 │   ├── 00-harness-thesis/     # README.md per section
 │   ├── 01-agent-loop/src/     # runnable chain starts here
 │   ├── ...
-│   └── 21-loop-engineering/
+│   └── 22-graph-engineering/
 └── references/                # primary sources and prior art
 ```
 
 Each section folder is `NN-name/` and contains a `README.md`.
 
-Sections 1 to 21 also carry a runnable `src/`. The code accumulates section by section.
+Sections 1 to 22 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 Deep dives that outgrow one section live in their own repos.
@@ -143,7 +144,7 @@ Deep dives that outgrow one section live in their own repos.
 
 ## Running the Demos
 
-Sections 1 to 21 ship runnable demos. Set up once from the repo root:
+Sections 1 to 22 ship runnable demos. Set up once from the repo root:
 
 ```bash
 uv venv
@@ -193,3 +194,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): Composed building blocks for agent loops.
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): Goal conditions for autonomous workflows.
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): The improvement loop, with gates outside the loop.
+- [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): Nodes, edges, cycles, and agents as nodes.
+- [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): Workflows vs agents and the five workflow shapes.
+- [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): Routing in code and context isolation between nodes.

@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#研究的系统"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
   <a href="#研究的系统"><img src="https://img.shields.io/badge/Systems-3+-0969da" alt="Systems"></a>
-  <a href="#各章节"><img src="https://img.shields.io/badge/Sections-22-2da44e" alt="Sections"></a>
+  <a href="#各章节"><img src="https://img.shields.io/badge/Sections-23-2da44e" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
 </p>
 
@@ -63,9 +63,9 @@
 
 | 系统                     | 大家为什么用它                                                        | 值得看的地方                          | 覆盖章节                  | 研究版本  |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------- | ------------------------- | --------- |
-| **Claude Code**    | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起         | 0 到 21（全部）           | v2.1.88   |
-| **Hermes Agent**   | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。                | Memory、skills、always-on channels    | 7、9、14、16、19、21      | v2026.7.1 |
-| **mini-swe-agent** | 研究基准：一个 bash 工具，约 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20、21 | v2.4.5    |
+| **Claude Code**    | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起         | 0 到 22（全部）           | v2.1.88   |
+| **Hermes Agent**   | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22  | v2026.7.1 |
+| **mini-swe-agent** | 研究基准：一个 bash 工具，约 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 22 | v2.4.5    |
 | *(更多陆续加入)*       |                                                                       |                                       |                           |           |
 
 > 之后可以再加入更多系统，例如 OpenClaw 和 aider。
@@ -113,12 +113,13 @@
 | 20 | [Observability &amp; evaluation](sections/20-observability/README.zh-CN.md)  | 我们怎么知道它有效？                | Tracing, metrics, evals, failure analysis             |
 |    | **第 7 层 · 组合**                                                   |                                     |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/README.zh-CN.md)             | loop 怎么叠成一个能自己运转的系统？ | Verification loop, triggers, budgets, maturity levels |
+| 22 | [Graph engineering](sections/22-graph-engineering/README.zh-CN.md)           | 什么时候该让代码决定下一步，而不是问 model？ | Nodes, coded edges, cycles, agents as nodes           |
 
 ---
 
 ## 文件结构
 
-22 篇章节说明都已备齐，从 `00-harness-thesis/` 一路到 `21-loop-engineering/`。
+23 篇章节说明都已备齐，从 `00-harness-thesis/` 一路到 `22-graph-engineering/`。
 
 ```text
 awesome-agent-architecture/
@@ -127,13 +128,13 @@ awesome-agent-architecture/
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可执行的代码链从这里开始
 │   ├── ...
-│   └── 21-loop-engineering/
+│   └── 22-graph-engineering/
 └── references/                # 原始出处与前人成果
 ```
 
 每个章节文件夹都是 `NN-name/` 格式，里面有一份 `README.md`。
 
-第 1 到 21 章还带有可执行的 `src/`。代码一章一章累积上去。
+第 1 到 22 章还带有可执行的 `src/`。代码一章一章累积上去。
 每一章新增一个机制，并让 `loop.py` 演进，所以对比相邻两章的 diff，就能看出改了什么。
 
 超出单一章节篇幅的深入主题，会独立成自己的 repo。
@@ -143,7 +144,7 @@ awesome-agent-architecture/
 
 ## 运行示范
 
-第 1 到 21 章都附有可执行的示范。从 repo 根目录配置一次就好：
+第 1 到 22 章都附有可执行的示范。从 repo 根目录配置一次就好：
 
 ```bash
 uv venv
@@ -193,3 +194,6 @@ uv run python sections/01-agent-loop/src/demo.py  # 实时
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): 由模块组合出的 agent loop。
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): 自主工作流的目标条件。
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): 改进 loop，以及放在 loop 外的把关。
+- [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): node、edge、cycle，以及把 agent 当 node。
+- [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow 与 agent 的分界，加上五种 workflow 图形。
+- [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 用代码选路，以及 node 之间的 context 隔离。
