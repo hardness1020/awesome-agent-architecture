@@ -5,10 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
-  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-3+-0a7bbb?style=for-the-badge" alt="Systems"></a>
-  <a href="#sections"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
+  <a href="#sections"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
+  <a href="#systems-under-study"><img src="https://img.shields.io/badge/Systems-3+-0969da" alt="Systems"></a>
+  <a href="#sections"><img src="https://img.shields.io/badge/Sections-22-2da44e" alt="Sections"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
 </p>
 
 <p align="center">
@@ -69,12 +69,15 @@ Each system is a worked example for the sections below.
 | *(more soon)*        |                                                                                 |                                    |                      |                 |
 
 > More systems can be added later, including OpenClaw and aider.
+> The memory layer also has a companion repo: [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory).
 
 ---
 
 ## Sections
 
 Eight layers, from the basic loop to a harness that runs itself. Each row links to one self-contained writeup.
+
+> Section 9 continues in [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): ten more stages that scale its memory loop to production.
 
 ![The learning path](assets/learning-path.png)
 
@@ -132,6 +135,9 @@ Each section folder is `NN-name/` and contains a `README.md`.
 
 Sections 1 to 21 also carry a runnable `src/`. The code accumulates section by section.
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
+
+Deep dives that outgrow one section live in their own repos.
+[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) is the first: it scales the section 9 loop into a full memory subsystem.
 
 ---
 

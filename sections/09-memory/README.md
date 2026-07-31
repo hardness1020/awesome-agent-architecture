@@ -17,6 +17,9 @@ Memory must:
 
 Without memory, the agent repeats questions and forgets user preferences between sessions. If it saves everything, recall gets noisy and stale.
 
+This section builds the minimum loop. At production scale, memory grows into a subsystem of its own,
+with event logs, typed records, temporal facts, and hybrid retrieval. The [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) repo covers that.
+
 ---
 
 ## Mechanism
