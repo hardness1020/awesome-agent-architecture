@@ -1,0 +1,165 @@
+# 22 · Graph engineering
+
+[English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
+
+> 别再问 model 下一步跑什么。把你已经知道的流程写进代码，model 只用在需要判断的地方。
+
+第 21 章在一个 agent 外面堆叠 loop。这一章整理的是 model 调用和调用之间的流程。
+
+很多任务的流程，还没调用 model 你就知道了：先分类工单再处理、先 review diff 再 commit、先拿到批准再做对外的动作。
+普通的 agent loop 每次执行都靠问 model 下一步做什么，把这个流程重新摸索一遍。把 routing 交给 model 很慢、烧 token，而且每次跑都不一样。
+
+Graph engineering 就是把你已经知道的流程，用代码写成一张有向图（directed graph）：
+
+1. Node 负责做事。一个 node 可以是纯代码、一次 model 调用，或一整趟 agent 执行。
+2. Edge 决定下一个 node。由 harness 用代码判断，不用 model 调用。
+3. 允许 cycle。重试、review 后修改、人工暂停，都需要一条往回走的路。
+4. State 是一条在图上流动的记录。每个 node 读它，再把自己的更新写回去。
+
+流程写在代码里，要判断的地方才交给 model。loop（第 21 章）就是这种图的最小版本：两个 node 加一条往回的 edge。这一章把它扩展成 node 更多、接法更自由的图。
+
+---
+
+## 机制
+
+![机制图](assets/22-graph-engineering.png)
+
+最简单的版本只有三样东西。一个 dict 把 node 名称对到要跑的函数，另一个 dict 记着每个 node 跑完接谁。
+再加一个 state dict，每个 node 都从里面读数据、把自己的改动写回去，一路带到结束。
+
+```python
+def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
+    state = dict(state)
+    trace = []
+    node = start
+    for _ in range(budget):                        # the ceiling: harness-enforced
+        state.update(nodes[node](state) or {})     # a node returns only its updates
+        trace.append(node)
+        step = edges.get(node, END)
+        node = step(state) if callable(step) else step   # a coded edge: no model call
+        if node == END:
+            return {"ok": True, "state": state, "trace": trace}
+    return {"ok": False, "state": state, "trace": trace}   # budget spent: escalate
+```
+
+- `nodes` 是一张 dispatch map（第 2 章）。node 读 state，只返回自己改动的 key。
+- edge 可以是固定的名字（确定性的），也可以是吃 state 的函数（条件式的）。两种都由 harness 用代码判断，routing 不花任何 token。
+- 没有 edge 的 node 就是图的终点。budget 是第 21 章的上限：cycle 撞到上限就停，返回 `ok: False` 交给人。
+- `trace` 按顺序记下跑过哪些 node，就是这次执行留给第 20 章的记录。
+
+### Node：从纯代码到完整 agent
+
+每个 node 都在纯代码和完整 agent 之间选一个位置：
+
+- **Code node**：解析、验证、固定的 API 调用。确定性的，不花 token。
+- **Model node**：一次 LLM 调用，例如分类器。有限度的判断。
+- **Agent node**：一整个第 1 章的 loop，带着 tool。开放式的判断，但被固定在一个位置上。
+
+`agent_node` 把内层 loop 挂成一个 node。每次经过都用 state 组出 prompt，在全新的 `messages[]` 上跑 `run_turn`，
+所以这个 node 只看得到 prompt builder 给它的部分，不是整趟执行。
+
+怎么选？原则就是省 token：分支条件写得出来的，就交给代码；model 调用只留给真的需要判断的 node。
+
+### 常见的图形
+
+出处里叫得出名字的 workflow pattern，其实都是图形：
+
+- **Prompt chaining**：一串 node 排成一条路，中间用代码把关。
+- **Routing**：一条条件式 edge，分流到各个专门的 node。
+- **Parallelization**：几条同时跑的分支在一个 node 会合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
+- **Orchestrator-workers**：一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是动态的，但形状仍然是图。
+- **Evaluator-optimizer**：一个 worker node、一个 checker node，加一条往回的 edge。这就是第 21 章的验证 loop，放进图里变成一个子图。
+
+### 什么时候不要画图
+
+开放式的工作没办法预先定好流程。深度研究和难查的 bug 需要边跑边规划；事先画死的图，反而挡住解法需要走的那条路。
+出处给的原则：只把你本来就要强制执行的结构写进图里（先分类再处理、先 review 再 commit、先批准再发出），
+而且只在确实改善结果时才加结构。其他的都交给普通的 loop，让 model 自己规划。
+
+最常见的其实是混合式：把 agent 当成固定图里的一个 node。图保证 review 一定会发生，agent 决定在自己的位置里怎么把事做完。
+
+### 如何整合
+
+这一章只加了一个小组件（edge map），其他都沿用前面的：
+
+- node 做的事就是第 1 章的 loop；`agent_node` 原封不动包住 `run_turn`。
+- 代码判断的 edge 沿用第 2 章的 dispatch 纪律：查表，不是 model 的输出。
+- worker 和 checker 分属不同 node 是第 6 章；并行的分支用第 15 章的 worktree 隔离。
+- step budget 和交回给人的约定是第 21 章。
+- trace 交给第 20 章的 telemetry：看哪些 edge 有 fire，就知道哪些分支是死的。
+
+可执行程序接的就是上面那张图：
+
+```python
+nodes = {                                          # src/demo.py
+    "classify": lambda s: {"route": "math" if any(c.isdigit() for c in s["task"]) else "prose"},
+    "math": agent_node(prompt, model, math_reg),   # a full agent run as one node
+    "prose": agent_node(prompt, model, Registry()),
+    "check": check_node,                           # section 21's checker, now a node
+}
+edges = {
+    "classify": lambda s: s["route"],              # a coded edge: routing costs no tokens
+    "math": "check",
+    "prose": "check",
+    "check": lambda s: END if s["verdict"]["passed"] else s["route"],   # the cycle
+}
+```
+
+---
+
+## 各系统做法
+
+各个 agent 怎么决定下一步跑什么。
+
+| | Claude Code | Hermes Agent | mini-swe-agent |
+| --- | --- | --- | --- |
+| **Pros** | Routing 是代码：不花 token、不会变来变去。续跑时跑完的 node 从记录重放。 | 不用事先画图，任务长什么样，结构就长什么样。 | 整张图一眼就能看完。 |
+| **Cons** | 图活在单次执行的 script 里，不是可以重用的声明式图。 | Routing 花 model 的 token，每次跑可能不一样。 | 所有任务共用同一个形状，没有分支可以特化。 |
+| **Why** | 把编排当成程序：script 写好一次，harness 每次都确定性地执行。 | 假设助理型工作太开放，结构没办法预先声明。 | 一个 baseline：所有选择都留在 model 里，harness 只留一个 cycle。 |
+| **How: nodes** | 一个 node 一个 subagent，返回通过 schema 验证的结构化输出。 | 委派出去的 subagent，深度和并行数都有上限。 | 两个：一个 model step、一个 environment step。 |
+| **How: routing** | 阶段之间用普通的 script 代码：条件、循环、pipeline、并行分发。 | model 用 tool call 选路，没有写在代码里的 edge。 | 一个固定的 cycle，跑到 model 提交或 budget 用完为止。 |
+| **How: state** | 阶段的返回值往下传；journal 记下每个 node 的输出供续跑。 | 结果经过 completion queue 回到调用方。 | message list 就是全部的 state。 |
+
+---
+
+## 哪里会出错
+
+- **Model 当 router（Model as router）**：把选路交给 model，烧 token、增加延迟，而且每次跑不一样。最上游选错一次，后面全部跟着错。
+  缓解：转移用代码判断；model 调用留给需要判断的 node。
+- **过度画图（Over-graphing）**：需要探索的任务被固定的图框住，解法要走的路被挡掉。
+  缓解：只把本来就要强制执行的结构写进图里；开放式的工作留给普通的 loop。
+- **没有失败的路（No failure edge）**：负责检查的 node 遇到 FAIL 却无路可送，烂输出就一路流到下游。
+  缓解：每个检查 node 都给一条带 budget 的往回 edge（第 21 章）。
+- **没有上限的 cycle（Unbounded cycle）**：没有上限的重试 edge 会永远绕下去。缓解：harness 强制执行的 step budget；budget 用完就交给人。
+- **State 膨胀（State bloat）**：每个 node 都把完整输出倒进共用的 state，后面的 node 被淹没。
+  缓解：严格的 state 边界；node 只读需要的子集，只返回自己的更新（第 8 章）。
+- **跑到一半挂掉（Mid-run death）**：一张长图在第七个 node 挂掉，重来却从第一个 node 开始。
+  缓解：记下每个 node 的输出；续跑时跑完的 node 从记录重放（第 11、12 章）。
+
+---
+
+## 可执行程序
+
+[`src/`](src/) 把 21 带了过来，并加上：
+
+- [`graph.py`](src/graph.py)：`run_graph`（node 的 dispatch map、固定和条件式的 edge、一路传下去的 state、step budget）和 `agent_node`，把内层 loop 挂成一个 node。
+- [`test.py`](src/test.py)：离线检查串接顺序和 state 合并、纯代码的 routing、cycle 撞到 budget 就停，以及 agent node 每次经过都用全新的 `messages[]`。
+- [`demo.py`](src/demo.py)：照着图实际跑一趟：code node 分类、代码 edge 选路、agent node 作答、第 21 章的 checker 评分，没过就带着 feedback 绕回去。
+
+loop 本身完全没改。什么时候轮到它跑，由图决定。
+
+```bash
+python sections/22-graph-engineering/src/test.py         # offline checks, no key
+uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a key
+```
+
+---
+
+## 出处
+
+- [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph)：node、edge、cycle、把 agent 当 node，以及什么时候不要画图。
+- [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)：workflow 与 agent 的分界，加上五种 workflow 图形。
+- [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/)：用代码选路、node 之间的 context 隔离、在 workflow 的 node 上挂 agent。
+- [Claude Code](https://code.claude.com/docs)：`Workflow` script 的约定（pipeline、并行分发、结构化输出、续跑）。内容依据 tool schema 和文档记载的行为，不是 source backup。
+- [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 与 budget、`run/benchmarks/swebench.py`。
