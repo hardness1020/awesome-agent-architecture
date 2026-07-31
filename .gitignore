@@ -18,3 +18,5 @@ __pycache__/
 # Claude Code local settings
 .claude
 CLAUDE.md
+
+docs

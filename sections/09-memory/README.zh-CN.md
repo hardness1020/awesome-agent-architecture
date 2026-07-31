@@ -17,6 +17,9 @@
 
 没有记忆，agent 会重复提问，并在不同 session 之间忘记用户的偏好。如果它什么都存，回想就会变得杂乱又过时。
 
+这一章先把最小可行的 loop 做出来。到了 production 规模，memory 会变成一个独立的子系统，
+有 event log、typed record、temporal facts 和 hybrid retrieval，细节收在 [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) 这个 repo。
+
 ---
 
 ## 机制

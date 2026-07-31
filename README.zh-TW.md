@@ -5,10 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-6e40c9?style=for-the-badge" alt="Focus: Harness Engineering"></a>
-  <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-3+-0a7bbb?style=for-the-badge" alt="Systems"></a>
-  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-22-green?style=for-the-badge" alt="Sections"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"></a>
+  <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
+  <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-3+-0969da" alt="Systems"></a>
+  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-22-2da44e" alt="Sections"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
 </p>
 
 <p align="center">
@@ -69,12 +69,15 @@
 | *(更多陸續加入)*       |                                                                       |                                       |                           |           |
 
 > 之後可以再加入更多系統，例如 OpenClaw 和 aider。
+> memory 這一層另外有一個專門的 repo：[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)。
 
 ---
 
 ## 各章節
 
 八層，從最基本的 loop 一路到能自己運轉的 harness。每一列都連到一篇可獨立閱讀的說明。
+
+> 第 9 章在 [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) 繼續往下走：再用十個階段，把它的 memory loop 放大到 production 規模。
 
 ![The learning path](assets/learning-path.png)
 
@@ -132,6 +135,9 @@ awesome-agent-architecture/
 
 第 1 到 21 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
 每一章新增一個機制，並讓 `loop.py` 演進，所以對比相鄰兩章的 diff，就能看出改了什麼。
+
+超出單一章節份量的深入主題，會獨立成自己的 repo。
+第一個是 [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)，把第 9 章的 memory loop 放大成完整的子系統。
 
 ---
 
