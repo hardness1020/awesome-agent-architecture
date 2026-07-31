@@ -9,6 +9,7 @@ A harness can only do what its tools let it do, and every built-in tool is prede
 That does not scale to the services a user wants: issue trackers, deploy systems, knowledge bases. You cannot hand write a tool for each, in each language it uses.
 
 MCP (Model Context Protocol) is the open contract that closes the gap. An external service declares its tools, and the agent calls them blind, not knowing who wrote them or how.
+In MCP terms the service is the server, and the harness that connects and calls is the client.
 
 So the agent gains a Jira tool or a deploy tool without anyone editing the harness. Leave MCP out and capability is frozen at whatever shipped in the binary.
 
@@ -28,6 +29,29 @@ Names are namespaced `mcp__<server>__<tool>` so two servers never collide. The l
 - The name is namespaced and normalized, so it is unique and matches the API's name pattern.
 - Each tool's MCP annotations (`readOnlyHint`, `destructiveHint`) become the permission hints the gate reads (section 3).
 - Merged into the one `Registry`, the model sees MCP tools and built-ins in the same list.
+
+### The wire protocol under it
+
+The 2026-07-28 spec revision made the wire stateless. Every request now stands alone, so any server replica can answer it.
+The harness side above (discover, wrap, merge) does not change. What changed on the wire:
+
+- **No more handshake.** Before, a client called `initialize` and waited before doing anything else.
+  Now any request can go first; each one carries its own protocol version and capabilities in `_meta`.
+  A client that wants to check versions up front calls `server/discover`.
+- **No more sessions.** Before, the server kept per-connection state behind a session header.
+  Now a server that needs state across calls returns a handle, and the client passes it back as a normal tool argument.
+- **One notification stream.** Before, a client held a long GET connection open to hear about changes.
+  Now it opens one `subscriptions/listen` stream and names the events it wants (a changed tool list, a changed resource).
+  List results also carry a `ttlMs` field that says how long the client may cache them.
+- **The server asks by replying, not by calling back.** Before, a server could send its own request to the client
+  mid-tool-call (ask the user a question, ask the model to sample). Now it returns an interim result marked
+  `input_required`, and the client retries the same request with the answer attached.
+- **Fewer features.** Roots, Sampling, Logging, and the old HTTP+SSE transport are deprecated.
+  Two transports remain official: stdio for local servers, Streamable HTTP for remote ones.
+
+For someone using an agent, nothing changes on screen: old servers keep working, and v1 SDKs stay maintained.
+The gains land underneath: remote servers scale behind a load balancer, the first call skips a round trip, and a cached tool list saves tokens.
+Servers on a deprecated feature get a twelve-month window to migrate. That work falls on the server author, not the user.
 
 ### New: wrapping a discovered tool
 
@@ -145,8 +169,10 @@ How the harness reaches outside itself.
 
 - **Name collisions.** Two servers both expose `search`. The `mcp__server__tool` namespace prevents clashes; a server name with `__` still parses wrong, so keep names simple.
 - **Tool-list bloat.** Many servers make a large tool list that costs tokens and confuses selection (section 2). Mitigation: truncate descriptions and defer loading.
-- **Stale pool after connect.** A server added mid-session is not in the cached tool list, so the model never sees it. Mitigation: rebuild pool and prompt on change (section 8).
+- **Stale pool after connect.** A server added mid-session is not in the cached tool list, so the model never sees it.
+  Mitigation: rebuild pool and prompt on change (section 8); the 2026-07-28 spec adds `toolsListChanged` over `subscriptions/listen` and `ttlMs` hints for this.
 - **Connection churn.** A flaky server times out, resets, or expires its token. Mitigation: reconnect after repeated failures, re-auth on `401`, time out each call (section 11).
+  The stateless revision drops stream resumability, so a broken in-flight request is re-issued as a new one, not resumed.
 - **Over-trusted side effects.** A server marks a destructive tool `readOnlyHint: true` to skip the prompt. Mitigation: a rule on the qualified name gates it anyway (section 3).
 
 ---
@@ -177,4 +203,8 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 - [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code): `plugins/builtinPlugins.ts`, `plugins/bundled/`, `types/plugin.ts`, plus `remote/` and `bridge/`.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `mcp_serve.py`, `hermes_cli/plugins.py` (`PluginManager`, `VALID_HOOKS`), `gateway/platforms/`, `gateway/platform_registry.py`, `plugins/platforms/`.
+- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) and its
+  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog): stateless protocol, `server/discover`, `subscriptions/listen`, MRTR, deprecations.
+- MCP blog: [the future of transports](https://blog.modelcontextprotocol.io/posts/2025-12-19-mcp-transport-future/) (why the protocol went stateless),
+  [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/) (v2 SDKs, backward compatibility).
 - Framing: [learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code).

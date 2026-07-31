@@ -9,6 +9,7 @@
 這無法擴展到使用者想要的各種服務：issue tracker、部署系統、知識庫。你沒辦法為每一個服務、用它各自的語言，都寫一個專屬工具。
 
 MCP（Model Context Protocol）就是填補這道缺口的開放標準。一個外部服務宣告它的工具，agent 則盲呼叫它們，不需要知道是誰寫的、怎麼寫的。
+用 MCP 的說法，提供工具的那個服務就是 server，負責連線和呼叫的 harness 就是 client。
 
 於是 agent 不需要任何人動 harness，就得到了 Jira 工具或部署工具。少了 MCP，agent 的能力就停在安裝當下內建的那一套，之後加不了新的。
 
@@ -28,6 +29,29 @@ MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server �
 - 名稱加了命名空間並經過正規化，所以它是唯一的，也符合 API 的名稱樣式。
 - 每個工具的 MCP annotation（`readOnlyHint`、`destructiveHint`）成為 gate 讀取的權限提示（第 3 章）。
 - 合併進那一個 `Registry` 之後，模型會在同一份清單裡看到 MCP 工具與內建工具。
+
+### 底層的 wire protocol
+
+2026-07-28 版的 spec 把 protocol 本身改成了 stateless：每個 request 都是獨立的，哪台 server 副本都能接。
+上面 harness 端做的事（探索、包裝、合併）都不變。變的是 client 跟 server 之間實際往來的訊息：
+
+- **不用握手了。** 以前 client 得先呼叫 `initialize`、等 server 回應，才能做別的事。
+  現在任何 request 都能直接發，每個 request 自己在 `_meta` 裡帶上 protocol 版本和能力。
+  想先確認版本，就呼叫 `server/discover` 問 server。
+- **沒有 session 了。** 以前 server 靠一個 session header 幫每條連線記狀態。
+  現在 server 若需要跨呼叫記東西，就回傳一個 handle，client 之後當成普通的工具參數帶回來。
+- **通知走一條 stream。** 以前 client 得掛著一條 GET 連線聽變動。
+  現在它開一條 `subscriptions/listen` stream，指名要聽哪些事件（工具清單變了、resource 變了）。
+  list 的結果也多了 `ttlMs` 欄位，告訴 client 可以 cache 多久。
+- **server 用回覆提問，不再回頭呼叫。** 以前 server 可以在工具跑到一半時，反過來對 client 發 request
+  （問使用者一個問題、請模型 sample）。現在它回傳一個標著 `input_required` 的中間結果，
+  client 把答案附上，重發同一個 request。
+- **功能變少了。** Roots、Sampling、Logging 和舊的 HTTP+SSE transport 都列為 deprecated。
+  官方 transport 剩兩種：本地用 stdio，遠端用 Streamable HTTP。
+
+對用 agent 的人來說，畫面上什麼都沒變：舊 server 照常運作，v1 SDK 也繼續維護。
+好處都出現在使用者看不到的地方：遠端 server 能掛在 load balancer 後面擴展，第一次呼叫少一趟來回，cache 住的工具清單也省 token。
+用到 deprecated 功能的 server 有十二個月的窗口可以遷移。那是 server 作者要做的事，不是使用者的事。
 
 ### New: 包裝探索到的工具
 
@@ -143,8 +167,10 @@ harness 如何伸手觸及自身之外。
 
 - **撞名（Name collisions）：**兩個 server 都公開 `search`。`mcp__server__tool` 命名空間避免了衝突；但一個名稱含 `__` 的 server 仍會被解析錯誤，所以名稱要保持簡單。
 - **工具清單膨脹（Tool-list bloat）：**太多 server 會造成龐大的工具清單，既花 token 又干擾選擇（第 2 章）。緩解：截斷描述並延後載入。
-- **connect 之後池過時：**一個在 session 中途加入的 server 不在 cache 的工具清單裡，於是模型永遠看不到它。緩解：變動時重建池並重建 prompt（第 8 章）。
+- **connect 之後池過時：**一個在 session 中途加入的 server 不在 cache 的工具清單裡，於是模型永遠看不到它。緩解：變動時重建池並重建 prompt（第 8 章）；
+  2026-07-28 版的 spec 為此加了走 `subscriptions/listen` 的 `toolsListChanged` 通知和 `ttlMs` 提示。
 - **連線抖動（Connection churn）：**一個不穩的 server 會逾時、重置，或 token 過期。緩解：反覆失敗後重連、`401` 時重新驗證、為每次呼叫設逾時（第 11 章）。
+  stateless 版拿掉了 stream 續傳，所以中斷的 request 要當成一個新 request 重發，不是接著傳。
 - **被過度信任的副作用：**一個 server 把具破壞性的工具標成 `readOnlyHint: true` 以跳過提示。緩解：以完整名稱設一條規則照樣 gate 它（第 3 章）。
 
 ---
@@ -172,4 +198,8 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 - [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code)：`config.ts`（precedence）、`channelNotification.ts`（`CHANNEL_TAG`），加上 `McpAuthTool`、`ListMcpResourcesTool`、`ReadMcpResourceTool`。
 - [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code)：`plugins/builtinPlugins.ts`、`plugins/bundled/`、`types/plugin.ts`，加上 `remote/` 與 `bridge/`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`mcp_serve.py`、`hermes_cli/plugins.py`（`PluginManager`、`VALID_HOOKS`）、`gateway/platforms/`、`gateway/platform_registry.py`、`plugins/platforms/`。
+- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) 與它的
+  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)：stateless protocol、`server/discover`、`subscriptions/listen`、MRTR、deprecation 清單。
+- MCP blog：[the future of transports](https://blog.modelcontextprotocol.io/posts/2025-12-19-mcp-transport-future/)（protocol 為什麼走向 stateless）、
+  [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/)（v2 SDK 與向後相容）。
 - 章節定位：[learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code)。
