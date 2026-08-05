@@ -14,6 +14,14 @@ context management 让 session 保持可用。它会在下一次 model call 之�
 2. 调用会变得更慢也更贵。
 3. 旧的、比较没用的内容，会和当前任务的信息互相竞争。
 
+第 3 点有个名字：context rot。无关的内容越堆越多，模型抓信息的准度就越差，而且远在 window 塞满之前就开始了。
+agent 还是跑得动，只是判断变差。
+
+除了塞不下和成本，压缩还有第二个理由。in-context learning 的行为比较像检索，不像推理。
+attention 找得到写在上下文里的某一件事，但要它把散在几十轮对话里的事实兜起来，就不太靠得住。
+与其让模型每次调用都从原始 log 重推一遍，不如先整理成一段短摘要喂给它。
+所以压缩做得好，就算 window 还有空间，回答质量也会变好。
+
 没有这一层，一旦 prompt 塞不下，长任务就会失败。
 
 ---
@@ -37,6 +45,26 @@ reactive -> 截掉开头并重新摘要，有重试上限
 ```
 
 顺序很重要。举例来说，大型的 tool 结果应该先被持久化，之后任何 pass 才可以用 stub 替换它的本体。
+
+换上去的那段文字本身也要稳定。stub 字符串第一次产生时就固定下来，之后每次都要一模一样，连 session 从磁盘还原之后也一样。
+stub 如果每次重算，带上新的时间戳或新的路径，前缀就变了，cache 也就白做了。
+
+这个 cache 成本同时决定了触发时机。历史只要被改一次，改动点之后的 cache 全部失效。
+每个 turn 都修一点点，就是每个 turn 都重建一次。累积到 token 阈值再一次修完，只重建一次。
+所以压缩要成批做，跑在两次 API 调用之间，不能跑在一次调用里面。
+
+Claude API 提供了同样想法的服务器端版本。context editing 会把旧的 tool 结果从前缀里清掉，harness 这边一行代码都不用写。
+但它一样要重建一次 cache，所以位置应该靠近 overflow 那一端，不是每个 turn 都用。
+
+摘要留下什么，跟什么时候做一样重要。摘要要针对当前任务来写，而不是把整个 session 泛泛回顾一遍。
+task-aware 的摘要只回答一个问题：下一次调用还需要什么。要留的东西按这个顺序排：
+
+1. 已经定案的架构与设计决策。
+2. 新增或改过的文件，以及改了什么。
+3. 最近一次检查或测试的成败状态。
+4. 还没做完的 TODO，以及现在做到哪一步。
+
+最先该丢的是原始 tool 输出。大的结果 budget pass 早就写进磁盘了，真的需要再读回来就好。
 
 ### New: 缩减 pass
 
@@ -94,6 +122,9 @@ loop 仍然维持同样的不变条件：它用一个有效的 `messages[]` 调�
 - **单个巨大 turn 仍然 overflow：**对 `prompt_too_long` 做出反应，执行一次有界限的最后手段裁剪。
 - **pass 顺序错误而丢失数据：**在把旧结果 stub 化之前，先持久化大型结果。
 - **拆散的 tool 配对：**不要把一个 `tool_use` 和它相配的 `tool_result` 拆开。
+- **stub 文字每次都不一样：**preview 若带着新的时间戳或路径重新产生，前缀就变了，cache 直接失效。stub 字符串第一次生成后就固定下来。
+- **每个 turn 都修一点：**每次改动都会让改动点之后的 cache 失效，小修小补反而比一次修完贵。用阈值触发，成批处理。
+- **模型全盘相信摘要：**注入的状态摘要，模型会当成事实读，几乎不会回头查证。摘要里留下指向原始文件的线索，写错了才追得回来。
 
 ---
 
@@ -115,9 +146,14 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 
 ## 来源
 
-- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`services/compact/autoCompact.ts`、`microCompact.ts`、`timeBasedMCConfig.ts`、`compact.ts`、`utils/toolResultStorage.ts`、`query.ts`、`query/tokenBudget.ts`。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`services/compact/autoCompact.ts`、`microCompact.ts`、`timeBasedMCConfig.ts`、
+  `compact.ts`、`utils/toolResultStorage.ts`、`query.ts`、`query/tokenBudget.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`config/mini.yaml` 的 observation template、`models/litellm_model.py` 的 `abort_exceptions`。
 - [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
+- [ai-agent-book · 第 2 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
+  context rot、in-context learning 其实是检索、压缩与 cache 的相互影响、针对任务的压缩与保留优先序、
+  API 层的 context editing、冻结的 tool 结果 stub，以及模型会把注入的摘要当成事实这个结论。
+- [Lost in the Middle](https://arxiv.org/abs/2307.03172)（Liu 等人，TACL 2024）：放在长上下文中段的事实，取用准确度会掉下来。这是 context rot 的依据。
 
 以下是推测，在上面那份 Claude Code 源码 repo 里找不到完整实现：
 

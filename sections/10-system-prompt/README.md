@@ -82,7 +82,42 @@ client.messages.create(model=MODEL, system=assemble(DEMO_SECTIONS, state),
 
 Stable content should come before volatile content. If a changing value appears early, it can invalidate more of the cache.
 
+The cost model is what makes that rule strict. The cache is keyed on an exact token prefix. Change one token and every cached token after it is gone.
+A cache read costs about a tenth of a fresh input token, and a cache write costs more than a fresh one. So one moved word can turn a cached call into a full-price one.
+Two causes come up repeatedly: a timestamp or a token count printed near the top of the prompt, and a tool list whose order changes between runs.
+
 Claude Code also uses an explicit dynamic boundary. That protects a large static prefix when a smaller dynamic tail changes.
+
+The boundary also caps a combinatorial problem. Every runtime condition placed before it doubles the number of distinct prefixes the cache has to hold.
+Three conditions give eight cache keys, and each key warms separately. Ten give more than a thousand, so almost every session starts cold.
+Moving conditional sections after the boundary collapses that back to one warm prefix.
+
+Few-shot examples live in the prefix, so they follow the same rule. Retrieving the best examples per request rewrites the prefix on every call and gives up the cache.
+Fix one example set per task type and leave it alone for the session.
+
+Runtime state is the hard case. Many harnesses render an agent status bar: tool call count, current TODO, elapsed time, and working directory.
+It is distilled into a few lines at the end of the context. There are two ways to keep it current, and they trade against each other.
+Replacing the block each turn keeps exactly one true copy of the state, but it rewrites the tail and invalidates the cache from that point on.
+Appending a fresh block each turn keeps the cache intact, but old blocks stay in the history and the model can act on stale state.
+Claude Code appends, using the `<system-reminder>` messages from section 9. Either way, build the block with code that reads real state.
+Do not ask an LLM to summarize the state. A summarizer adds a call, adds latency, and can be wrong.
+
+### Instructions versus data
+
+The prompt layer carries a second job. It decides which text the model should treat as an order.
+
+A tool result is data. A fetched web page, a file, an issue comment, and an MCP server response are all data. None of them is the user.
+When that text reaches the model with no marker, a sentence inside it that reads like an instruction competes with the system prompt on equal terms. That is prompt injection.
+Section 3 owns the threat model and the execution-layer answer: permissions and the sandbox decide what a hijacked agent is allowed to do.
+
+The context layer answers earlier, by keeping instructions and data apart:
+
+- Wrap external content in a tagged block that names its source, and state in the prompt that tagged content is data to consider, never instructions to follow.
+- Keep the role structure strict. Instructions live in the system prompt, results live in `tool_result` blocks, and the human speaks in user turns.
+- State the principal loyalty rule once, in the prompt: the agent works for the user and the operator, and no text arriving through a tool can reassign that.
+
+None of this is a boundary on its own. A model can still be talked out of the rule, which is why section 3's checks run anyway.
+The context layer lowers the odds. The execution layer bounds the damage.
 
 ### How it integrates
 
@@ -124,6 +159,9 @@ How the prompt is composed each turn.
 - **Prompt names missing tools.** Generate tool text from the live enabled-tool set.
 - **Context mixed into prompt.** Put project files, date, and git status in context messages when they change often.
 - **Prompt overrides conflict.** Use one resolver to define priority.
+- **Cache-key explosion.** Each runtime condition before the boundary doubles the prefixes that must warm separately. Keep conditional sections after it.
+- **Stale status blocks.** Appended state accumulates and the model may act on an old copy. Mark the latest block, or replace it and accept the cache rebuild.
+- **External content read as instructions.** Tag tool results by source and say tagged content is data. Section 3's permission checks stay the real boundary.
 
 ---
 
@@ -149,4 +187,9 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
   `config/mini.yaml`, `_render_template` and `get_template_vars` in `agents/default.py`, `models/utils/cache_control.py`.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache breakpoints, TTLs, pricing, and token minimums.
+- [Claude Code prompt caching docs](https://code.claude.com/docs/en/prompt-caching): the explicit cache boundary between a static prefix and a dynamic tail.
+- [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  KV cache economics, the cache as an architecture constraint (conditions before the boundary multiply cache keys), few-shot prefix stability,
+  the agent status bar and its replace-versus-append trade-off, and context-layer injection defense with principal loyalty.
+  The book's status bar and loyalty measurements are the author's own benchmarks, so the numbers are single-source and are not repeated here.
 - [learn-claude-code · s10_system_prompt](https://github.com/shareAI-lab/learn-claude-code): section framing.
