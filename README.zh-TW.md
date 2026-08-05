@@ -7,7 +7,7 @@
 <p align="center">
   <a href="#研究的系統"><img src="https://img.shields.io/badge/Focus-Harness_Engineering-8250df" alt="Focus: Harness Engineering"></a>
   <a href="#研究的系統"><img src="https://img.shields.io/badge/Systems-3+-0969da" alt="Systems"></a>
-  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-23-2da44e" alt="Sections"></a>
+  <a href="#各章節"><img src="https://img.shields.io/badge/Sections-24-2da44e" alt="Sections"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-d29922" alt="License"></a>
 </p>
 
@@ -63,9 +63,9 @@
 
 | 系統                     | 大家為什麼用它                                                        | 值得看的地方                          | 覆蓋章節                  | 研究版本  |
 | ------------------------ | --------------------------------------------------------------------- | ------------------------------------- | ------------------------- | --------- |
-| **Claude Code**    | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起         | 0 到 22（全部）           | v2.1.88   |
+| **Claude Code**    | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起         | 0 到 23（全部）           | v2.1.88   |
 | **Hermes Agent**   | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22  | v2026.7.1 |
-| **mini-swe-agent** | 研究基準：一個 bash 工具，約 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 22 | v2.4.5    |
+| **mini-swe-agent** | 研究基準：一個 bash 工具，約 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 23 | v2.4.5    |
 | *(更多陸續加入)*       |                                                                       |                                       |                           |           |
 
 > 之後可以再加入更多系統，例如 OpenClaw 和 aider。
@@ -111,6 +111,7 @@
 |    | **第 6 層 · 擴充與整合**                                             |                                     |                                                       |
 | 19 | [MCP / plugins / channels](sections/19-mcp-plugins-channels/README.zh-TW.md) | harness 怎麼連到外面的世界？        | Transports, channels, tool pool assembly              |
 | 20 | [Observability &amp; evaluation](sections/20-observability/README.zh-TW.md)  | 我們怎麼知道它有效？                | Tracing, metrics, evals, failure analysis             |
+| 23 | [Evaluation](sections/23-evaluation/README.zh-TW.md)                         | 怎麼知道這次改動有沒有讓它變好？    | Eval environments, resets, judges, Pass^k             |
 |    | **第 7 層 · 組合**                                                   |                                     |                                                       |
 | 21 | [Loop engineering](sections/21-loop-engineering/README.zh-TW.md)             | loop 怎麼疊成一個能自己運轉的系統？ | Verification loop, triggers, budgets, maturity levels |
 | 22 | [Graph engineering](sections/22-graph-engineering/README.zh-TW.md)           | 什麼時候該讓程式碼決定下一步，而不是問 model？ | Nodes, coded edges, cycles, agents as nodes           |
@@ -119,7 +120,7 @@
 
 ## 檔案結構
 
-23 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `22-graph-engineering/`。
+24 篇章節說明都已備齊，從 `00-harness-thesis/` 一路到 `23-evaluation/`。
 
 ```text
 awesome-agent-architecture/
@@ -128,13 +129,13 @@ awesome-agent-architecture/
 │   ├── 00-harness-thesis/     # 每章一份 README.md
 │   ├── 01-agent-loop/src/     # 可執行的程式碼鏈從這裡開始
 │   ├── ...
-│   └── 22-graph-engineering/
+│   └── 23-evaluation/
 └── references/                # 原始出處與前人成果
 ```
 
 每個章節資料夾都是 `NN-name/` 格式，裡面有一份 `README.md`。
 
-第 1 到 22 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
+第 1 到 23 章還帶有可執行的 `src/`。程式碼一章一章累積上去。
 每一章新增一個機制，並讓 `loop.py` 演進，所以對比相鄰兩章的 diff，就能看出改了什麼。
 
 超出單一章節份量的深入主題，會獨立成自己的 repo。
@@ -144,7 +145,7 @@ awesome-agent-architecture/
 
 ## 執行示範
 
-第 1 到 22 章都附有可執行的示範。從 repo 根目錄設定一次就好：
+第 1 到 23 章都附有可執行的示範。從 repo 根目錄設定一次就好：
 
 ```bash
 uv venv
@@ -197,3 +198,4 @@ uv run python sections/01-agent-loop/src/demo.py  # 即時
 - [LangChain · 3 years of graph engineering](https://www.langchain.com/blog/3-years-of-graph-engineering-with-langgraph): node、edge、cycle，以及把 agent 當 node。
 - [Anthropic · Building effective agents](https://www.anthropic.com/engineering/building-effective-agents): workflow 與 agent 的分界，加上五種 workflow 圖形。
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/): 用程式碼選路，以及 node 之間的 context 隔離。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): 《深入理解 AI Agent》（李博杰著，Apache-2.0）。第 6 章是評估這一章的主要出處。

@@ -17,7 +17,7 @@ This checklist is what reviewers check on every PR.
   A source should back a claim the section text makes.
 - Nothing goes after the per-system table except its closing rule.
 - Benchmarks go in the section they evaluate. General agent and harness evaluation
-  belongs in section 20. Memory benchmarks belong in section 9 and the
+  belongs in section 23. Memory benchmarks belong in section 9 and the
   production-memory track. Group entries by purpose, one line each on what it measures,
   with paper and canonical repo links.
 
