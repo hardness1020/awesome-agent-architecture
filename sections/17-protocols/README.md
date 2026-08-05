@@ -4,7 +4,8 @@
 
 > Give messages a contract: approve before acting, confirm before stopping.
 
-Coordination (section 16) gives agents a channel, but a channel only moves text. Text alone has no rules: nothing tells a request from a reply, and nothing makes one side wait for an answer before acting.
+Coordination (section 16) gives agents a channel, but a channel only moves text.
+Text alone has no rules: nothing tells a request from a reply, and nothing makes one side wait for an answer before acting.
 
 A protocol is the agreed rule on top of the channel: how a request and its reply are shaped, and how a reply is matched to the request it answers.
 
@@ -20,6 +21,8 @@ A protocol must:
 2. Correlate each reply to the request it answers.
 3. Gate a risky plan before any work starts.
 4. Stop an agent without losing work in flight.
+5. Stop a whole fan out once one worker wins, and settle that race exactly once.
+6. Reach an agent outside the team, across a trust boundary.
 
 Without this layer, coordination is unstructured chat. Nothing is gated, nothing stops cleanly, and a reply cannot be matched to what it answers.
 
@@ -39,7 +42,8 @@ Three rules make it a protocol, not just two messages:
 - **Correlation id.** `requestId` is set when the request goes out and echoed in the reply. The sender knows which pending request a reply resolves.
 - **A small state machine.** A request goes `pending` then `approved` or `rejected`. A reply for an already resolved id is ignored, so duplicates are harmless.
 
-The shutdown and plan flows are the same exchange in opposite directions. In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
+The shutdown and plan flows are the same exchange in opposite directions.
+In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
 
 The approval can also carry the permission mode the work runs under, so the verdict and the mode travel together (section 3).
 
@@ -140,6 +144,43 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 - The plan-approval flow is the symmetric inverse (`ExitPlanMode` then `ApprovePlan`), driven by the same tools and proven in test.py.
 - The loop does not change. Protocols wrap a turn by shaping requests and resolving replies on the channel.
 
+### Beyond one teammate: the cascade stop
+
+The demo stops one teammate. The same exchange has a second use once a lead runs several workers on one problem and needs only one answer.
+
+The lead fans out, the first worker to succeed reports back, and the lead then sends a stop to every other worker.
+Each stop is the same request and confirm, so a losing worker still flushes its file and closes its task record.
+The cascade is a fan out of the shutdown flow, not a new message type.
+
+Two workers can succeed in the same instant. Without a guard both count as first, the lead runs the cascade twice, and two results get recorded.
+A lock around the decision settles it. The winner takes the lock, writes the winner field, and releases it.
+The second worker takes the lock next, sees the field already set, and returns without cascading. The race resolves once, whatever the arrival order.
+
+A graceful stop can also never land. A worker inside a long tool call never reads its inbox, so no confirmation comes back.
+So the stop has two tiers. The lead requests, waits for the confirm up to a deadline, then force kills whatever is still alive.
+The forced tier is the fallback, not the default, so cleanup runs whenever there is time for it.
+
+The two tier stop and the settle-once lock come from a single experiment run by the book's own author, so read them as one source, not a surveyed practice.
+
+### Beyond the team: A2A
+
+Everything above assumes one team, one process, one owner. The channel is shared, the roster is known at spawn, and every agent trusts the ids on the wire.
+
+Across organizations none of that holds. There is no shared inbox to stamp a `request_id` on, the other side's roster is not visible, and its tool list cannot be trusted.
+A2A is the protocol for that boundary. It keeps the request and reply core and adds three parts.
+
+- **Agent Card discovery.** Each agent publishes a document at a known URL: name, skills, endpoint, and how to authenticate.
+  A caller reads the card first, then decides what to send. Inside the team the roster arrives at spawn time. Across a boundary it has to be fetched.
+- **A task lifecycle.** A remote call is a task with an id and a state: `submitted`, `working`, `input-required`, `completed`, `failed`. The caller polls or subscribes on that id.
+  `input-required` is the state this section has no name for: the remote agent pauses, asks for more information, and the task stays alive while it waits.
+- **Opaque artifacts.** Results come back as artifacts (files, text, structured parts), never as the remote agent's trajectory.
+  The caller cannot see how the work was done, which is what keeps the boundary a boundary.
+
+The two state machines differ in scope, and that is the part worth carrying back.
+This section's `pending` to `approved` or `rejected` is per request: it lives exactly as long as one exchange.
+A2A's states are per task: one task spans many messages, pauses on `input-required`, and resumes after the caller answers.
+A cross boundary caller needs both. Per request states keep one exchange honest. Per task states keep a long job addressable after a connection drops.
+
 ---
 
 ## Per system
@@ -164,6 +205,12 @@ How one design shapes requests, gates plans, and stops agents cleanly.
 - **Type confusion.** Matching a reply by id alone lets a shutdown reply resolve a plan request. Check that the reply variant matches the recorded request type.
 - **Approval without enforcement.** An approved plan still needs the permission layer to gate execution (section 3). Carry the `permissionMode` in the response.
 - **Duplicate replies.** A retried reply can flip an already resolved state. Treat any reply to a non pending id as a no op.
+- **Cascade without a lock.** Two workers finish in the same instant, both count as first, and the lead stops the fan out twice and records two winners.
+  Take a lock before the first success is written, and let a later winner return without cascading.
+- **Graceful stop with no deadline.** A worker busy in a long tool call never reads the request, so the confirm never arrives and the lead waits forever.
+  Put a deadline on the wait and force kill after it, so the graceful path stays the default without becoming the only path.
+- **A remote task treated as one request.** An agent across a trust boundary can pause and ask for more information, which is a task state, not a reply.
+  Track a task id and its state, so a paused job stays addressable after the exchange that started it ends.
 
 ---
 
@@ -190,3 +237,8 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 - [Claude Code plan and stop](https://github.com/yasasbanukaofficial/claude-code):
   `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tasks/stopTask.ts`, `coordinator/coordinatorMode.ts`.
 - [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter10.md` (多 Agent 协作), Chinese original canonical.
+  Graceful stop with cleanup and ack, forced kill as the fallback tier, and the first-success cascade with a lock so the race settles once.
+  The cascade and the two tier stop rest on the book's own experiment, a single source.
+- [A2A protocol](https://github.com/a2aproject/A2A) (Linux Foundation): Agent Card discovery, the task lifecycle states
+  (`submitted`, `working`, `input-required`, `completed`, `failed`), and opaque artifact exchange across a trust boundary.
