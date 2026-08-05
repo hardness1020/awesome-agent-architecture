@@ -20,6 +20,8 @@ harness 把那個名稱對應到程式碼。它驗證輸入、執行 handler，�
 
 如果只有一個 `bash` 工具，每一項能力都變成字串處理。沒有各別工具的驗證或權限邏輯。
 
+有兩種失敗常被算到模型頭上，其實都是從這一層開始的：description 彼此重疊，模型就挑錯工具；harness 半路改寫了 input，編輯就失敗。
+
 ---
 
 ## 機制
@@ -76,6 +78,75 @@ loop 主體其餘部分維持不變。只有 dispatch 這一步現在改用 regi
 `_dispatch` 是下一個延伸點。第 3 章在那裡加上權限關卡。第 4 章在那裡加上 hook。
 
 demo 為了清楚起見採依序 dispatch。真實的 runtime 會把安全呼叫批次化，並隨需載入龐大的工具 schema。
+接下來談的，都是目錄一變大就會冒出來的東西。
+
+### Grouping and granularity
+
+一份扁平的 registry 看不出目錄長什麼樣子。工具依呼叫往哪個方向走、又碰到什麼，可以分成五類：感知（讀外面的世界）、
+執行（改動它）、協作（找上另一個 agent）、事件觸發（讓外界把 agent 叫醒），還有跟使用者溝通（找上人）。
+第 6、12、16 章做協作那一類，第 13、14 章做事件觸發，第 19 章做跟使用者溝通的管道。這一章做的，是這五類都得靠的那一層。
+
+粒度是同一類裡面的選擇。功能和用途重疊的工具就合併：一個 `read_document` 帶一個型別參數，比每種檔案格式各配一個讀取工具好用。
+參數差很多的就拆開，因為一堆互不相干的欄位湊在一起，模型看不出哪些才該填，schema 一過載就容易挑錯參數。
+
+### Describing a tool
+
+`description` 不是文件。模型在挑工具之前，能看到的只有它。寫得好的 description 會講清楚什麼時候該用、哪些事它不做、
+幾個具體的參數例子、回傳長什麼樣，還有呼叫它要付多少代價。與其再多寫幾句說明，不如附上幾個真實的呼叫範例。
+書裡說加了範例效果提升很多，但那個數字沒有出處，所以只取方向，別當成量級。
+
+接著 harness 要把 input 原封不動地交下去。把引號正規化、把空白修掉，或是塞進一個模型根本沒寫的參數，都會讓呼叫壞在模型看不見的地方：
+它送出的 input 是對的，結果卻說編輯沒對上，transcript 裡也找不到任何線索。該驗證就驗證、該拒絕就拒絕，就是不要偷偷改寫。
+
+有些參數存在的目的就是被忽略。像 `expected_price`、`expected_status` 這種檢查用的參數，逼模型在呼叫真的跑起來之前，先講出它以為的狀況。
+handler 一律不照著它做事，而是去讀存下來的真實資料、依那份資料做決定，然後把對不上的地方記下來，最後一道關卡站的就是模型偽造不了的資料。
+τ-bench 的評分也是這個做法：看資料庫最後的狀態，不看 agent 自己怎麼說。
+
+### Perception interfaces
+
+感知工具回傳的東西常常塞不下。所以搜尋一次只回一頁候選，外加一個 cursor；讀取吃 offset 和 limit；截斷一定要標出來，不能默默做掉。
+程式碼搜尋最看得出這幾條規則的差別。四種做法，而且沒有系統只用其中一種：
+
+| 做法 | 找得到什麼 | 代價 |
+| --- | --- | --- |
+| **Glob** | 依路徑樣式找檔案。 | 對內容一無所知。 |
+| **Grep** | 精確字串和 regex，附行號。 | 要呼叫好幾次才收斂。同義詞找不到。 |
+| **Embedding 索引** | 依語意找程式碼，用白話問也問得到。 | 索引要建、還要一直同步。排序說不清楚。 |
+| **LSP symbols** | 定義、參照、型別，一找一個準。 | 每種語言都要一個 language server。 |
+
+Claude Code 不建索引，靠 agent 自己搜：先 glob、再 grep、然後讀檔，每次呼叫之間再把範圍收窄。Cursor 花成本養索引，換到的是白話查詢也找得回東西。
+
+編輯這邊的分歧一樣大。要講清楚改了什麼，有五種寫法：
+
+| 方案 | 模型送出什麼 | 取捨 |
+| --- | --- | --- |
+| **diff 加 apply model** | 一份粗略的骨架 diff，再由第二個訓練過的 model 改寫。 | 快，也容錯。但得多養一個 model。 |
+| **舊字串換新字串** | 要找的原文，以及要換上去的文字。 | 沒有歧義，錯了會直接報錯。前提是先讀過檔案。 |
+| **行號** | 一段行號範圍加上替換內容。 | 很省字。但前面一改，行號就過期。 |
+| **編輯器指令** | 一套小型指令語言，vim 那種。 | 很精簡。但又多一套語法可以寫錯。 |
+| **錨點** | 一個起點標記加一個終點標記。 | 檔案位移也不怕。但標記重複時會有歧義。 |
+
+Claude Code 走的是精確的舊字串替換，而且寫之前一定要先讀，所以對不上就是一個看得見的錯誤，不會變成一次改錯的編輯。
+Cursor 只送骨架，交給訓練過的 apply model 把檔案重寫一遍，這樣比叫模型吐出一份精準的 patch 還快。
+
+### Running calls: early start and shell state
+
+能重疊的不只是批次。一個呼叫只要自己的參數解析完就可以先跑起來，這時模型還在生成同一批的其他呼叫。
+延遲就這樣藏進生成裡了，但要配一條失敗規則：出錯只中止那些依賴它的呼叫，不動同一批裡互不相干的呼叫，也不動整個 turn。
+這一層還有另一個要決定的：shell 狀態。兩種答案都站得住腳。
+
+- **每次呼叫都重置：**Claude Code 的 bash 工具不會在呼叫之間留著一個活的 shell。這次設的環境變數和 shell function，下一次就沒了，
+  工具描述也直接叫模型用絕對路徑。好處是每個呼叫自己就能重現，平行呼叫之間也不會互相污染。
+- **共用一個常駐 session：**書裡把共用一個終端機當成預設，`cd`、export 出去的變數、啟用中的虛擬環境都留得住。
+  要平行做事時另外開隔離的 shell 就好。這樣模型少打很多重複的設定指令，代價是 harness 多了一份狀態要追蹤和重置。
+
+### Discovery at scale
+
+目錄一大就不可能整份送出去。registry 先公告名稱，完整 schema 等人要了才載入。而這個請求可以由模型自己用白話提出來：
+MCP-Zero 讓 agent 用自然語言說出自己缺哪一種能力，系統先配對到 server、再配對到工具，最後只把配到的那份 schema 注入進去。
+模型不必事先知道某個工具存在也能開口要，這是關鍵字搜尋做不到的。
+注入還得對 cache 友善。把找到的 schema 附在 context 最後面一次，然後就別再動它。改動前綴那塊工具定義，
+它後面每一個 token 的 KV cache 都會失效（第 8 章）。用附加的方式，前綴保持原樣，那份 schema 到了下一輪就是普通的歷史紀錄。
 
 ---
 
@@ -100,8 +171,12 @@ demo 為了清楚起見採依序 dispatch。真實的 runtime 會把安全呼叫
 - **未知的工具名稱：**模型指名了一個不存在或已停用的工具。回傳一個 `tool_result` 錯誤，而不是讓 loop 崩潰。
 - **schema 漂移：**schema 說一套，handler 期待另一套。在 dispatch 前先驗證。
 - **不安全的平行：**兩個寫入可能損毀同一個檔案。預設採依序執行，除非確知某工具是安全的。
-- **目錄 overflow：**太多工具 schema 會擠爆 prompt。把完整 schema 延後到需要時再給。
+- **目錄 overflow：**太多工具 schema 會擠爆 prompt。把完整 schema 延後到需要時再給，載入時附在最後面，讓快取住的前綴不受影響。
 - **結果過大：**龐大的輸出可能塞滿 context window。限制結果大小、保存完整輸出，並回傳一段預覽加一個路徑。
+  截斷要標出來。默默截掉，模型就會拿一份殘缺的檔案當完整的在推理。
+- **挑錯工具：**兩份 description 重疊，或一個工具身兼兩職。把重複的合併、把過載的 schema 拆開，並在每份 description 裡講明這個工具不做什麼。
+- **input 被偷偷改掉：**harness 在送進 handler 的路上做了正規化，或多塞了一個參數。呼叫失敗了，模型卻查不出原因。輸入不合法就帶著理由拒絕。
+- **失敗擴散整批：**平行批次裡有一個呼叫失敗，整個 turn 就跟著死。只中止依賴它的那些呼叫。
 
 ---
 
@@ -123,6 +198,13 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`Tool.ts`、`tools.ts`、`services/tools/toolOrchestration.ts`、`services/tools/toolExecution.ts`、`tools/ToolSearchTool/ToolSearchTool.ts`。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：
+  `Tool.ts`、`tools.ts`、`services/tools/toolOrchestration.ts`、`services/tools/toolExecution.ts`、`tools/ToolSearchTool/ToolSearchTool.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`models/utils/actions_toolcall.py`、`models/utils/actions_text.py`、`environments/__init__.py`。
 - [learn-claude-code · s02_tool_use](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`、`book/chapter5.md`（《深入理解 AI Agent》，李博杰；以中文原版為準）：
+  五類工具的分法、粒度、description 的寫法、參數保真、感知工具的介面規則、主動探索、對 cache 友善的載入、
+  串流式提早啟動與只中止依賴項、常駐 shell 預設、搜尋與編輯的比較，以及檢查用參數。
+  書中對 Claude Code 和 Cursor 的判讀來自作者自己讀原始碼，而那些實作變動很快，當成當時的證據看就好。
+- [MCP-Zero](https://arxiv.org/abs/2506.01056)（Fei 等人）：agent 自己說出缺哪種能力，配對先找 server、再找工具。
+- [τ-bench](https://arxiv.org/abs/2406.12045)（Sierra）：成績看資料庫的終態，檢查用參數靠的就是這個。

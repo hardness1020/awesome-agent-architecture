@@ -20,6 +20,8 @@ Without this layer, the model can ask to act but nothing can execute the action.
 
 With only one `bash` tool, every capability becomes string handling. There is no per-tool validation or permission logic.
 
+Two failures start here and get blamed on the model: a wrong tool picked from overlapping descriptions, and an edit that fails because the harness rewrote the input.
+
 ---
 
 ## Mechanism
@@ -76,6 +78,75 @@ The loop body is otherwise unchanged. Only the dispatch step now uses the regist
 `_dispatch` is the next extension point. Section 3 adds the permission gate there. Section 4 adds hooks there.
 
 The demo dispatches sequentially for clarity. Real runtimes batch safe calls and load large tool schemas on demand.
+The rest of this section is what a growing catalog adds.
+
+### Grouping and granularity
+
+A flat registry hides the shape of a catalog. Tools group five ways, by the direction a call travels and what it touches: perception (read the outside world),
+execution (change it), collaboration (reach another agent), event trigger (let the world wake the agent), and user communication (reach the person).
+Sections 6, 12, and 16 build the collaboration group, sections 13 and 14 the event triggers, section 19 the user channel. This section is the plumbing all five run on.
+
+Granularity is the choice inside a group. Merge tools when function and use overlap: one `read_document` with a type parameter beats one reader per file format.
+Split them when the parameters diverge, since a union of unrelated fields says nothing about what applies, and an overloaded schema draws wrong-parameter picks.
+
+### Describing a tool
+
+`description` is not documentation. It is the only thing the model reads before choosing. A useful one states when to use the tool, the boundary of what it does not do,
+concrete parameter examples, the shape of what comes back, and the cost of calling it. A few real call examples help more than more prose.
+The book reports a large gain from adding them, with no citation behind the figure, so take the direction and not the size.
+
+The harness then has to pass the input through unchanged. Normalizing quotes, trimming whitespace, or adding an argument the model never wrote breaks the call invisibly:
+it sent the right input, the result says the edit did not match, and nothing in the transcript explains the gap. Validate and reject, never silently rewrite.
+
+Some parameters exist to be ignored. A checklist parameter (`expected_price`, `expected_status`) makes the model state what it believes before the call runs.
+The handler never acts on it. It reads stored truth, decides on that, and logs the mismatch, so the last gate stands on data the model cannot forge.
+τ-bench grades the same way, reading the final database state rather than what the agent said about it.
+
+### Perception interfaces
+
+Perception tools return more than fits. Search returns a page of candidates plus a cursor. Reads take an offset and a limit. Truncation is labeled, never silent.
+Code search is where those rules bite. Four approaches, and no system uses only one:
+
+| Approach | Finds | Cost |
+| --- | --- | --- |
+| **Glob** | Files by path pattern. | Nothing about content. |
+| **Grep** | Exact strings and regexes, with line numbers. | Several calls to narrow a query. Misses synonyms. |
+| **Embedding index** | Code by meaning, so a plain-language query lands. | An index to build and keep in sync. Opaque ranking. |
+| **LSP symbols** | Definitions, references, and types, exactly. | A language server per language. |
+
+Claude Code ships no index and searches agentically: glob, then grep, then read, narrowing between calls. Cursor pays for the index and gets recall on plain-language queries.
+
+Editing has a matching spread. Five ways to say what changed:
+
+| Scheme | The model emits | Trade-off |
+| --- | --- | --- |
+| **Diff plus apply model** | A rough skeleton diff, rewritten by a second trained model. | Fast and forgiving. Needs that second model. |
+| **Old and new string** | The exact text to find and the text to put in its place. | Unambiguous, and fails loudly. Needs a fresh read first. |
+| **Line numbers** | A range and its replacement. | Compact. Stale once an earlier edit shifts the file. |
+| **Editor commands** | A small command language, vim style. | Terse. One more syntax to get wrong. |
+| **Anchors** | A start marker and an end marker. | Survives shifts. Ambiguous when the marker repeats. |
+
+Claude Code replaces an exact old string and requires a read first, so a mismatch is a visible error instead of a wrong edit.
+Cursor emits the skeleton and lets a trained apply model rewrite the file, which beats emitting a precise patch on speed.
+
+### Running calls: early start and shell state
+
+Batching is not the only overlap available. A call can start as soon as its own arguments finish parsing, while the model is still generating the rest of the batch.
+That hides latency inside generation, and it needs a failure rule: an error aborts the calls that depended on the failed one, never the independent calls in the
+same batch, and never the parent turn. Shell state is the other choice at this layer, and both answers are defensible.
+
+- **Per-call reset.** Claude Code's bash tool does not carry a live shell between calls. Environment variables and shell functions set in one call are gone in the
+  next, and the description tells the model to use absolute paths. Every call is reproducible on its own, and nothing leaks between parallel calls.
+- **One persistent session.** The book makes a shared terminal the default, so `cd`, exported variables, and an activated virtual environment survive.
+  Isolated shells stay available for parallel work. The model repeats fewer setup commands, and the harness gains state to track and reset.
+
+### Discovery at scale
+
+A large catalog cannot ship in full. The registry advertises names first and loads full schemas on request. The request can come from the model, in its own words:
+MCP-Zero has the agent declare a capability gap in natural language, matches it server first and then tool, and injects only the matched schema.
+The model does not have to know a tool exists to ask for it, which is the part keyword search cannot do.
+The injection then has to be cache safe. Append the discovered schema once, at the end of the context, and leave it there. Editing the tool block at the prefix
+invalidates the KV cache for every token after it (section 8). Appending keeps the prefix intact, and the schema becomes ordinary history on the next turn.
 
 ---
 
@@ -100,8 +171,12 @@ How each agent defines tools, routes calls, handles parallelism, and exposes a l
 - **Unknown tool name.** The model names a missing or disabled tool. Return a `tool_result` error instead of crashing the loop.
 - **Schema drift.** The schema says one thing and the handler expects another. Validate before dispatch.
 - **Unsafe parallelism.** Two writes can corrupt the same file. Default to serial execution unless a tool is known to be safe.
-- **Catalog overflow.** Too many tool schemas can crowd the prompt. Defer full schemas until needed.
+- **Catalog overflow.** Too many tool schemas can crowd the prompt. Defer full schemas until needed, and append a loaded schema at the end so the cached prefix survives.
 - **Oversized results.** Large outputs can fill the context window. Cap results, persist the full output, and return a preview plus a path.
+  Label the cut. Silent truncation leaves the model reasoning over a partial file it believes is whole.
+- **Wrong tool picked.** Two descriptions overlap, or one tool does two jobs. Merge duplicates, split overloaded schemas, and say what each tool is not for.
+- **Silent input drift.** The harness normalizes or adds an argument on the way to the handler. The call fails and the model cannot tell why. Reject bad input with a reason.
+- **Batch failure spreads.** One failed call in a parallel batch kills the whole turn. Abort only the calls that depended on it.
 
 ---
 
@@ -127,3 +202,9 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
   `Tool.ts`, `tools.ts`, `services/tools/toolOrchestration.ts`, `services/tools/toolExecution.ts`, `tools/ToolSearchTool/ToolSearchTool.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `models/utils/actions_toolcall.py`, `models/utils/actions_text.py`, `environments/__init__.py`.
 - [learn-claude-code · s02_tool_use](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, `book/chapter5.md` (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  the five-tool grouping, granularity, description craft, parameter fidelity, perception interface rules, proactive discovery, cache-safe loading, streaming tool start
+  with cascade abort, the persistent shell default, the search and edit comparisons, and checklist parameters.
+  Its Claude Code and Cursor readings are the author's own source study of fast-moving implementations, so read them as period evidence.
+- [MCP-Zero](https://arxiv.org/abs/2506.01056) (Fei et al.): the agent declares a capability gap, and matching runs server first, then tool.
+- [τ-bench](https://arxiv.org/abs/2406.12045) (Sierra): success judged against the final database state, which is what checklist parameters lean on.
