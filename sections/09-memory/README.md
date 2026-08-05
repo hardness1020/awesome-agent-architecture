@@ -30,10 +30,14 @@ Memory is a file store plus an index plus on-demand recall.
 
 The loop does not read the whole store. It reads a cheap index, then loads only the few memory files that match the current query.
 
+So the question becomes how a file gets found. A memory file reaches a turn through its index line, or through a link from a file already loaded.
+Nothing scans the bodies, so a file with neither entry point is written but never read.
+
 There are four operations:
 
 - **Selection** decides what to save. Save facts that cannot be derived again with grep, git, or project files.
-- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies into the turn's `messages[]`, as a `<system-reminder>` block ahead of the user text.
+- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies into the turn's `messages[]`,
+  as a `<system-reminder>` block ahead of the user text.
 - **Extraction** runs at run end. It writes new memory files.
 - **Consolidation** runs rarely. It merges duplicates and prunes stale entries.
 
@@ -81,7 +85,8 @@ def extract(memory_dir, messages, extractor) -> list[Path]:
     return written
 ```
 
-The memory dir above holds distilled facts, and it is not the only store. Raw history works as a second one: log each run's text, then search it back by keyword. The log keeps everything, so a fact extraction missed is still findable. This is the design behind Hermes's `state.db`.
+The memory dir above holds distilled facts, and it is not the only store. Raw history works as a second one: log each run's text, then search it back by keyword.
+The log keeps everything, so a fact extraction missed is still findable. This is the design behind Hermes's `state.db`.
 
 `log_run` appends each run's text to a SQLite FTS5 table at run end:
 
@@ -179,6 +184,8 @@ How each agent stores, recalls, extracts, and consolidates memory.
 - **Store gets noisy.** Consolidate duplicates and contradictions.
 - **Saving derivable facts.** Do not store facts that grep, git, or source files can answer better.
 - **Extraction misses details.** Compaction may have removed nuance before extraction. Extract near run end and keep important facts in files.
+- **Unlinked memory files.** A file the index does not list, and no other file links to, never reaches recall. It costs disk and answers nothing.
+  Write the index line in the same step that writes the file. Cross-link related files both ways, the way file-system knowledge stores such as OpenViking do.
 
 ---
 
@@ -205,3 +212,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `tools/memory_tool.py`, `hermes_state.py` (`SessionDB`), `tools/session_search_tool.py`, `tools/write_approval.py`.
 - [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter3.md`, Chinese original canonical. The file-system knowledge paradigm.
+- [OpenViking](https://github.com/volcengine/OpenViking): knowledge as files with URIs, layered summaries, and wiki-style cross-links.

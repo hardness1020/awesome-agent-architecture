@@ -30,6 +30,9 @@
 
 loop 不会读取整个存储区。它先读一份便宜的索引，然后只加载少数几个符合当前查询的记忆文件。
 
+所以问题就变成：一个文件要怎么被找到。记忆文件要进到某一轮只有两条路，索引上有它那一行，或是已经加载的文件链过去。
+没有东西会去扫内文，所以两条路都没有的文件，写了也读不到。
+
 一共有四种操作：
 
 - **Selection** 决定要存储什么。只存储那些无法靠 grep、git 或项目文件再次推导出来的事实。
@@ -179,6 +182,8 @@ if response.stop_reason != "tool_use":
 - **存储区变杂乱：**合并重复项与相互矛盾的项目。
 - **存储可推导的事实：**不要存储 grep、git 或源码文件能回答得更好的事实。
 - **Extraction 漏掉细节：**压缩可能在 extraction 之前就移除了细微信息。在接近执行结束时抽取，并把重要事实留在文件里。
+- **记忆文件没人链得到：**索引没列、也没有别的文件链过去的文件，recall 永远碰不到它。它占了磁盘，却答不出任何东西。
+  写文件的那一步就顺手把索引那行写进去，相关的文件也要互相链接，就像 OpenViking 这类文件系统知识库的做法。
 
 ---
 
@@ -204,3 +209,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 - [Claude Code 记忆服务](https://github.com/yasasbanukaofficial/claude-code)：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
 - [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter3.md`，以中文原著为准。文件系统知识库的范式。
+- [OpenViking](https://github.com/volcengine/OpenViking)：知识存成带 URI 的文件、分层摘要，以及 wiki 式的交叉链接。
