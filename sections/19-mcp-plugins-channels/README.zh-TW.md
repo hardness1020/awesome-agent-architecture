@@ -30,6 +30,15 @@ MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server �
 - 每個工具的 MCP annotation（`readOnlyHint`、`destructiveHint`）成為 gate 讀取的權限提示（第 3 章）。
 - 合併進那一個 `Registry` 之後，模型會在同一份清單裡看到 MCP 工具與內建工具。
 
+一個 server 可以公告三種 primitive，但只有一種會進到上面那個池子。
+
+- **Tools** 是模型自己挑、自己呼叫的動作。`tools/list` 回傳的就是它們，下面的包裝也是把它們變成 `Tool`。
+- **Resources** 是用 URI 定址的可讀資料：一個檔案、一張表、一頁 wiki。client 抓下來把內容放進 context，模型不會把它當動作來呼叫。
+- **Prompts** 是 server 提供的具名範本。它通常是給使用者當指令用的，不是讓模型自己挑的。
+
+Claude Code 是用自己的兩個內建工具去碰 resource，一個列清單、一個讀內容，而不是把每個 resource 都公告成一項工具。
+所以一個放了上千份文件的 server，在工具清單裡仍然只佔兩格。
+
 ### 底層的 wire protocol
 
 2026-07-28 版的 spec 把 protocol 本身改成了 stateless：每個 request 都是獨立的，哪台 server 副本都能接。
@@ -52,6 +61,22 @@ MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server �
 對用 agent 的人來說，畫面上什麼都沒變：舊 server 照常運作，v1 SDK 也繼續維護。
 好處都出現在使用者看不到的地方：遠端 server 能掛在 load balancer 後面擴展，第一次呼叫少一趟來回，cache 住的工具清單也省 token。
 用到 deprecated 功能的 server 有十二個月的窗口可以遷移。那是 server 作者要做的事，不是使用者的事。
+
+### 接上 MCP 和公告 schema 是兩個決定
+
+連上一個 server，跟把它所有工具都公告給模型，是兩件事。前者換到的是互通，後者花掉的是 context。
+
+每一個公告出去的工具，每次 request 都要付 token：名稱、描述、完整的 input schema，全都排在模型讀到任務之前。
+幾個 server 加起來，這段文字可能比任務本身還長；清單一長，模型挑工具也挑得更差（第 2 章）。
+
+所以 harness 是一個 server 一個 server 決定要露出多少，而不是全部套同一個設定：
+
+- **全部 schema 都先給。** 最單純，適合那種幾乎每一輪都會用到的 server。
+- **先給一份索引。** 只公告名稱和一句話說明，等模型指名要哪個工具，再把完整的 schema 載進來（探索那一側在第 2 章）。
+- **只開一扇門。** 只公告一個工具，參數是 server 名稱和工具名稱，其他全部藏在它後面。agent 只要付一份 schema，不是五十份。
+
+這些都不寫在 protocol 裡。spec 只規定怎麼列工具、怎麼呼叫工具。到底有多少工具會進到 prompt，是 client 自己的政策，
+所以延後載入是每個 harness 要自己確認的設定，server 不能假設它一定開著。
 
 ### New: 包裝探索到的工具
 
@@ -166,12 +191,21 @@ harness 如何伸手觸及自身之外。
 ## 哪裡會出錯
 
 - **撞名（Name collisions）：**兩個 server 都公開 `search`。`mcp__server__tool` 命名空間避免了衝突；但一個名稱含 `__` 的 server 仍會被解析錯誤，所以名稱要保持簡單。
-- **工具清單膨脹（Tool-list bloat）：**太多 server 會造成龐大的工具清單，既花 token 又干擾選擇（第 2 章）。緩解：截斷描述並延後載入。
+- **工具清單膨脹（Tool-list bloat）：**太多 server 會造成龐大的工具清單，既花 token 又干擾選擇（第 2 章）。
+  緩解：截斷描述，並且一個 server 一個 server 決定要露出多少，而不是每次 request 都把所有 schema 公告一遍。
 - **connect 之後池過時：**一個在 session 中途加入的 server 不在 cache 的工具清單裡，於是模型永遠看不到它。緩解：變動時重建池並重建 prompt（第 8 章）；
   2026-07-28 版的 spec 為此加了走 `subscriptions/listen` 的 `toolsListChanged` 通知和 `ttlMs` 提示。
 - **連線抖動（Connection churn）：**一個不穩的 server 會逾時、重置，或 token 過期。緩解：反覆失敗後重連、`401` 時重新驗證、為每次呼叫設逾時（第 11 章）。
   stateless 版拿掉了 stream 續傳，所以中斷的 request 要當成一個新 request 重發，不是接著傳。
 - **被過度信任的副作用：**一個 server 把具破壞性的工具標成 `readOnlyHint: true` 以跳過提示。緩解：以完整名稱設一條規則照樣 gate 它（第 3 章）。
+- **描述投毒（Description poisoning）：**工具描述是不可信的文字，卻會以指令的形式送到模型面前。server 可以在裡面埋一句話，
+  例如叫模型先讀使用者的金鑰檔、再一起傳過來，模型很可能在做別的事的時候就順手照做了。
+  緩解：裝一個 server 之前先把描述讀過，描述改了就當成程式碼改了來看。
+- **工具遮蔽（Tool shadowing）：**所有 server 共用同一份 prompt，所以一個 server 的描述可以講到另一個 server 的工具
+  （付款工具壞了，改用我們的），把呼叫從可信的那個拉走。
+  緩解：命名空間擋得住撞名，擋不住影響。沒審過的 server，就別放進握有真實憑證的 session。
+- **被劫持的更新（Hijacked updates）：**一個當初審過、確認安全的 server，下次啟動時換上新的程式碼和新的描述，而 protocol 不會再問使用者一次。
+  緩解：把版本釘住、升級時重審，並且讓每個 server 各自持有最小權限的憑證，這樣一個被攻破，也伸不到別的 server 的範圍。
 
 ---
 
@@ -194,12 +228,18 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 
 ## 出處
 
-- [Claude Code MCP transport](https://github.com/yasasbanukaofficial/claude-code)：`services/mcp/types.ts`（`TransportSchema`）、`client.ts`（`MCPTool` cloning、`buildMcpToolName`）、`normalization.ts`（`normalizeNameForMCP`）。
-- [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code)：`config.ts`（precedence）、`channelNotification.ts`（`CHANNEL_TAG`），加上 `McpAuthTool`、`ListMcpResourcesTool`、`ReadMcpResourceTool`。
+- [Claude Code MCP transport](https://github.com/yasasbanukaofficial/claude-code)：
+  `services/mcp/types.ts`（`TransportSchema`）、`client.ts`（`MCPTool` cloning、`buildMcpToolName`）、`normalization.ts`（`normalizeNameForMCP`）。
+- [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code)：
+  `config.ts`（precedence）、`channelNotification.ts`（`CHANNEL_TAG`），加上 `McpAuthTool`、`ListMcpResourcesTool`、`ReadMcpResourceTool`。
 - [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code)：`plugins/builtinPlugins.ts`、`plugins/bundled/`、`types/plugin.ts`，加上 `remote/` 與 `bridge/`。
-- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`mcp_serve.py`、`hermes_cli/plugins.py`（`PluginManager`、`VALID_HOOKS`）、`gateway/platforms/`、`gateway/platform_registry.py`、`plugins/platforms/`。
+- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
+  `mcp_serve.py`、`hermes_cli/plugins.py`（`PluginManager`、`VALID_HOOKS`）、`gateway/platforms/`、`gateway/platform_registry.py`、`plugins/platforms/`。
 - [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) 與它的
-  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)：stateless protocol、`server/discover`、`subscriptions/listen`、MRTR、deprecation 清單。
+  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog)：stateless protocol、tools / resources / prompts 三種 primitive、
+  `server/discover`、`subscriptions/listen`、MRTR、deprecation 清單。
 - MCP blog：[the future of transports](https://blog.modelcontextprotocol.io/posts/2025-12-19-mcp-transport-future/)（protocol 為什麼走向 stateless）、
   [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/)（v2 SDK 與向後相容）。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版為準。工具生態那一節：
+  MCP 的 primitive、公告 schema 的 context 開銷，以及信任模型（描述投毒、工具遮蔽、被劫持的更新、憑證範圍）。
 - 章節定位：[learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code)。

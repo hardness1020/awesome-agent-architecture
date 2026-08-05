@@ -13,7 +13,8 @@ In MCP terms the service is the server, and the harness that connects and calls 
 
 So the agent gains a Jira tool or a deploy tool without anyone editing the harness. Leave MCP out and capability is frozen at whatever shipped in the binary.
 
-Two more pieces build on MCP. A plugin bundles servers with hooks and skills, so they install as one unit. A channel lets a server push messages back in. Both ride the same protocol.
+Two more pieces build on MCP. A plugin bundles servers with hooks and skills, so they install as one unit.
+A channel lets a server push messages back in. Both ride the same protocol.
 
 ---
 
@@ -29,6 +30,15 @@ Names are namespaced `mcp__<server>__<tool>` so two servers never collide. The l
 - The name is namespaced and normalized, so it is unique and matches the API's name pattern.
 - Each tool's MCP annotations (`readOnlyHint`, `destructiveHint`) become the permission hints the gate reads (section 3).
 - Merged into the one `Registry`, the model sees MCP tools and built-ins in the same list.
+
+A server can advertise three kinds of primitive, and only one of them lands in that pool.
+
+- **Tools** are actions the model picks and calls. These are what `tools/list` returns and what the wrapping below turns into a `Tool`.
+- **Resources** are readable data addressed by URI: a file, a table, a wiki page. The client fetches one and puts the content in context. The model does not call it as an action.
+- **Prompts** are named templates the server supplies. They usually surface to the user as a command rather than being picked by the model.
+
+Claude Code reaches resources through two built-in tools of its own, one to list and one to read, instead of advertising each resource separately.
+So a server holding a thousand documents still costs two entries in the tool list.
 
 ### The wire protocol under it
 
@@ -52,6 +62,22 @@ The harness side above (discover, wrap, merge) does not change. What changed on 
 For someone using an agent, nothing changes on screen: old servers keep working, and v1 SDKs stay maintained.
 The gains land underneath: remote servers scale behind a load balancer, the first call skips a round trip, and a cached tool list saves tokens.
 Servers on a deprecated feature get a twelve-month window to migrate. That work falls on the server author, not the user.
+
+### Adopting MCP and exposing schemas are two decisions
+
+Connecting to a server and advertising all of its tools are separate choices. The first one buys interop. The second one spends context.
+
+Every advertised tool costs tokens on every request: its name, its description, and its full input schema, before the model reads a word of the task.
+A handful of servers can add more text than the task itself, and a longer list also makes tool selection worse (section 2).
+
+So the harness picks an exposure level per server, not one setting for all of them:
+
+- **All schemas up front.** Simplest, and right for a server the session uses on almost every turn.
+- **An index first.** Advertise names and one-line summaries, then load a full schema when the model asks for that tool (section 2 covers the discovery side).
+- **One door.** Advertise a single tool that takes a server name and a tool name as arguments, and keep the rest behind it. The agent pays for one schema instead of fifty.
+
+None of this is in the protocol. The spec says how to list and call tools. How many of those reach the prompt is client policy,
+so deferred loading is a setting to check per harness, not something a server can count on.
 
 ### New: wrapping a discovered tool
 
@@ -168,12 +194,21 @@ How the harness reaches outside itself.
 ## Failure modes
 
 - **Name collisions.** Two servers both expose `search`. The `mcp__server__tool` namespace prevents clashes; a server name with `__` still parses wrong, so keep names simple.
-- **Tool-list bloat.** Many servers make a large tool list that costs tokens and confuses selection (section 2). Mitigation: truncate descriptions and defer loading.
+- **Tool-list bloat.** Many servers make a large tool list that costs tokens and confuses selection (section 2).
+  Mitigation: truncate descriptions, and pick an exposure level per server instead of advertising every schema on every request.
 - **Stale pool after connect.** A server added mid-session is not in the cached tool list, so the model never sees it.
   Mitigation: rebuild pool and prompt on change (section 8); the 2026-07-28 spec adds `toolsListChanged` over `subscriptions/listen` and `ttlMs` hints for this.
 - **Connection churn.** A flaky server times out, resets, or expires its token. Mitigation: reconnect after repeated failures, re-auth on `401`, time out each call (section 11).
   The stateless revision drops stream resumability, so a broken in-flight request is re-issued as a new one, not resumed.
 - **Over-trusted side effects.** A server marks a destructive tool `readOnlyHint: true` to skip the prompt. Mitigation: a rule on the qualified name gates it anyway (section 3).
+- **Description poisoning.** A tool description is untrusted text that reaches the model as instructions. A server can bury a directive in it,
+  for example telling the model to read the user's key file first and pass it along, and the model may follow it while doing something unrelated.
+  Mitigation: read descriptions before installing a server, and treat a changed description as changed code.
+- **Tool shadowing.** All servers share one prompt, so one server's description can talk about another server's tools
+  (the payment tool is broken, use ours instead) and pull calls away from the trusted one.
+  Mitigation: namespacing stops name clashes, not influence. Keep unreviewed servers out of sessions that hold real credentials.
+- **Hijacked updates.** A server that was safe when reviewed ships new code and new descriptions on the next start, and nothing in the protocol re-asks the user.
+  Mitigation: pin a version, re-review on upgrade, and give each server its own least-privilege credential so one compromise cannot reach another server's scope.
 
 ---
 
@@ -204,7 +239,10 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `mcp_serve.py`, `hermes_cli/plugins.py` (`PluginManager`, `VALID_HOOKS`), `gateway/platforms/`, `gateway/platform_registry.py`, `plugins/platforms/`.
 - [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) and its
-  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog): stateless protocol, `server/discover`, `subscriptions/listen`, MRTR, deprecations.
+  [changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog): stateless protocol, the three primitives (tools, resources, prompts),
+  `server/discover`, `subscriptions/listen`, MRTR, deprecations.
 - MCP blog: [the future of transports](https://blog.modelcontextprotocol.io/posts/2025-12-19-mcp-transport-future/) (why the protocol went stateless),
   [SDK betas for 2026-07-28](https://blog.modelcontextprotocol.io/posts/sdk-betas-2026-07-28/) (v2 SDKs, backward compatibility).
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical. The tool ecosystem section:
+  MCP primitives, context overhead of advertised schemas, and the trust model (description poisoning, tool shadowing, hijacked updates, credential scope).
 - Framing: [learn-claude-code · s19_mcp_plugin](https://github.com/shareAI-lab/learn-claude-code).
