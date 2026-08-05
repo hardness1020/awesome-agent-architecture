@@ -63,6 +63,14 @@ def verified_run(task, worker, checker, budget=2):    # src/verify.py
 - Feedback is data. The failed verdict rides into the retry as part of the prompt, so attempt two knows what attempt one got wrong.
 - `ok: False` is the escalation signal. The record of attempts goes to a human; the loop does not retry forever.
 
+One pass or fail is a thin signal. Three verifier layers make a trajectory teachable, and each layer carries its own evidence:
+
+- **Outcome.** Did the final state match what the task asked for. Evidence: the state the run left behind, checked by code wherever code can check it (section 23).
+- **Process.** Did the run follow the rules it had to follow: permitted tools, required order, no skipped confirmation. Evidence: the tool calls in the trace.
+- **Quality.** Is the output good against a rubric no code check can express. Evidence: the graded rubric lines, with the failing line named.
+
+An outcome pass with a process failure is a run that got lucky. A process pass with an outcome failure is a broken rule set. The split says what to fix.
+
 ### Budgets and stop conditions
 
 Every loop needs a ceiling the model cannot talk its way past: an iteration count, a token budget, a wall-clock limit, or a dry counter (stop after K rounds that find nothing new).
@@ -79,6 +87,59 @@ The loop-engineering sources grade loops by how much they are trusted to do:
 - **L3 · Unattended.** The loop acts. A human audits after the fact.
 
 The level is a permissions decision (section 3). Promote a loop one level only after its output at the current level has been boringly correct.
+
+### Routing a learned change
+
+The improvement loop's hard part is not finding the lesson. It is choosing where the lesson lands. A change has four possible carriers:
+
+- **A knowledge doc.** One fact a run discovered. Cheap to write, cheap to delete, read back when a task needs it (section 9).
+- **A prompt or a skill.** A behavior that should repeat. Costs context on every turn that loads it (section 7).
+- **A program.** A procedure that runs the same way every time. Costs nothing at inference and can be tested (section 2).
+- **The weights.** Last resort. Slow, expensive, hardest to reverse, and outside this repo's harness thesis.
+
+The routing rule: pick the smallest, most verifiable, most reversible carrier that can hold the change.
+A fact does not belong in the system prompt, and a procedure does not belong in a paragraph of instructions.
+
+Prompt edits get abused most, so they need gates. Write the diff from repeated failures, not one, and scope it to what triggered it so unrelated runs stay untouched.
+Check it against boundary cases near the edit and against a holdout set it was not written from. Canary it on part of the traffic, and keep the rollback ready.
+Karpathy names this system prompt learning: editing words instead of weights. ACE keeps the diffs small by revising context items with stable ids instead of rewriting the prompt.
+
+The program carrier is the one earlier sections do not build. A skill hands the model instructions it still has to read and follow (section 7).
+A compiled workflow hands the harness a program it runs without the model. Five steps get one from the other:
+
+1. **Capture.** Record a trajectory that worked: the calls, their order, and the state before and after each one.
+2. **Parameterize.** Replace what varied between runs with arguments. What stayed fixed becomes the program.
+3. **Validate on reset.** Replay it in a fresh environment (section 23), with a precondition, a postcondition, and a final state check.
+4. **Replay.** Run the program directly on the next matching task. No model call, so it is fast, cheap, and identical every time.
+5. **Invalidate.** A failed check retires the program and hands the task back to the model, which can capture a new one.
+
+Tool creation runs the same lifecycle from the other end. A capability gap sends the agent to find a library,
+wrap it as a tool, and validate it before the registry accepts it (section 2).
+Both moves turn one expensive exploration into a cheap, checkable capability. Both need step five, because the environment they compiled against will change.
+
+### Editing the harness
+
+An improvement loop that edits harness code needs a contract before it needs a patch. The change contract states four things:
+the evidence (which traces failed, and how often), the root cause, the predicted impact, and the rollback.
+No contract, no patch. The contract is also what a human audits, so it separates a self-editing loop from an unreviewable one.
+The candidate space is bounded too: the loop proposes edits inside a declared region of the code, while permissions, budgets, and gates sit outside it (section 3).
+
+Search scale is a ladder: one rule in the prompt, then how context gets assembled, then the workflow, then harness code, then the optimizer itself.
+Climb a rung only when the rung below fails, because each rung widens the search and weakens the verification.
+A prompt rule can be A/B tested in a day. A new optimizer changes how every later change gets proposed.
+
+### Online run, offline learner
+
+Keep the two apart. The online loop runs the task and records evidence. It does not distill lessons, promote skills, or edit the prompt.
+An offline loop reads across many trajectories, diagnoses recurring failures, generates candidates, validates them, and releases a version.
+
+The split is what keeps one run from rewriting the agent. A single lucky path is not a pattern, and a web page that told the agent what to remember is not evidence.
+Requiring support across trajectories, plus a validation gate, keeps both out of a release. The split also changes what to measure. Read two numbers, not one:
+
+- **Updating.** Does the loop produce good candidates. How many were proposed, how many passed validation, how many were rolled back.
+- **Benefit.** Do the shipped changes help. Does a change activate on the runs it targets, does the agent adhere to it once loaded, does held-out performance move.
+
+Without the split, a correct skill that never loads reads as a failed update, and the loop learns the wrong lesson about itself.
 
 ### How it integrates
 
@@ -131,6 +192,14 @@ How each agent composes its outer loops.
 - **State amnesia.** Each run rediscovers the same work and redoes it. Mitigation: persist findings to memory or task records (sections 9, 12) and read them at run start.
 - **Self-editing harness escapes its gates.** An improvement loop that can modify harness code can modify the code that gates it.
   Mitigation: permissions and budgets live outside anything the loop can edit (section 3).
+- **Proxy goal drift.** On open-ended work the rubric is a proxy. The loop optimizes the proxy: familiar implementations, noise read as a finding, only passing runs kept.
+  The score rises while the goal drifts. Mitigation: keep negative results in the evidence, refresh the holdout set, and spot check output against the real goal.
+- **Every lesson becomes a prompt edit.** The cheapest carrier absorbs everything, so the system prompt grows until its rules contradict each other.
+  Mitigation: route by carrier. Facts go to memory, procedures go to programs, and prompt edits are for behavior that must repeat.
+- **A compiled workflow outlives its environment.** The replayed program keeps running after the site or API changed, so it writes wrong state faster than a model would.
+  Mitigation: pre and post checks on every replay, and invalidation on the first failed check.
+- **The online run promotes its own lessons.** An agent that distills experience mid-run can promote a lucky path, or text that an untrusted page planted for it to remember.
+  Mitigation: the online loop records evidence only. A separate offline pass validates candidates before release.
 
 ---
 
@@ -158,6 +227,16 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): goal conditions.
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): the improvement loop in depth; gates outside the loop.
+- [ai-agent-book · chapter 8](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter8.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  the three verifier layers, carrier selection and its routing rule, the prompt learning gates, the change contract, the meta-optimization ladder,
+  the online and offline split, the evolution metrics split, and the verifiable-loop boundary.
+- [PreAct](https://arxiv.org/abs/2606.17929): compiling a trajectory into a parameterized workflow with pre, post, and pre-save checks, then replaying it without the model.
+  Its first author shares the book author's name, so read its reported replay speedup (roughly 8.5x to 13x) as single-source.
+- [Alita](https://arxiv.org/abs/2505.20286): a capability gap triggers tool creation, validated before the tool enters the library.
+- Karpathy · "system prompt learning" (X, 11 May 2025): editing words instead of weights, named as a third learning paradigm.
+- [ACE](https://arxiv.org/abs/2510.04618): incremental context items with stable ids instead of full prompt rewrites.
+- [Lin et al.](https://arxiv.org/abs/2605.30621): harness updating and harness benefit measured separately, with model swaps used to tell them apart.
+- [AHE](https://arxiv.org/abs/2604.25850) and [Self-Harness](https://arxiv.org/abs/2606.09498): change contracts and bounded candidate spaces for a harness that edits itself.
 - [Claude Code](https://code.claude.com/docs): `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
