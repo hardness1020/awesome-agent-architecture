@@ -62,6 +62,14 @@ hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 - Hooks can tighten the permission result, but they should not loosen it.
 - In Claude Code, `resolveHookPermissionDecision` reconciles hook output with rule-based permissions.
 
+The canonical `PostToolUse` case is lint on write. After a write or edit tool returns, the hook runs the linter or type checker
+on the file that was just touched. It appends the diagnostics to the tool result. The model reads the error on its next turn,
+next to the write confirmation, instead of hitting it later at build or test time.
+
+Two properties carry the pattern. The check rides the tool result, so the feedback costs no extra turn and no extra prompt.
+The check is scoped to the touched file, so it costs about as much as the write it follows.
+`PostToolUse` runs only after a successful run, so a blocked write leaves no diagnostics to read.
+
 The demo uses a `PreToolUse` hook to block `rm -rf` even under `bypassPermissions`.
 
 This section covers lifecycle hooks. React render hooks in a `hooks/` folder are unrelated UI code that share the same word.
@@ -90,6 +98,7 @@ How each agent exposes interception points around the loop.
 - **Hook config changes mid-session.** A process may edit settings after startup. Snapshot the hook config once.
 - **Slow hook stalls the loop.** A hook can shell out to slow work. Add a timeout.
 - **PostToolUse stops unexpectedly.** If a post-hook returns `preventContinuation`, surface it as a graceful stop, not a crash.
+- **Diagnostics flood the result.** A project-wide lint run can append more text than the write itself. Scope the check to the touched file and cap the appended output.
 
 ---
 
@@ -113,3 +122,5 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  lint on write as the tool-layer feedback pattern, with diagnostics appended to the tool result.

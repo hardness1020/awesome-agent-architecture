@@ -62,6 +62,13 @@ hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 - hook 可以收緊 permission 的結果，但不應該放寬它。
 - 在 Claude Code 中，`resolveHookPermissionDecision` 會把 hook 輸出和以規則為基礎的 permission 加以協調。
 
+`PostToolUse` 最典型的用法是寫入後跑 lint。write 或 edit 工具一回傳，hook 就對剛動過的那個檔案跑 linter 或 type checker，
+再把診斷訊息接到 tool result 後面。模型下一輪就會在寫入成功的訊息旁邊看到錯誤，不用等到之後 build 或跑測試才撞上。
+
+這個做法靠兩件事成立。檢查是跟著 tool result 一起回去的，所以不必多跑一輪，也不用另外加 prompt。
+檢查只針對剛動過的那個檔案，成本大致跟那次寫入差不多。
+`PostToolUse` 只在成功執行之後才會跑，所以寫入被擋下時，就沒有診斷訊息可看。
+
 demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下 `rm -rf`。
 
 本章談的是生命週期 hook。放在 `hooks/` 資料夾中的 React render hook，是不相干的 UI 程式碼，只是共用同一個字。
@@ -90,6 +97,7 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 - **hook 設定在 session 中途改變：**某個程序可能在啟動後修改 settings。要對 hook 設定做一次快照。
 - **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
+- **診斷訊息淹沒結果：**整個專案跑一次 lint，接上去的文字可能比寫入本身還多。檢查只跑剛動過的檔案，接上去的輸出也要設上限。
 
 ---
 
@@ -110,5 +118,8 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
+  `types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code)：section framing。
+- [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
+  寫入後跑 lint 這個工具層回饋做法，也就是把診斷訊息接在 tool result 後面。
