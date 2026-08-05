@@ -48,6 +48,30 @@ Each layer covers something the current model cannot do alone. That gives every 
 So harness engineering is not only adding. When the model changes, re-evaluate each layer: keep what still helps, delete what the new model covers.
 Sections 20 and 21 build the measurements for this. mini-swe-agent is the extreme case: almost no harness, so almost nothing to re-evaluate.
 
+### Testing the boundary
+
+The line between model and harness moves as models improve. Two claims make that movement testable.
+
+Scaffold thickness should track model strength. A weaker model needs the forced plan, the retry ladder, and the scripted check.
+A stronger model already does that work, so the same layer only spends tokens and overrides a better decision.
+Run one scaffold across two model generations and the result can reverse. Take the direction as the claim, not the size: the reversal comes from one book experiment.
+
+Some behavior looks like a harness setting and is not. When to stop gathering information and start editing is one.
+That threshold is learned during training, so it travels with the model into any harness. Prompt lines and step limits nudge it. They do not set it.
+
+So the question for each layer is which side of the boundary it sits on. If the model already owns the decision, the layer is a duplicate.
+
+### Where agents work first
+
+Two properties decide whether a task suits an agent today: how exactly the goal can be stated, and whether a machine can check the result.
+
+Coding scores high on both. A ticket or a failing test states the goal. Tests, types, linters, and git decide when the work is done.
+That infrastructure was built for humans, and an agent reuses it as a ready-made verification harness. This is why coding agents matured first.
+
+Tasks low on either property stay hard. A vague goal gives the loop nothing to aim at.
+An unverifiable result gives it no stop condition, so mistakes accumulate instead of surfacing.
+Section 21 builds those checks when the domain does not supply them.
+
 ---
 
 ## Per system
@@ -71,6 +95,8 @@ What the model decides versus what the surrounding code builds.
 - **Hard-coding decisions the model should make.** Rigid tool order and scripted planning can fight the model. Let the model decide when judgment is required.
 - **Too little harness.** A loop with no tools, permissions, or context management keeps the model at chatbot behavior. Add the missing layer.
 - **Too much harness.** Each layer adds maintenance, and a layer built for an older model can hold a newer one back. Re-evaluate on model change, delete what no longer helps.
+- **Treating a model policy as a harness setting.** When to stop gathering information is learned, not configured. Prompt rules nudge it. Measure before keeping the layer.
+- **Running an agent where no machine can check the result.** The loop cannot tell a finished task from a wrong one. Add a checker, or keep a person in the path.
 - **Mixed responsibilities.** Permission logic inside tool execution is harder to test and replace. Keep clear contracts such as `Tool.ts` and `PreToolUse`.
 
 ---
@@ -81,3 +107,4 @@ What the model decides versus what the surrounding code builds.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `environments/local.py`, protocols in `__init__.py`.
 - [mini-swe-agent README](https://github.com/swe-agent/mini-swe-agent): the case for a minimal harness as models improve.
 - [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter5.md`, Chinese original canonical. Boundary framing and the task quadrant, both single-source.

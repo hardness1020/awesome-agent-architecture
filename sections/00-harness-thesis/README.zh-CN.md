@@ -48,6 +48,29 @@ harness 必须：
 所以 harness engineering 不是只有加，也包含删。模型换代时，重新评估每一层：还有帮助的留下，新模型自己就做得到的就删掉。
 怎么量测，见第 20、21 章。mini-swe-agent 就是最极端的例子：几乎没有 harness，也就几乎没有东西需要重新评估。
 
+### 这条界线怎么验
+
+模型与 harness 之间的界线会随着模型变强而移动。有两个说法可以拿来验。
+
+scaffold 该有多厚，要看模型有多强。比较弱的模型需要被逼着先规划、需要重试阶梯、需要写死的检查。
+比较强的模型自己就会做这些事，同一层就只是多花 token，还把模型本来更好的决定盖掉。
+同一套 scaffold 换到下一代模型上跑，结果可能反过来。这里要拿走的是方向，不是幅度：这个反转只有书上那一次实验撑着。
+
+有些行为看起来像 harness 的设置，其实不是。“什么时候该停止收集信息、开始动手改”就是一个。
+这个门槛是模型训练时学来的，会跟着模型走进任何一套 harness。prompt 上的规则和步数上限只能推它一点，定不了它。
+
+所以每一层要问的是：它落在界线的哪一边。如果模型自己已经会做这个决定，那一层就是多的。
+
+### Agent 先在哪里跑得起来
+
+一个任务现在适不适合交给 agent，看两件事：目标能讲得多精确，以及结果能不能让机器判定。
+
+写代码这两项都很高。一张 ticket 或一个失败的测试就把目标讲清楚了。测试、类型、linter 与 git 决定什么时候算做完。
+这些基础设施本来是给人用的，agent 直接拿来当现成的验证 harness。这就是 coding agent 最早成熟的原因。
+
+有一项偏低的任务就难做。目标模糊，loop 就没有东西可以瞄准。结果无法验证，loop 就没有停止条件，错误会一路累积而不会浮出来。
+领域本身没有现成检查时，第 21 章要自己把检查建起来。
+
 ---
 
 ## 各系统做法
@@ -71,6 +94,8 @@ harness 必须：
 - **把该由模型做的决定写死：**僵硬的工具顺序与写死的规划会和模型冲突。需要判断时，就让模型去决定。
 - **harness 太少：**一个没有工具、权限或 context 管理的 loop，会把模型停在聊天机器人的层次。补上缺少的那一层。
 - **harness 太多：**每加一层就多一份要维护的代码，而且为旧模型设计的那一层，可能反过来拖住新模型。模型换代时重新评估，没有帮助的就删掉。
+- **把模型的策略当成 harness 的设置：**什么时候停止收集信息，是模型学来的，不是设置出来的。prompt 规则只能推它一点。要留这一层，先量过再说。
+- **在机器无法判定结果的地方跑 agent：**loop 分不出做完了还是做错了。补一个检查器，或是让人留在流程里。
 - **职责混在一起：**把权限逻辑塞进工具执行里，会更难测试也更难替换。维持清楚的契约，例如 `Tool.ts` 与 `PreToolUse`。
 
 ---
@@ -81,3 +106,4 @@ harness 必须：
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py`、`environments/local.py`、`__init__.py` 里的 protocol。
 - [mini-swe-agent README](https://github.com/swe-agent/mini-swe-agent)：模型变强之后，harness 可以更小的理由。
 - [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter5.md`，以中文原版为准。界线框架与任务象限，两者都只有单一来源。
