@@ -60,6 +60,22 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 怎么选？原则就是省 token：分支条件写得出来的，就交给代码；model 调用只留给真的需要判断的 node。
 
+### Phase node
+
+Agent node 每次经过都从全新的 `messages[]` 开始。分支彼此无关的时候这样最好；但几个 node 其实是同一件事的不同阶段，这样就不对了。
+
+Phase node 就是把 trajectory 留下来的那个变体。整条路只有一份 `messages[]`。进到某个 phase 的时候，harness 换掉外面那层框：换一份 system prompt，换一套 tool。
+Explore 挂读取和搜索，implement 挂编辑和执行，review 挂读取和一个下结论的 tool。这个 phase 要的东西 history 里都有，不用再打包一次。
+
+Model 要离开一个 phase，就调用一个 gate tool，例如 `finish_exploring`。harness 把这个调用当成 edge，直接进下一个 phase。
+gate 是唯一的出口，所以一个 phase 什么时候结束由 harness 决定，不是看 model 自己怎么讲。
+形状是一条路加一条往回的 edge：explore、implement、review，而 review 可以把执行送回 implement，笔记本来就留在 history 里。
+
+要挂哪一种，是 context 的取舍（第 8 章）。每个 node 都用全新的 `messages[]`，window 就小，分支之间也彼此独立。
+只留一条 trajectory 则是前后比较连贯，但路越长，吃掉的 window 也越多。
+记载这个做法的书把它算成 multi-agent，理由是每个 phase 的 prompt 和 tool 都不一样；这个 repo 则把它算成同一个 agent 换了外框。
+机制是同一个，所以引用的时候要先讲清楚你用的是哪个定义。这个做法的证据来自书里自己做的实验，只有这一个来源。
+
 ### 常见的图形
 
 出处里叫得出名字的 workflow pattern，其实都是图形：
@@ -69,6 +85,9 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 - **Parallelization**：几条同时跑的分支在一个 node 会合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
 - **Orchestrator-workers**：一个 node 在执行时决定要派出多少工作，再由一个 node 收拢。edge 是动态的，但形状仍然是图。
 - **Evaluator-optimizer**：一个 worker node、一个 checker node，加一条往回的 edge。这就是第 21 章的验证 loop，放进图里变成一个子图。
+
+名字还没有统一。`ai-agent-book` 主要用的词是「collaboration topology」和「orchestration」，「graph engineering」只被它放在一则术语说明里。
+这一章沿用这个名字，因为它讲的东西就是一张写在代码里的图。看不同来源的时候，对得上的是机制，不是那个词。
 
 ### 什么时候不要画图
 
@@ -135,6 +154,10 @@ edges = {
   缓解：严格的 state 边界；node 只读需要的子集，只返回自己的更新（第 8 章）。
 - **跑到一半挂掉（Mid-run death）**：一张长图在第七个 node 挂掉，重来却从第一个 node 开始。
   缓解：记下每个 node 的输出；续跑时跑完的 node 从记录重放（第 11、12 章）。
+- **Phase 走不完（Phase that never ends）**：phase node 的 gate tool 一直没被调用，它就用同一份 prompt、同一套 tool 一直做下去，直到 budget 用完。
+  缓解：gate 是唯一的出口；每个 phase 各自有 step budget；budget 用完就往下一个 phase 走，或者交给人。
+- **Trajectory 背着每个 phase（Trajectory that carries every phase）**：只有一条 trajectory，每过一个 phase 就长一截，里面还留着现在这个 phase 没挂的 tool 的调用记录。
+  缓解：在 phase 的 prompt 里讲清楚现在是哪个 phase、有哪些 tool；调用没挂的 tool 就回一个清楚的错误；跑完的 phase 拿去 compact（第 8 章）。
 
 ---
 
@@ -163,3 +186,6 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Claude Code](https://code.claude.com/docs)：`Workflow` script 的约定（pipeline、并行分发、结构化输出、续跑）。内容依据 tool schema 和文档记载的行为，不是 source backup。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 与 budget、`run/benchmarks/swebench.py`。
+- [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版为准）：
+  在同一条 trajectory 上做多阶段角色转换，每个 phase 一份 system prompt 和一套 tool，phase 之间用 tool call 当关卡，review 可以绕回实现。
+  这个做法的依据是书里自己做的实验，只有这一个来源。同一章主要用的词是「collaboration topology」和「orchestration」。
