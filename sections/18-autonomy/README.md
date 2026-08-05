@@ -14,6 +14,11 @@ A worker that goes idle the moment it finishes also wastes the context it just l
 
 The fix is self organization, not central assignment.
 
+Central assignment is still a real design, and most published multi-agent work describes it.
+In the manager pattern each child is registered as a tool, and one manager assigns every subtask.
+A manager that holds the whole plan can order the work, drop duplicates, and stop the run early. It also handles every task twice, to assign it and to read the result back.
+The trade is plain. A manager buys global ordering and pays in planner turns. A board buys throughput and pays in locks and stale claims. This section builds the board.
+
 Autonomy must let an idle agent:
 
 1. Notice it has nothing to do (the work phase reached `end_turn`).
@@ -142,6 +147,42 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - After the spawn, pulling work and deciding when to stop are each worker's own doing, not the lead's or the script's. The main process only waits for the workers to wind down.
 - Forming the team, spawning, and posting the board are the model's decisions (sections 16 and 12); the autonomous claim is section 18's addition.
 
+### Asking a busy worker
+
+The poll tells a worker what to do next. It does not tell the lead how a worker is doing.
+
+A status RPC looks like the answer, and it is weak. A worker inside a tool call is not waiting on a receive, so a pull-style call blocks or returns nothing.
+The stuck worker is exactly the one that will not reply.
+
+Three ways work, ordered from most cooperation needed to least:
+
+1. Ask by message. Put a status request in the inbox (section 16) and let the worker answer on its next poll. Accurate, but only while the worker still polls.
+2. Read an agreed progress file. The worker appends one line per step to a path both sides know. The reader never interrupts the work.
+3. Tail the persisted trajectory. The runtime already writes each turn to disk (section 13), so the lead reads the worker's turns with no cooperation at all.
+
+The last two also give a stall signal for free. Compare the file's mtime against now: no write means no progress.
+
+One threshold turns that into a decision. A long tool call writes nothing either, so pick a gap longer than the slowest legitimate call. Past it, treat the worker as stuck.
+
+That threshold is what the stuck-busy failure mode was missing. With it the lead can preempt the task or open a shutdown handshake (section 17) instead of waiting forever.
+
+### Budgets on the pool
+
+Autonomy with no budget has no spending limit. Every idle worker claims another task, so the run ends when the spend runs out, not when the work is done.
+
+In one published multi-agent system, token use alone explained about 80% of the variance in performance. So tokens, not turns, are the unit worth allocating.
+
+Four knobs attach to the board and the worker pool:
+
+- Per task budget. A task carries its own step cap and token cap, written when it is posted. One runaway task cannot drain the whole run.
+- Concurrency cap. Bound how many tasks may be `in_progress` at once. The board already counts them, so the claim refuses once the cap is reached.
+- Model placement. The strongest model goes where the decision is hardest. Plan quality drives the outcome, so the lead gets it and routine workers run a cheaper one.
+- Preemption. A worker over budget, or stalled past the mtime threshold, has its task released back to the board. The next claimer starts clean.
+
+The remaining budget is worth showing the worker. An agent that knows what is left spends it differently from one that only gets a bigger cap.
+
+The book reports this from its own experiment, so it rests on a single source. Treat it as a direction to test, not a number to copy.
+
 ---
 
 ## Per system
@@ -166,6 +207,9 @@ How an idle agent finds and claims its own work.
 - **Premature claim of blocked work.** An agent claims a task whose dependencies are not done, then stalls. Skip any task whose `blockedBy` holds an unresolved id (section 12).
 - **Identity loss after compaction.** A long-running teammate is auto-compacted mid-run (section 8) and forgets its role. Preserve the system prompt so the role survives.
 - **Stuck busy, or stuck idle.** A phase that never reaches `end_turn` never frees it; a poll with no exit spins. End on the stop signal (section 1); check abort each poll.
+- **Undetected stall.** A worker holds a task and looks busy, so the board never frees it. Compare its progress file mtime against the slowest legitimate tool call, then preempt.
+- **Unbounded pool spend.** Idle workers keep claiming, so the run ends when the budget is gone. Give every task a step and token cap, and cap how many run at once.
+- **Preemption double-write.** A released task is reclaimed while the old worker runs, so two agents write the same files. Release only after the stop is acked (section 17).
 
 ---
 
@@ -199,3 +243,10 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
 - [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code):
   `utils/tasks.ts` (`claimTask`, `claimTaskWithBusyCheck` under `proper-lockfile`), `hooks/useTaskListWatcher.ts`, `coordinator/coordinatorMode.ts`.
 - [learn-claude-code · s17 autonomous agents](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  why a pull-style status query is weak, progress files and trajectory tailing, mtime stall detection, the manager pattern's central assignment,
+  and team resource scheduling (per subtask budgets, concurrency caps, model placement, preemption).
+  The budget-awareness result comes from the book's own experiment, so it is single-source.
+- [Plan-and-Act](https://arxiv.org/abs/2503.09572) (Erdogan et al., 2025): splitting a planner from an executor, with plan quality as what drives the outcome.
+- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) (Anthropic, 2025):
+  token use alone explains about 80% of the variance in performance, with tool call count and model choice next.

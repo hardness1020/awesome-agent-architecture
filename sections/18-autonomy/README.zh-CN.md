@@ -14,6 +14,11 @@
 
 解法是自我组织，而不是集中指派。
 
+集中指派也是一种真实可行的设计，而且多数已发表的 multi-agent 研究讲的都是它。
+在 manager 模式里，每个子 agent 都注册成一个 tool，由一位 manager 把每个 subtask 派出去。
+manager 手上有完整的计划，所以能排顺序、去掉重复的工作，也能提早收工。代价是每个 task 它都要经手两次，派出去一次，收结果再一次。
+取舍很清楚：manager 换来全局排序，付出的是 planner 的轮次；看板换来吞吐量，付出的是 lock 和过期的认领。这一章走的是看板这条路。
+
 自主机制必须让一个闲置的 agent 能够：
 
 1. 察觉自己没事可做（work 阶段已抵达 `end_turn`）。
@@ -142,6 +147,42 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - spawn 之后，拉取工作与决定何时停止都是每个 worker 自己的事，不是 lead 或脚本的事。主进程只是等待 worker 收工。
 - 组建团队、spawn、贴看板都是模型的决定（第 16 章与第 12 章）；自主认领则是第 18 章新增的部分。
 
+### 怎么问一个正在忙的 worker
+
+poll 告诉 worker 下一步做什么，但它不会告诉 lead 某个 worker 现在做得怎么样。
+
+看起来状态查询（status RPC）就是答案，其实它很弱。worker 卡在一次 tool call 里的时候根本没在等收消息，所以这种主动去拉的调用不是卡住，就是返回空的。
+真正卡住的那个 worker，刚好就是不会回你的那个。
+
+有三种做法可行，按它们对 worker 的要求由多到少排：
+
+1. 用消息问。把一条状态请求丢进 inbox（第 16 章），让 worker 下次 poll 时回答。这很准，但前提是 worker 还在 poll。
+2. 读一个讲好的进度文件。worker 每做一步就往双方都知道的路径追加一行，读的人完全不打断它干活。
+3. 直接跟着读持久化的 trajectory。runtime 本来就会把每一轮写进磁盘（第 13 章），所以 lead 不需要 worker 配合，也读得到它跑到哪一轮。
+
+后两种还顺手给了一个停摆信号：拿文件的 mtime 跟现在比，没有新的写入就代表没有进展。
+
+再加一个阈值，这就成了可以下判断的依据。跑很久的 tool call 期间同样不会写东西，所以阈值要设得比最慢的合法调用还长。超过了，就当这个 worker 卡死了。
+
+「卡在忙碌」这个失败模式缺的就是这个阈值。有了它，lead 可以把 task 抢回来，或是开一次 shutdown handshake（第 17 章），而不是一直干等。
+
+### 给 worker 池加上预算
+
+自主但没有预算，就等于没有花费上限。每个闲下来的 worker 都会再认领一个 task，所以收工的时机是预算用光，而不是活做完。
+
+有一个公开的 multi-agent 系统报告：光是 token 用量就解释了大约 80% 的性能差异。所以真正值得分配的单位是 token，不是轮次。
+
+有四个旋钮可以挂在看板和 worker 池上：
+
+- 单个 task 的预算。task 被贴上看板时就写好自己的步数上限与 token 上限，这样一个失控的 task 不会把整场的资源吃光。
+- 并发上限。限制同时最多几个 task 处在 `in_progress`。看板本来就在算这个数，满了就直接让认领失败。
+- 模型配置。最强的模型放在决策最难的地方。计划质量决定结果，所以强模型给 lead，例行的 worker 用便宜的就好。
+- 抢占（preemption）。超出预算的 worker，或是 mtime 已经停在阈值外的 worker，手上的 task 会被放回看板，下一个认领的人从干净的状态开始。
+
+还剩多少预算，值得让 worker 自己知道。一个知道自己还剩多少的 agent，花法会跟一个只是拿到更大上限的 agent 不一样。
+
+这是书里自己做的实验得到的结论，只有这一个来源，所以把它当成一个值得验证的方向，别当成可以照抄的数字。
+
 ---
 
 ## 各系统做法
@@ -166,6 +207,9 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - **过早认领被阻挡的工作：**一个 agent 认领了依赖项尚未完成的 task，然后卡住。跳过任何 `blockedBy` 仍含未解 id 的 task（第 12 章）。
 - **compaction 后身份丢失：**一个长时间运行的 teammate 在执行途中被自动 compaction（第 8 章），忘了自己的角色。保留 system prompt，让角色得以存续。
 - **卡在忙碌，或卡在闲置：**一个永远抵达不了 `end_turn` 的阶段永远不会释放；一个没有出口的 poll 会空转。按 stop 信号结束（第 1 章）；每次 poll 都检查 abort。
+- **停摆没人发现：**一个 worker 抓着 task 看起来很忙，看板就一直不会把它放回去。拿它进度文件的 mtime 跟最慢的合法 tool call 比，超过就把 task 抢回来。
+- **整池预算失控：**闲下来的 worker 一直认领，于是收工的时机是预算花光。每个 task 都给步数与 token 上限，同时能跑几个也要设上限。
+- **抢占后重复写入：**task 被放回看板又被别人认领时，旧的 worker 还在跑，于是两个 agent 写同一批文件。等停止被确认之后再放回去（第 17 章）。
 
 ---
 
@@ -194,6 +238,15 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
 
 ## 来源
 
-- [Claude Code autonomy](https://github.com/yasasbanukaofficial/claude-code)：`utils/swarm/inProcessRunner.ts`（`runInProcessTeammate`、`waitForNextPromptOrShutdown`、`findAvailableTask`、`tryClaimNextTask`、`sendIdleNotification`）。
-- [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code)：`utils/tasks.ts`（`proper-lockfile` 之下的 `claimTask`、`claimTaskWithBusyCheck`）、`hooks/useTaskListWatcher.ts`、`coordinator/coordinatorMode.ts`。
+- [Claude Code autonomy](https://github.com/yasasbanukaofficial/claude-code)：
+  `utils/swarm/inProcessRunner.ts`（`runInProcessTeammate`、`waitForNextPromptOrShutdown`、`findAvailableTask`、`tryClaimNextTask`、`sendIdleNotification`）。
+- [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code)：
+  `utils/tasks.ts`（`proper-lockfile` 之下的 `claimTask`、`claimTaskWithBusyCheck`）、`hooks/useTaskListWatcher.ts`、`coordinator/coordinatorMode.ts`。
 - [learn-claude-code · s17 autonomous agents](https://github.com/shareAI-lab/learn-claude-code)：章节定位。
+- [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
+  为什么主动去拉的状态查询很弱、进度文件与跟读 trajectory、用 mtime 判断停摆、manager 模式的集中指派，
+  以及团队层级的资源调度（每个 subtask 的预算、并发上限、模型配置、抢占）。
+  其中「让 agent 知道还剩多少预算」的结论出自书里自己的实验，只有这一个来源。
+- [Plan-and-Act](https://arxiv.org/abs/2503.09572)（Erdogan 等，2025）：把 planner 和 executor 拆开，并指出计划质量才是决定结果的那一项。
+- [How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system)（Anthropic，2025）：
+  光是 token 用量就解释了大约 80% 的性能差异，其次才是 tool call 次数与模型选择。
