@@ -8,6 +8,9 @@
 
 subagent 可以處理聚焦的任務，但一次性的 subagent 一旦啟動就很難再引導。
 
+組團隊是有代價的。多一個 agent 就多一份 token 開銷，兩個 agent 也可能對同一個檔案有不同想法。
+所以第一個要決定的是形狀：要幾個 agent、它們共不共用 context、誰指揮誰。
+
 要協調的 agent 需要一種方式互相 spawn、需要穩定的名字、需要 inbox 來交談，還需要一種方式把權限請求送回給使用者。
 
 協調必須：
@@ -43,6 +46,36 @@ demo 裡沒有中央 broker。有的是名字、inbox 路徑與訊息格式的�
 - sender 寫完就返回。它們不會 block 等待回覆。
 - 隊友每次 poll 都會讀自己的 inbox，把新訊息併入下一個 turn。
 - 權限請求走同一個管道。
+
+### 選擇團隊的形狀
+
+只有當第二個 agent 帶進第一個 agent 沒有的資訊，多一個 agent 才有意義：一份測試結果、一張截圖、一次查詢、一次對真實系統的檢查。
+只是把同一份文字再讀一遍然後投票的 agent，加的是 token，不是資訊。
+在同樣的 thinking token 預算下，Tran 與 Kiela 測過的那些任務上，單一 agent 的表現追平了多 agent 系統。
+Anthropic 說他們的 research 團隊大約要燒掉單次對話 turn 十五倍的 token。這筆錢總得買到什麼。
+
+接下來要決定 context 共不共用：
+
+- **共用。**下一個 agent 直接繼承整條 trajectory，什麼都不用打包，也不會有事實在途中掉了。但同一時間只有一個 agent 在跑，window 是大家一起塞滿的。
+- **隔離。**每個 agent 有自己的 window，需要什麼就明講。agent 可以並行，其中一個想歪了也不會擴散出去。代價是每次交接都得寫清楚。
+
+子任務不多、合起來的歷史放進一個 window 還有餘裕、工作本來就是序列的，那就共用。
+子任務很多、歷史塞不下、工作可以並行，或者一次壞掉的 turn 絕對不能擴散，那就隔離。
+這個 repo 從頭到尾都是隔離的：subagent 每次都從空白開始（第 6 章），隊友各自擁有一個 inbox。
+
+第三個選擇是拓撲，而且只有隔離的 agent 才要選：
+
+- **對等。**地位相同的 agent 互相傳訊息。適合互審與交叉檢查。
+- **管理者。**一個 lead 把工作拆開、指派出去、再把結果合回來。子代回傳的是摘要，不是 trajectory。
+- **去中心化。**沒有 lead。每個 agent 自己判斷下一棒該交給誰。
+
+這一章做的是管理者：lead 組出名單、spawn，然後委派。
+lead 幫所有人規劃，所以計畫的品質就是這次執行的上限，拆錯了下游沒人救得回來。最強的模型放在 lead 上，worker 用便宜的就好。
+
+去中心化的做法差在一次交接怎麼找到目標。
+MetaGPT 把每則訊息發到一個 pool，各角色訂閱自己處理的類型，所以 sender 從來不用指名 receiver。
+AutoGen 的 group chat 共用一份對話記錄，由中央的 selector 挑下一個發言的人，它要是一直挑同樣兩個人就會 livelock。
+OpenAI Swarm 把交接做成一次工具呼叫，並限制轉手次數，這樣交接的循環一定會停。
 
 ### New: 組出團隊
 
@@ -93,6 +126,12 @@ def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):   # src/ma
 
 ### inbox 與權限管道
 
+隔離的 agent 之間只有兩種溝通典範，跟 process 之間用的是同兩種。
+shared memory：大家讀寫同一個地方，看到的是同一份狀態。message passing：sender 把一份副本寫給指定的 receiver，兩邊沒有任何共用的東西。
+常見的管道有三種。工具呼叫的參數是一次性的，沒有回覆的路。共用檔案系統很耐久，但需要 lock。message bus 有位址也有順序，耐不耐久要看它有沒有持久化。
+這裡的 inbox 屬於 message passing。team memory（第 9 章）和 task 看板（第 18 章）屬於 shared memory。
+一個團隊通常兩種都要：用訊息指揮工作，用 shared memory 放那些比一則訊息活得更久的事實。
+
 `mailbox.py` 實作一個由具名 inbox 組成的 `Team`：
 
 ```python
@@ -140,6 +179,31 @@ def bubbling_approver(team, me, lead, human=None, timeout=0.0, poll=0.05):
 沒有 `human` 時，答案必須來自別處（另一條 thread 上的 lead，或聊天平台上的一個人）。
 approver 會 poll 自己的 inbox 直到 `timeout`，然後 deny：沒有人回答的權限就是不行，絕不是卡住或放行。
 這對應 Hermes 的 clarify gateway：`wait_for_response` 會 block 住 agent thread，直到聊天 adapter 回答或 timeout 到期。
+
+### 團隊的狀態放在哪裡
+
+agent 之間用名字互相定址，對狀態則是用路徑定址。書上把這棵樹分成四個區域，每個區域規則不同：
+
+- **私有 scratchpad。**只有一個 agent 會寫，別人不會讀。草稿和中間產物。不需要任何協調。
+- **共用工作區。**任何隊友都能讀寫：repo、task 看板、team memory。衝突都發生在這裡，所以需要 lock 或各自分開的 worktree（第 15 章）。
+- **外部掛載。**不是團隊自己產出的資料，例如一份 checkout 或一份資料集。往這裡寫，就等於對外面的世界產生了影響。
+- **唯讀的內建內容。**skill、prompt、工具定義（第 7 章與第 2 章）。整個執行期間固定不變，所以每個 agent 看到的都是同一份。
+
+狀態放錯地方，最後會以協調 bug 的形式冒出來。兩個 agent 同時改一個檔案是共用工作區的問題；同一個事實在三則訊息裡重複出現，代表它本來就該寫進 team memory。
+
+### 一次 handoff 要帶什麼
+
+隊友看不到 lead 的對話，所以「把壞掉的測試修好」這種話沒辦法直接動手。一個 handoff 包裹要帶三樣東西：
+
+1. 任務本身，附上接收者自己就能檢查的驗收標準。
+2. 已經確認的事實和成立的限制，這樣接收者不會再查一遍，也不會踩過去。
+3. 產出物的路徑：檔案、log、branch。
+
+原始的 trajectory 不放進去。它很長、裡面都是走過的死路，還會逼接收者把 sender 犯過的錯再讀一次。
+
+另一個做法是共用 context 的交接。一個 agent 把控制權轉出去，整段歷史跟著走，所以不用打包，途中也不會掉東西。
+書上用一個角色互轉的工具示範這件事。那是作者自己做的實驗，當成單一來源看待就好。
+那種做法裡控制權像接力棒：同一時間只有一個 agent 拿著，所以什麼都無法並行。包裹要花力氣寫，換來的是並行。
 
 ### 如何整合
 
@@ -189,8 +253,15 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 - **權限卡住：**隊友沒有 UI 可以問使用者。把請求往上轉給 lead 代問。
 - **create 之前就 spawn：**lead 在 `TeamCreate` 之前就 spawn 或傳訊息，於是沒有名單。讓兩者在團隊存在之前都保持無作用。
 - **孤兒隊友：**被 spawn 的隊友在工作做完後還一直 poll。為閒置等待設上界，或用第 17 章的 handshake 停止它。
-- **含糊的跨 agent 訊息：**隊友看不到 lead 的對話。讓訊息自成一體。
+- **含糊的跨 agent 訊息：**隊友看不到 lead 的對話。改成送一個包裹：任務、驗收標準、已確認的事實、產出物路徑。
 - **把 chat 當 memory 用：**耐久的共用事實屬於 team memory。
+- **拜占庭式的隊友：**壞掉的 agent 不會 crash。它會很有自信地回一個錯答案，所以重試、或對同一份證據投票，都抓不到。
+  只有拿模型以外的東西去檢查才抓得到。
+- **共用檔案的更新遺失：**兩個 agent 讀同一個檔案，都寫了，先寫的那筆就沒了。寫入時上 lock，或存一個版本號，對不上就重試。
+- **語意衝突：**兩邊的寫入都乾淨地套用了，結果還是錯的：一個 agent 改掉了另一個 agent 正在用的名字。
+  把工作拆開，別讓兩個 agent 擁有同一個概念，或者只在一個點上合併。
+- **錯誤級聯放大：**上游 agent 的一個錯誤事實被下游一路重複，看起來就越來越像已經確認過的事實。
+  只看結論的審查者會覺得前後一致。要對原始證據做審查，而且審查的 agent 不能是產出它的那一個。
 
 ---
 
@@ -214,6 +285,14 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 ## 出處
 
 - [Claude Code 工具與 inbox](https://github.com/yasasbanukaofficial/claude-code)：`tools/SendMessageTool/`、`tools/TeamCreateTool/`、`utils/mailbox.ts`、`utils/teammateMailbox.ts`。
-- [Claude Code 隊友](https://github.com/yasasbanukaofficial/claude-code)：`tasks/InProcessTeammateTask/`、`tasks/RemoteAgentTask/`、`remote/remotePermissionBridge.ts`、`memdir/teamMemPaths.ts`。
+- [Claude Code 隊友](https://github.com/yasasbanukaofficial/claude-code)：
+  `tasks/InProcessTeammateTask/`、`tasks/RemoteAgentTask/`、`remote/remotePermissionBridge.ts`、`memdir/teamMemPaths.ts`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`tools/clarify_gateway.py`、`tools/interrupt.py`。
 - [learn-claude-code · s15_agent_teams](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter10.md`（多 Agent 协作），以中文原文為準。
+  context 共不共用、拓撲分類、檔案系統分區、handoff 包裹。角色互轉那個示範是作者自己的實驗。
+- Cemri et al., *Why Do Multi-Agent LLM Systems Fail?*（[arXiv:2503.13657](https://arxiv.org/abs/2503.13657)）：MAST 分類法與拜占庭式的框架。
+- Tran, Kiela, *Single-Agent LLMs Outperform Multi-Agent Systems Under Equal Thinking Token Budgets*（[arXiv:2604.02460](https://arxiv.org/abs/2604.02460)）。
+- Erdogan et al., *Plan-and-Act*（[arXiv:2503.09572](https://arxiv.org/abs/2503.09572)）：planner 的品質就是這次執行的上限。
+- Anthropic, [*How we built our multi-agent research system*](https://www.anthropic.com/engineering/multi-agent-research-system)：一個 research 團隊的 token 成本。
+- [MetaGPT](https://arxiv.org/abs/2308.00352)、[AutoGen](https://arxiv.org/abs/2308.08155)、[OpenAI Swarm](https://github.com/openai/swarm)：去中心化的路由與交接次數上限。
