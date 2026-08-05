@@ -36,6 +36,20 @@ skill 使用 progressive disclosure。模型只会看到刚好足够的信息，
 
 不需要专门的 skill tool。只要 catalog 列出每个 skill 的名称和路径，agent 就用普通的 Read tool 去读那个文件来加载 skill。L2 和 L3 都只是读文件而已。
 
+有三件事会决定 progressive disclosure 到底管不管用。
+
+- **description 是路由条件，不是摘要。** 模型在决定要不要加载之前，只看得到 catalog 那一行。
+  所以要写清楚什么时候该用、什么时候不该用，最好附一个反例。只写主题名称的描述，等于叫模型自己猜。
+- **catalog 放哪里是可以选的。** 这份列表可以放在 system prompt，也可以塞进某个启用用 tool 的 description 里。
+  open standard 两种都允许。放 system prompt，每个 session 的 prefix 都要付这笔 token；放进 tool，prefix 比较小，列表变成 tool schema 的一部分。
+- **progressive disclosure 是便宜，不是免费。** catalog 至少要被 prefill 一次，加载的正文在被压缩之前也一直占着 context。
+  第一个 turn 之后 prefix 就被缓存住，后面的成本很低。所以真正要抓的预算是 catalog 挂了几个 skill，而不是正文被读了几次。
+
+同一套做法现在也长到 tool 这一层了。与其把每个 tool schema 都塞进 prefix，harness 只留名称和一行描述，完整 schema 等模型要用的时候再拉。
+OpenAI 的 Responses API 用 `defer_loading` 标记 tool，Claude Code 把 tool search 用在 MCP server 上，Codex CLI 则用 BM25 对自己的 tool 列表排序。
+拉进来的 schema 会接在 context 尾端，所以缓存住的 prefix 不会被打掉。
+skill 是这个 repo 第一次碰到 progressive disclosure 的地方，现在 tool 定义本身也内建了这件事（第 2 章）。
+
 ### New: scan the skills and list them in the prompt
 
 ```python
@@ -111,6 +125,28 @@ def stale_skills(skills_dir, skills, now=None, stale_after=STALE_AFTER) -> list[
 - `stale_skills` 是一份报告，不是一个动作。怎么处理是 curator 的工作；Hermes 用一个后台 curator agent 处理同样的信号（归档、合并、固定（pin））。
 - 数据流是一个跨运行的 loop：读取更新 `.usage.json`，curator 读它，catalog 反映留下来的 skill，`WriteSkill` 再补进新条目。
 
+**什么时候该写。** demo 的做法是一次成功就写：跑完一段流程，调用一次 `WriteSkill`，下一次扫描就把它编进 catalog。
+这是能把整个 loop 演出来的最小规则，也是可执行代码实际在做的事。
+
+书里的门槛更高。要成为正式能力，证据得重复出现，至少两次没有失败的运行呈现同一个模式，而且验证那一步不能来自提出它的那次运行。
+Voyager 也是同一套规则：环境确认这个 skill 真的有用，它才进得了 library。
+写之前先搜一下 store，找得到相近的就去改它，不要再开一个重复的。正文里也要留下这次踩到的坑，而不是只留走得通的那条路。
+两种立场都成立。一次成功比较好教机制，demo 也短。门槛则是在 store 长到几百个的时候，挡住那些只用过一次的笔记。
+
+中间插一个 candidate 步骤，可以两边兼顾。沉淀出来的流程先落成 candidate，不直接进 catalog，经过起草、测试、评估、修订才升级。
+Anthropic 的 Skill Creator 就是跑这个 loop。放到这一章的代码里，就是多一个暂存文件夹，`load_skills` 先跳过它，等 curator 升级才收。
+
+**合并整理是离线做的。** curator 是排程跑的，不是实时跑的。书里叫它 sleep-time learning，分成五步：
+
+1. **触发。** 排程时间到、系统空闲，或 store 大小超过门槛。
+2. **定位。** 先对 store 做一次快照，后面每一步才都能回滚。
+3. **收集与合并。** 读使用记录和最近几次运行，把几乎重复的 skill 并成一个，顺便把 candidate 收进来。
+4. **验证与核准。** 拿产生它们的那几次运行去检查合并后的正文。没过的就不收。
+5. **修剪与建索引。** 按固定规则归档过期 skill，然后重建 catalog。
+
+放在离线做，本身就是一条安全边界。线上 loop 只负责运行和记录，跑到一半绝不去动 store。
+一次刚好成功的运行没办法把自己升级，agent 从外面读进来的文本，也没办法在两个 turn 之间变成永久指令。
+
 ### How it integrates
 
 loop 不用改。读取 skill 就是一次普通的工具调用，tool 结果照样进入 `messages[]`。
@@ -143,6 +179,12 @@ loop 不用改。读取 skill 就是一次普通的工具调用，tool 结果照
 - **压缩后正文丢失：**重新读取该 skill 文件，或让正文保持简短。
 - **Path traversal：**catalog 会把路径交给模型。把 Read tool 的范围限制在 skills 目录，让 `../` 无法逃出去。
 - **forked skill 失去即时情境：**只在自成一体的工作上使用 forked skill。
+- **供应链里的毒 skill：**装进来的第三方 skill 本质是外部内容，却是当成指令加载的，杀伤力比一个被下毒的网页还大，因为 catalog 已经替它背书了。
+  安装前把正文和附带的 script 都读过，版本要固定，更新时再看一次。
+- **注入的文本变成永久的：**`messages[]` 里的 prompt injection，session 结束就没了；同一段文本沉淀进 `SKILL.md`，之后每次运行都会加载。
+  没审过的外部内容绝不能喂给 `WriteSkill`。新 skill 先当 candidate 放着，等另一道流程核准；也绝不让 skill 去改那道核准闸门。
+- **使用次数会高估学习成效：**加载不等于照做。次数只说明 catalog 路由对了，不代表这个 skill 改变了结果。
+  skill 有没有被触发、那次运行有没有变好，要当成两个数字分开看。
 
 ---
 
@@ -165,7 +207,16 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
 
 ## 出处
 
-- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
-- [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/skills_tool.py`（`skills_list`、`skill_view`）、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、`tools/skills_ast_audit.py`。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：
+  `skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
+- [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：
+  `tools/skills_tool.py`（`skills_list`、`skill_view`）、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、`tools/skills_ast_audit.py`。
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)：progressive disclosure 的层级。
 - [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter2.md`、`book/chapter8.md`，以中文原版为准。
+- [Agent Skills open standard](https://agentskills.io)：catalog 放哪里，system prompt 或启用用 tool 的 description。
+- Deferred tool loading：OpenAI Responses API tool search（`defer_loading`）、Claude Code MCP tool search、Codex CLI `search_tool`。
+- [Claude Code · prompt caching](https://code.claude.com/docs/en/prompt-caching)：加载的 skill 正文会落在哪里、成本是多少。
+- [Voyager](https://arxiv.org/abs/2305.16291)：环境验证过，skill 才进得了 library。
+- [Anthropic Skill Creator](https://github.com/anthropics/skills)：升级之前先起草、测试、评估、修订。
+- Lin et al.，[arXiv:2605.30621](https://arxiv.org/abs/2605.30621)，转引自书：更新有没有落地、有没有帮上忙，是两个要分开量的数字。
