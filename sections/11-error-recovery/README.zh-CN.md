@@ -6,6 +6,11 @@
 
 一次 agent 执行可能横跨很多次模型调用。任何一次调用都可能因为网络问题、过载、rate limit、输出上限或 context overflow 而失败。
 
+模型调用只是其中一层。有人研究了生产环境的 coding agent，把失败分成四层：API、tool、context、control flow。
+API 层是 timeout、rate limit 和过载。tool 层是命令返回非零，或 handler 抛出异常。
+context 层是 prompt overflow 和坏掉的消息历史。control flow 层是一直重复、却没有任何进展的步骤。
+先判断是哪一层，再开始数次数。计数器要是在分类之前就跑起来，预算就会花在重试根本救不了的错误上。
+
 loop 对不同的失败需要不同的响应：
 
 1. 对暂时性错误重试。
@@ -96,6 +101,41 @@ response = recovery.with_retry(
 - `_reactive_trim` 就地修改 `messages[]`，供一次 overflow 重试使用。
 - 当 recovery 放弃时，错误会被浮现出来，而不是被藏起来。
 
+### 模型调用以外的部分
+
+上面这个 helper 只顾到 API 这一层。另外三层各自需要自己的检查。
+
+**没有进展。** 每次 tool call 都用「名称加参数」做成一个 fingerprint。fingerprint 一直重复，就代表 agent 在做同一件事，而且什么也没学到。
+步数上限最后也会拦下来，但那时预算已经烧完了。fingerprint 计数器几步之内就能发现，而且说得出是哪一次调用卡住。
+每条恢复路径也各自配一个失败计数器，这样一直失败的那条路会自己跳闸，不用等到全局上限。
+
+**没有活性。** connect timeout 看不到「连上了、然后就没声音」的 stream。旁边再跑一个 idle watchdog，时间窗内没有 token 进来就取消这次调用。
+接着 retry helper 就把这次取消当成一般的暂时性失败来处理。
+
+**历史坏掉。** 一轮中途 crash，可能留下一个没有对应 `tool_result` 的 `tool_use` block。下一次请求会卡在消息格式，而不是卡在工作本身。
+发出之前先把成对关系修好。至于「修」是什么意思，得看这份 transcript 是拿来做什么的。
+产品用的 harness 会塞一个 placeholder 结果，写明这次调用被中断，让执行继续下去。
+拿来录训练数据的 harness 则拒绝修补，因为造一个假结果，等于教模型一个根本没发生过的步骤。
+
+### 恢复要分级
+
+恢复不是一个决定。要照调用方该看到多少来分级。
+
+1. 安静重试。调用方只看得到最后的结果。
+2. 降级后继续。返回一个缩水的结果，并说清楚少了什么。
+3. 把失败浮现出来，附上试过哪些方法，让模型可以换一条路走。
+
+前两级产生的错误要隔离起来。先押在 helper 里面，等恢复真的放弃了才放出去。
+中间过程的错误一旦传到模型面前，模型会当成最终结果，可能因此重做一件其实已经成功的工作。
+
+恢复也可能自己喂自己。错误路径上要是还会触发带副作用的逻辑（hook、摘要、通知），那就又去调用一次模型，然后又失败一次。
+在错误路径上把那些逻辑关掉，另外带一个递归深度计数器，把漏网的链条切断。
+后台调用则完全不重试。它们不在关键路径上，重试只会把主 loop 需要的额度花掉。
+
+界限要照实际量到的失败来定，不是靠直觉。有一份执行记录显示，同一条恢复路径失败了三千多次，
+这类 loop 一天大约吃掉二十五万次 API 调用。压缩试三次就停，这个界限就是这样量出来的。
+这些数字只有单一来源，看的时候要当成某个实现在某一段时期的样子。
+
 ---
 
 ## 各系统做法
@@ -120,6 +160,10 @@ Recovery 包住模型调用。loop 主体维持不变。
 - **overflow 无法缩小：**如果一次 reactive compaction 失败，就停止，而不是永无止境地压缩。
 - **错误消失：**一个被吞掉的错误会让 transcript 少了结果。在恢复用尽之后，把失败浮现出来。
 - **Stop hook 重播 API 错误：**对 API 错误消息略过 stop hook。
+- **卡住了，却没有错误：**一直重复同一个调用不会抛出任何东西，重试路径一条也不会启动。数重复的 tool 加参数 fingerprint，把 loop 打断。
+- **stream 静静停住：**连上之后就没声音的 stream，是过得了 connect timeout 的。跑一个 idle watchdog，直接取消这次调用。
+- **修补污染了记录：**塞一个 placeholder `tool_result` 能让产品环境的执行活下去，但也记下了一个根本没跑过的步骤。transcript 要拿去当训练数据时就别修。
+- **中间错误外泄：**恢复还没结束就先送出去的错误，会被当成最终结果，害人白做一轮工。先隔离起来，等恢复放弃了再说。
 
 ---
 
@@ -141,6 +185,12 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 
 ## 来源
 
-- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
-- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 与 `max_consecutive_format_errors`。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：
+  `services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：
+  `models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 与 `max_consecutive_format_errors`。
+- [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
+  四层失败分类、用 tool 加参数做 loop fingerprint、idle watchdog、`tool_result` 成对修补以及产品与训练数据两套标准、
+  分级恢复加错误隔离，还有防死亡螺旋的那几招。它的脚注 ch5-3 说这套分类来自对生产环境 agent 的研究（其中包含 Claude Code），
+  也提醒实现变动很快。三千多次失败的那份记录、以及一天二十五万次调用这两个数字，是书中作者自己的生产数据，只有单一来源。
 - [learn-claude-code · s11_error_recovery](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
