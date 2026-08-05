@@ -25,12 +25,14 @@ Without this layer, the agent can only react to user input.
 
 Separate the clock from the loop. The scheduler watches time. It does not call the model directly.
 
-At fire time, the scheduler only enqueues a prompt. The driver drains the queue between turns, when no turn is in flight, and runs each prompt through the same agent loop that handles user input.
+At fire time, the scheduler only enqueues a prompt. The driver drains the queue between turns, when no turn is in flight,
+and runs each prompt through the same agent loop that handles user input.
 
 - A schedule is data: a prompt to run, a fire time, and an optional repeat interval. The scheduler stores each one as a task.
 - A one-shot fires once and then deletes itself.
 - A recurring schedule re-arms to the next interval.
 - A durable schedule survives restart, but it does not fire while the host is off.
+- A heartbeat is a recurring schedule whose prompt is a question. It wakes, looks at a source, and usually decides there is nothing worth saying.
 
 ### New: the scheduler and fire queue
 
@@ -74,9 +76,28 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 
 - `channels` maps a channel name to a send callable (print here; a real adapter is section 19's job).
   The task names the channel; the driver owns the map. Neither knows the other's details.
-- When the answer starts with `[SILENT]`, `deliver` skips the channel send. This is the convention for a scheduled check that found nothing worth telling the user (a poll that saw no change). The driver still holds the full text and can log it.
+- When the answer starts with `[SILENT]`, `deliver` skips the channel send. This is the convention for a scheduled check that found nothing worth telling the user
+  (a poll that saw no change). The driver still holds the full text and can log it.
 - No channel means the answer stays local, the pre-delivery behavior.
 - The `bool` return lets the driver fall back (the demo prints undelivered answers) instead of losing the answer silently.
+
+### Heartbeat and the limits of a clock
+
+Some sources cannot push. A mailbox with no webhook, a page with no feed, a service that only answers when asked.
+For those, the only trigger left is time, and the pattern is a heartbeat: a recurring schedule whose prompt tells the agent to look and judge, not to act.
+Check the source, decide whether anything changed enough to be worth a message, and say nothing otherwise.
+`[SILENT]` makes silence the cheap default, so a heartbeat can run often without filling a channel with noise.
+
+A heartbeat and a cron entry use the same machinery here, a prompt with a repeat interval and a channel.
+The prompt is what differs. A cron prompt commands, a heartbeat prompt asks.
+
+The interval sets both the bill and the worst case delay, and those pull in opposite directions.
+A short interval wakes the model constantly to learn nothing most times. A long interval is cheap and late.
+No interval removes the trade-off, because a clock samples state instead of observing events. It knows when it last looked, not when the thing happened.
+
+Push removes it. When the source can call the agent, the trigger fires when the event happens and the polling cost drops to zero.
+So the order of preference is push where the source supports it, heartbeat where it does not, and cron for work that is genuinely time-based, like a Monday report.
+Section 19 covers the inbound push side.
 
 ### How it integrates
 
@@ -124,6 +145,8 @@ How each agent decides when to run scheduled work.
 - **Durable means always-on.** Local durable schedules only survive restart. Use remote triggers or an OS timer for offline firing.
 - **Bad cron expression.** Validate on create and skip invalid loaded entries.
 - **Loop is busy.** Enqueue the prompt and drain it between turns.
+- **Alert fatigue.** A heartbeat that reports every tick trains the user to ignore it. Make the prompt judge what is worth sending and stay silent otherwise.
+- **Events between ticks.** A clock samples state, so a change that appears and reverts between two ticks is invisible. Read a log or a cursor, or move the source to push.
 
 ---
 
@@ -151,3 +174,5 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `cron/scheduler.py` (`tick`, `_resolve_cron_disabled_toolsets`), `cron/jobs.py` (`_jobs_lock`, `claim_dispatch`), `hermes_time.py`.
 - [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical.
+  Heartbeat wakeups with judgment, alert fatigue, and the limits of time-driven triggers.

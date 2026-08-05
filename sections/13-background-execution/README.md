@@ -79,6 +79,29 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
+The wrapper also sets what the model should expect. A backgrounded call is an initiate step: it returns a task id, and completion arrives later as its own event.
+Name and describe slow tools that way (`initiate_export`, not `export`), so the model reads the immediate `tool_result` as a receipt and not as the answer.
+
+### Interrupts and safe points
+
+Not every input can wait for the current tool call to finish. A user correction, a cancel, or an alert can land mid-call.
+
+One way to handle this is to turn every inbound input into an event on one stream, and to consume that stream only at a safe point:
+the boundary between a finished tool result and the next model call. Injecting mid-call would leave the transcript inconsistent, so events wait for the boundary.
+Urgency then picks which boundary:
+
+- **Queue.** Hold the event and hand it over at the next natural boundary. The default for completions and low priority notices.
+- **Cancel.** Stop the in-flight call to make a boundary now. For a correction that makes the running work pointless.
+- **Parallel.** Run the event in a side loop and leave the main loop alone. For work that must not disturb the current task.
+
+A small model can do the routing, so triage costs one cheap call per event.
+
+Cancelling raises a transcript problem. The stopped call left a `tool_use` block with no matching `tool_result`, and the next model call needs that pair closed.
+Two designs answer it. Claude Code never reuses the in-flight `tool_use_id` for the late real result: the completion comes back as a standalone notification message.
+ai-agent-book writes a placeholder `tool_result` against that same id at interrupt time, saying the call was interrupted, which closes the pair on the spot.
+Both can hold together. The placeholder closes the pair at cancel time, and the real result still arrives later as a new notification.
+The book's placeholder scheme is the author's own design, single-source.
+
 ### How it integrates
 
 The loop drains pending completions at the start of a turn:
@@ -111,6 +134,8 @@ How each agent moves work off the loop and reports completion.
 - **Interactive prompt stalls.** A background command waits for input. Detect prompt-like output and notify the model to kill or rerun non-interactively.
 - **Lost completion.** A finished task never reaches the loop. Send completion through one shared queue and mark tasks notified.
 - **Mispaired notification.** Reusing the old `tool_use_id` breaks the transcript. Use standalone notification text.
+- **Side effect after a kill.** A timeout or cancel does not say whether the call landed. A blind retry can charge twice. Use an idempotency key, or query state before mutating.
+- **Batched events dilute attention.** One drain folds several notifications into one turn, and the model answers only the last. Number each event and add a summary line.
 - **Too much concurrency.** Many background tasks can exhaust resources. Add kill paths and limits.
 - **Process leak on exit.** Background work can outlive the session. Register cleanup.
 
@@ -138,3 +163,5 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code):
   `tools/BashTool/BashTool.tsx`, `tools/SleepTool/prompt.ts`, `utils/task/framework.ts`, `utils/messageQueueManager.ts`.
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical.
+  Idempotency and cancel semantics, initiate-and-complete naming, event triage at safe points, interrupt placeholders, batched-event attention.

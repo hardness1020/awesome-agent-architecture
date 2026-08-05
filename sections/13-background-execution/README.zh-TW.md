@@ -79,6 +79,29 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
+這層包裝也決定了 model 該有什麼預期。丟到背景的呼叫只是「啟動」這一步：它回傳一個 task id，做完是稍後另一則事件。
+所以跑很久的工具，名字和描述都該照這個樣子寫（`initiate_export`，而不是 `export`），model 才會把當下那則 `tool_result` 讀成收據，而不是答案。
+
+### 打斷與安全點
+
+不是每個進來的訊息都能等目前這個工具呼叫跑完。使用者的修正、一個取消、一則警報，都可能在呼叫跑到一半時才到。
+
+一種做法是把所有進來的訊息都變成同一條 stream 上的 event，而且只在安全點（safe point）消化它：
+也就是一則工具結果剛跑完、下一次 model 呼叫還沒發出的那個交界。呼叫跑到一半硬塞會弄壞對話紀錄，所以 event 得等到那個交界。
+至於要等哪一個交界，看這則 event 有多急：
+
+- **Queue**：先收著，等下一個自然的交界再交出去。完成通知和不急的訊息都走這條。
+- **Cancel**：直接中止進行中的呼叫，當場做出一個交界。適合那種再跑下去也白跑的修正。
+- **Parallel**：把這則 event 丟到旁邊的 loop 去跑，主 loop 不動。適合不該打擾當前工作的事。
+
+分類這件事用一個小 model 就能做，所以每則 event 只多花一次便宜的呼叫。
+
+Cancel 會帶出一個對話紀錄的問題。被中止的呼叫留下一個 `tool_use` block，卻沒有對應的 `tool_result`，而下一次 model 呼叫需要這一對是完整的。
+有兩種設計在處理它。Claude Code 從不拿進行中的 `tool_use_id` 去裝那個遲到的真結果：真結果會以一則獨立的 notification 訊息回來。
+ai-agent-book 則是在打斷的當下，就對同一個 id 補一則佔位用的 `tool_result`，內容寫這個呼叫被中斷了，當場把這一對補齊。
+兩者可以並存：佔位的那則負責在取消時把這一對收乾淨，真的結果照樣稍後以新的 notification 送進來。
+書上這套佔位做法是作者自己提的設計，目前只有這一個出處。
+
 ### 如何整合
 
 loop 在一個 turn 開始時，把 queue 裡累積的完成 notification 收進對話：
@@ -111,6 +134,8 @@ background.drain_into(messages, runtime)               # src/loop.py
 - **互動式提示卡住（Interactive prompt stalls）：**某個背景指令在等輸入。偵測像提示的輸出，並通知 model 去 kill 它，或以非互動方式重跑。
 - **完成訊息遺失（Lost completion）：**某個完成的 task 從沒抵達 loop。讓完成訊息走同一個共享 queue，並把 task 標記為已通知。
 - **配對錯誤的 notification（Mispaired notification）：**重用舊的 `tool_use_id` 會弄壞 transcript。改用獨立的 notification 文字。
+- **被 kill 之後的副作用（Side effect after a kill）：**timeout 或取消都不會告訴你那個呼叫到底做成了沒。盲目重試可能扣兩次款。用 idempotency key，或先查狀態再寫入。
+- **批次 event 稀釋注意力（Batched events dilute attention）：**一次 drain 把好幾則 notification 併進同一個 turn，model 只回應最後一則。幫每則 event 編號，再加一行摘要。
 - **並行太多（Too much concurrency）：**太多背景 task 會耗盡資源。加上 kill 路徑和上限。
 - **離場時的 process 洩漏（Process leak on exit）：**背景工作可能活得比 session 還久。註冊清理機制。
 
@@ -135,5 +160,8 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 ## 出處
 
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
-- [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
+- [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：
+  `tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版為準。
+  冪等性與取消語義、啟動與完成分開命名、在安全點做 event 分類、打斷佔位、批次 event 的注意力稀釋。
