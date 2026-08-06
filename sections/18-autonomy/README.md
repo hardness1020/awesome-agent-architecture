@@ -156,36 +156,32 @@ They are also not confirmed behaviour of the systems in the table below. Read th
 
 **Asking a busy worker.** The poll tells a worker what to do next. It never tells the lead how a running worker is doing.
 
-A status call looks like the fix. It is weak. A worker in the middle of a tool call is not listening for messages.
-So the call either hangs or comes back empty. The worker that is truly stuck is the one that will not answer.
+**Why a status call is weak.** A worker in the middle of a tool call is not listening for messages. So the call either hangs or comes back empty.
+The worker that is truly stuck is the one that will not answer.
 
-Three other ways do work. The first one needs the worker's help, and the last one needs none:
+**Three ways that do work.** The first one needs the worker's help, and the last one needs none:
 
 1. Ask by message. Drop a status request in the inbox (section 16). The worker answers on its next poll. This is accurate, and it works only while the worker still polls.
 2. Read an agreed progress file. The worker adds one line per step to a path both sides know. The reader never interrupts the work.
 3. Tail the saved trajectory. The runtime already writes every turn to disk (section 13). The lead reads those turns, and the worker does nothing at all.
 
-The last two give a stall signal for free. Check when the file was last written. No new write means no new progress.
-
+**Spotting a stall.** The last two ways give that away for free. Check when the file was last written, because no new write means no new progress.
 One threshold turns that into a decision. A slow tool call writes nothing while it runs, so set the threshold above the slowest call you expect. Past it, call the worker stuck.
-
-That is the trigger the stuck-busy failure mode was missing. The lead can now take the task back, or start a shutdown handshake (section 17), instead of waiting forever.
+That threshold is the trigger the stuck-busy failure mode was missing. The lead can take the task back, or start a shutdown handshake (section 17), instead of waiting forever.
 
 **Budgets on the pool.** Nothing in the poll tells a worker to stop claiming. Every idle worker takes one more task.
 So the run ends when the budget runs out, not when the work is done.
 
-One published multi-agent system found that token use alone explained about 80% of the difference in how well its runs went. So the thing to hand out is tokens, not turns.
-
-Four knobs attach to the board and the worker pool:
+**What to hand out.** One published multi-agent system found that token use alone explained about 80% of the difference in how well its runs went.
+So the unit to allocate is tokens, not turns. Four knobs attach to the board and the worker pool:
 
 - Per task budget. Each task carries its own step cap and token cap, written when it is posted. One runaway task then cannot drain the whole run.
 - Concurrency cap. Limit how many tasks sit in `in_progress` at once. The board already counts them, so a claim past the cap simply fails.
 - Model placement. Put the strongest model where the thinking is hardest. Plan quality decides the result, so the lead gets that model and routine workers run a cheaper one.
 - Preemption. A worker over budget, or stalled past the threshold, loses its task back to the board. Whoever claims it next starts from a clean state.
 
-It also helps to tell the worker how much budget is left. An agent that knows what it has left spends it differently from one that just gets a bigger cap.
-
-That comes from the book's own experiment, so one source backs it. Treat it as something to test, not a number to copy.
+**Show the worker its budget.** An agent that knows what it has left spends it differently from one that just gets a bigger cap.
+That result comes from the book's own experiment, so one source backs it. Treat it as something to test, not a number to copy.
 
 ---
 
