@@ -160,9 +160,13 @@ if response.stop_reason != "tool_use":
 
 ### Further reading
 
-`src/` keeps one flat directory and globs it, so every file lands in the index for free. Larger stores give that up.
-They maintain a written index file, and they let memory files link to each other. Recall can then follow a link out of a file it already loaded.
-OpenViking builds a knowledge store this way: files with URIs, layered summaries, and wiki-style cross-links. None of it is in `src/`.
+`src/` keeps one flat directory and globs it, so every file lands in the index for free. A store too big to glob has to earn that reachability back. Three parts do it:
+
+- **A written index.** One maintained file lists every memory, so recall has something to rank without walking the tree.
+- **Links between memories.** A file points at related files, so recall can follow a link out of a file it already loaded.
+- **Layered summaries.** Each level summarizes the one below, so a read can stop at the depth the query needs.
+
+OpenViking's knowledge store combines all three and gives every file a URI. None of it is in `src/`.
 
 ---
 
