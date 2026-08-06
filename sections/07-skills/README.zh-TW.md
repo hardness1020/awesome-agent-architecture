@@ -36,6 +36,10 @@ skill 使用 progressive disclosure。模型只會看到剛好足夠的資訊，
 
 不需要專門的 skill tool。只要 catalog 列出每個 skill 的名稱和路徑，agent 就用一般的 Read tool 去讀那個檔案來載入 skill。L2 和 L3 都只是讀檔而已。
 
+description 這一行最關鍵。它是路由條件，不是摘要。
+模型在決定要不要載入之前，就只看得到這一行。所以要寫清楚什麼時候該用，也要寫什麼時候不該用。
+最好再附一個反例。只寫個主題名稱，模型只能用猜的。
+
 ### New: scan the skills and list them in the prompt
 
 ```python
@@ -119,6 +123,55 @@ loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照
 
 載入後的 skill 文字就在 `messages[]` 裡，所以之後 context 不夠用時，它會跟其他訊息一起被壓縮（第 8 章）。skill 本文要寫短，大型參考資料改成指向檔案。
 
+### 延伸閱讀
+
+以下設計 `src/` 都沒有實作，出自 ai-agent-book 和廠商文件，也未經下面表格的系統證實。
+
+**catalog 要花多少成本：**progressive disclosure 讓一個很大的 skill store 變便宜，但沒有讓它變免費。
+catalog 就在 prefix 裡，prefill 時要被讀一次，之後每個 turn 都要再送一次。
+第一個 turn 之後那段 prefix 就被快取住，所以重送的成本很低。
+載入本文比較貴，而且本文會一直佔著 context，直到有東西來壓縮它。
+所以真正要盯的數字是 catalog 掛了幾個 skill，而不是本文被讀了幾次。
+
+**catalog 放在哪：**這份列表可以放在 system prompt，`src/` 就是這樣做的。
+它也可以塞進某一個啟用用 tool 的 description 裡，open standard 兩種都允許。
+差別在這筆 token 算到哪邊。放 system prompt，它就是每個 session prefix 的一部分。
+放進 tool description，prefix 就小一些，模型改成透過那個 tool 去看這份列表。
+
+**Deferred tool loading：**tool 也可以用同一套做法，理由也一樣：schema 很大，但大部分 turn 根本用不到。
+prefix 裡只留 tool 名稱和一行描述，模型要用到某個 tool 時，才去要完整 schema。
+要來的 schema 接在 context 尾端，所以快取住的 prefix 完全沒被動到，前面的東西也都不用重算。
+skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書上說，同一套做法現在也長到 tool 這一層了（第 2 章）。
+
+**什麼時候該寫一個 skill：**假設某一趟執行第一次把一段長流程跑對了，這該不該存成 skill？
+這裡的 demo 說該。流程一跑完，agent 就呼叫一次 `WriteSkill`，下一次掃描把它編進 catalog。
+這是能把整個 loop 演出來的最小規則，也是可執行程式碼實際在做的事。
+
+**書裡的門檻更高：**書的答案是不該，因為一趟執行不算證據。
+要讓一個 skill 變成正式能力，書要求四件事：
+
+- 同一個模式至少在兩趟沒有失敗的執行裡出現過。
+- 驗證那一步不能來自提出這個 skill 的那趟執行。Voyager 也是這樣做：環境確認過，skill 才進得了 library。
+- 動手寫之前先搜一下 store。如果已經有很像的，就去改它，不要再多開一個重複的。
+- 這趟踩到的坑要留在本文裡，不要只留走得通的那條路。
+
+**該選哪一種：**兩種都說得通，因為它們回答的不是同一個問題。
+一次成功比較好教機制，demo 也短。門檻則是在 store 長到幾百個的時候，擋住那些只用過一次的筆記。
+中間還可以插一個 candidate 步驟。沉澱出來的流程先落成 candidate，不直接進 catalog。
+它會經過起草、測試、評估、修訂，才被升級。Anthropic 的 Skill Creator 就是跑這個 loop。
+放到這一章的程式碼裡，就是多一個暫存資料夾，`load_skills` 先跳過它，等 curator 升級才收。
+
+**整併是離線做的：**curator 是排程跑的，不是即時跑的。書裡叫它 sleep-time learning，分成五步：
+
+1. **觸發。** 排程時間到、系統閒置，或 store 大小超過上限。
+2. **定位。** 先對 store 做一次快照，後面每一步才都能回滾。
+3. **蒐集與合併。** 讀使用記錄和最近幾次執行，把幾乎重複的 skill 併成一個，再把 candidate 收進來。
+4. **驗證與核准。** 拿產生它們的那幾次執行，去檢查合併後的本文。沒過的就不收。
+5. **修剪與建索引。** 依固定規則封存過期的 skill，然後重建 catalog。
+
+**為什麼一定要離線：**把 curator 放在離線跑，本身就是一條安全邊界。線上 loop 只負責執行和記錄，跑到一半絕不去動 store。
+所以一趟剛好成功的執行沒辦法把自己升級，agent 從外面讀進來的文字，也沒辦法在兩個 turn 之間變成永久指令。
+
 ---
 
 ## 各系統做法
@@ -143,6 +196,12 @@ loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照
 - **壓縮後本文遺失：**重新讀取該 skill 檔案，或讓本文保持簡短。
 - **Path traversal：**catalog 會把路徑交給模型。把 Read tool 的範圍限制在 skills 目錄，讓 `../` 無法逃出去。
 - **forked skill 失去即時情境：**只在自成一體的工作上使用 forked skill。
+- **供應鏈裡的毒 skill：**裝進來的第三方 skill 本質是外部內容，卻是當成指令載入的。
+  這比一個被下毒的網頁還危險，因為 catalog 已經替它背書了。安裝前先把本文和附帶的 script 都讀過，版本要釘住，更新時再看一次。
+- **注入的文字變成永久的：**`messages[]` 裡的 prompt injection，session 結束就沒了；同一段文字寫進 `SKILL.md`，之後每次執行都會載入。
+  所以沒審過的外部內容，絕不能餵給 `WriteSkill`。新 skill 先當 candidate 放著，等另一道流程核准。也絕不讓 skill 去改那道核准閘門。
+- **使用次數會高估學習成效：**載入不等於照做。次數只說明 catalog 路由對了，不代表這個 skill 改變了結果。
+  要看兩個數字：skill 有沒有被觸發，以及那次執行有沒有變好。
 
 ---
 
@@ -165,7 +224,15 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
-- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/skills_tool.py`（`skills_list`、`skill_view`）、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、`tools/skills_ast_audit.py`。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
+  `skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
+- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
+  `tools/skills_tool.py`（`skills_list`、`skill_view`）、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、`tools/skills_ast_audit.py`。
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)：progressive disclosure 的層級。
 - [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter2.md`、`book/chapter8.md`，以中文原版為準。
+- [Agent Skills open standard](https://agentskills.io)：catalog 放哪裡，system prompt 或啟用用 tool 的 description。
+- [Claude Code · prompt caching](https://code.claude.com/docs/en/prompt-caching)：載入的 skill 本文會落在哪裡、成本是多少。
+- [Voyager](https://arxiv.org/abs/2305.16291)：環境驗證過，skill 才進得了 library。
+- [Anthropic Skill Creator](https://github.com/anthropics/skills)：升級之前先起草、測試、評估、修訂。
+- Lin et al.，[arXiv:2605.30621](https://arxiv.org/abs/2605.30621)，轉引自書：更新有沒有落地、有沒有幫上忙，是兩個要分開量的數字。

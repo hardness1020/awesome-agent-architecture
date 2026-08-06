@@ -37,6 +37,10 @@ Skills use progressive disclosure. The model sees only enough information to dec
 No skill-specific tool is needed. Once the catalog names each skill and its path,
 the agent loads a skill by reading its file with the normal Read tool. L2 and L3 are both just file reads.
 
+The description does most of the work. It is a routing condition, not a summary.
+That one line is all the model sees before it decides. So say when to use the skill, and say when not to.
+Add one counter-example. A line that only names the topic makes the model guess.
+
 ### New: scan the skills and list them in the prompt
 
 ```python
@@ -118,7 +122,58 @@ The loop does not change. Reading a skill returns a tool result that enters `mes
 
 The catalog belongs in the system prompt. The body enters the conversation only after the model reads the file. Resource files are read later only if needed.
 
-Because loaded skill text lives in `messages[]`, it can be compacted like any other message when the context fills (section 8). Keep skill bodies short and point to files for large references.
+Because loaded skill text lives in `messages[]`, it can be compacted like any other message when the context fills (section 8).
+Keep skill bodies short and point to files for large references.
+
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book and vendor docs, and is not confirmed of the systems in the table.
+
+**What the catalog costs.** Progressive disclosure lowers the cost of a large skill store. It does not make it free.
+The catalog sits in the prefix, so it is read once at prefill and re-sent on every turn after that.
+After the first turn that prefix is cached, so re-sending it is cheap.
+A loaded body costs more, and it stays in the window until something compacts it.
+So the number to watch is how many skills the catalog carries, not how often bodies get read.
+
+**Where the catalog lives.** The listing can sit in the system prompt, which is what `src/` does.
+It can also sit inside the description of one activation tool. The open standard allows both.
+The trade-off is where the tokens land. In the system prompt they are part of every session's prefix.
+In a tool description the prefix stays smaller, and the model reaches the listing through that tool instead.
+
+**Deferred tool loading.** Tools can use the same pattern, for the same reason: a schema is large and most turns do not need it.
+The prefix keeps only tool names and one-line descriptions. The model asks for a full schema when it needs one.
+That schema is appended at the end of the context, so the cached prefix is untouched and nothing before it has to be recomputed.
+Skills were the first place this repo met progressive disclosure. The book reports the same pattern moving into the tool layer (section 2).
+
+**When to write a skill.** Say a run finishes a long workflow correctly for the first time. Should that become a skill?
+The demo here says yes. The workflow finishes, the agent calls `WriteSkill`, and the next scan catalogs it.
+That is the smallest rule that shows the loop, and it is what the runnable code does.
+
+**The book's higher bar.** The book says no, because one run is too little evidence.
+It asks for four things before a skill becomes a formal capability:
+
+- The same pattern in at least two runs that did not fail.
+- A check that does not come from the run that proposed the skill. Voyager works this way: a skill enters the library after the environment confirms it.
+- A search of the store first. If something close already exists, patch it instead of adding a duplicate.
+- The pitfalls the run hit, kept in the body, not just the path that worked.
+
+**Which rule to pick.** Both are defensible, because they answer different questions.
+First success teaches the mechanism and keeps a demo short. A support threshold is what stops a store of hundreds from filling with notes used once.
+A candidate step sits between them. The distilled workflow lands as a candidate, not as a catalog entry.
+It gets drafted, tested, evaluated, and revised before promotion. Anthropic's Skill Creator runs that loop.
+In this section's code it would be a staging folder that `load_skills` skips until a curator promotes it.
+
+**Consolidation runs offline.** The curator is a scheduled pass, not a live one. The book calls it sleep-time learning and gives it five steps:
+
+1. **Trigger.** A schedule, an idle window, or a store that grew past a size limit.
+2. **Orient.** Snapshot the store first, so every later step can be rolled back.
+3. **Gather and merge.** Read the usage records and recent runs. Fold near-duplicates into one skill. Pull candidates in.
+4. **Validate and approve.** Check the merged bodies against the runs that produced them. What fails stays out.
+5. **Prune and index.** Archive stale skills by a fixed rule, then rebuild the catalog.
+
+**Why offline matters.** Running the curator offline is itself a safety boundary. The online loop executes and records.
+It never edits the store mid-run. So one lucky run cannot promote itself,
+and text the agent read from outside cannot become a permanent instruction between turns.
 
 ---
 
@@ -144,6 +199,14 @@ How each agent describes, triggers, and finds skills.
 - **Body is lost after compaction.** Re-read the skill file or keep the body short.
 - **Path traversal.** The catalog hands the model a path. Scope the Read tool to the skills directory so `../` cannot escape it.
 - **Forked skill loses live context.** Use forked skills only for self-contained work.
+- **Poisoned skill from the supply chain.** An installed third-party skill is outside content, but it loads as instructions.
+  That gives it more reach than a poisoned web page, because the catalog already vouches for it.
+  Read the body and any bundled scripts before install. Pin the version. Review again on update.
+- **Injected text becomes permanent.** A prompt injection in `messages[]` dies with the session. The same text written into `SKILL.md` loads on every later run.
+  So never let unreviewed outside content reach `WriteSkill`. Hold new skills as candidates until a separate pass approves them.
+  Never let a skill edit that approval gate.
+- **Use counts overstate learning.** Loading a skill is not following it. A load count says the catalog routed.
+  It does not say the skill changed the outcome. Track two numbers instead: did the skill fire, and did the run get better.
 
 ---
 
@@ -172,3 +235,9 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
   `tools/skills_tool.py` (`skills_list`, `skill_view`), `tools/skill_usage.py`, `hermes_cli/curator.py`, `tools/skills_hub.py`, `tools/skills_ast_audit.py`.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure levels.
 - [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter2.md`, `book/chapter8.md`, Chinese original canonical.
+- [Agent Skills open standard](https://agentskills.io): catalog placement, system prompt or activation-tool description.
+- [Claude Code · prompt caching](https://code.claude.com/docs/en/prompt-caching): where a loaded skill body lands and what it costs.
+- [Voyager](https://arxiv.org/abs/2305.16291): a skill enters the library only after the environment verifies it.
+- [Anthropic Skill Creator](https://github.com/anthropics/skills): draft, test, evaluate, revise before promotion.
+- Lin et al., [arXiv:2605.30621](https://arxiv.org/abs/2605.30621), via the book: whether an update lands and whether it helps are separate measurements.
