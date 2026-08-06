@@ -59,23 +59,6 @@ so the node sees only what its prompt builder passes it, not the whole run.
 
 The scale is the budget discipline: route with code where the branch is knowable, and spend model calls only inside nodes that need judgment.
 
-### Phase nodes
-
-An agent node starts a fresh `messages[]` on every visit. That is right when the branches are unrelated, and wrong when the nodes are stages of one job.
-
-A phase node is the variant that keeps the trajectory. One `messages[]` runs the whole path.
-On entry to a phase the harness swaps the frame around it: a different system prompt and a different tool set.
-Explore mounts read and search. Implement mounts edit and run. Review mounts read and a verdict tool. The state the phase needs is already in the history, so nothing is repacked.
-
-The model ends a phase by calling a gate tool, such as `finish_exploring`. The harness reads that call as the edge and enters the next phase.
-The gate is the only exit, so the harness decides when a phase ends, not the model's narration.
-The shape is a path with one backward edge: explore, implement, review, and review can route back to implement with its notes already in the history.
-
-Which variant to mount is a context decision (section 8). A fresh `messages[]` keeps each node's window small and its branch independent.
-One trajectory keeps continuity and spends more of the window as the path gets longer.
-The book that documents this shape counts it as multi-agent, because prompt and tools change per phase. This repo counts it as one agent with swapped frames.
-The mechanism is the same, so state which definition you mean when citing. The evidence is the book's own experiment, a single source.
-
 ### Named shapes
 
 The workflow patterns the sources name are graph shapes:
@@ -86,8 +69,9 @@ The workflow patterns the sources name are graph shapes:
 - **Orchestrator-workers.** A node that decides the fan-out at runtime, then a merge node. The edge set is dynamic; the shape is still a graph.
 - **Evaluator-optimizer.** A worker node and a checker node with one backward edge. This is section 21's verification loop as a subgraph.
 
-The vocabulary is not settled. `ai-agent-book` keeps "collaboration topology" and "orchestration" as its primary terms, and records "graph engineering" only as a term note.
-This section keeps the name, because what it describes is a graph written in code. When you read across sources, match the mechanism, not the word.
+The names are not settled across sources. `ai-agent-book` covers the same ground under "collaboration topology" and "orchestration",
+and mentions "graph engineering" only in a note on terms. This section keeps its own name, because what it describes is a graph written in code.
+When you read a second source, match it by mechanism, not by the word.
 
 ### When not to graph
 
@@ -124,6 +108,30 @@ edges = {
 }
 ```
 
+### Further reading
+
+What follows is a design from ai-agent-book, which writes up agents running in production.
+This section's runnable does not build it, and the systems in the table below are not confirmed to work this way.
+
+**Phase nodes.** An agent node starts a fresh `messages[]` on every visit. That is right when the branches are unrelated.
+It is wrong when the nodes are stages of one job, because every stage then reads the task from scratch.
+
+A phase node keeps the trajectory instead. One `messages[]` runs the whole path. When a phase starts, the harness swaps two things: the system prompt and the tool set.
+Explore mounts read and search. Implement mounts edit and run. Review mounts read and a verdict tool.
+Nothing gets packed for the next phase, because the history already holds what it needs.
+
+The model ends a phase by calling a gate tool, such as `finish_exploring`. The harness reads that call as the edge and starts the next phase.
+The gate is the only exit, so the harness decides when a phase ends, not the model.
+
+The route is explore, then implement, then review. Review can send the run back to implement. That shape is a path with one backward edge.
+The trip back needs no handoff, because review wrote its notes into the same history.
+
+Which variant to mount is a context question (section 8). A fresh `messages[]` keeps each node's window small and its branch independent.
+One trajectory keeps every earlier finding in view, and it fills more of the window as the path gets longer.
+
+The book counts this as multi-agent, because the prompt and the tools change per phase. This repo counts it as one agent whose prompt and tools change.
+The mechanism is the same either way, so say which definition you mean when you cite it. The only evidence is the book's own experiment.
+
 ---
 
 ## Per system
@@ -154,10 +162,10 @@ How each agent decides what runs next.
   Mitigation: strict state boundaries; a node reads the subset it needs and returns only its updates (section 8).
 - **Mid-run death.** A long graph dies at node seven and restarts at node one.
   Mitigation: record each node's output; on resume, replay finished nodes from the record (sections 11, 12).
-- **Phase that never ends.** A phase node whose gate tool is never called keeps working under the same prompt and tools until the budget stops it.
-  Mitigation: make the gate the only exit, give each phase its own step budget, and send a spent budget to the next phase or to escalation.
-- **Trajectory that carries every phase.** One shared trajectory grows with each phase, and it still holds calls to tools the current phase does not mount.
-  Mitigation: name the current phase and its tools in the phase prompt, reject calls to unmounted tools with a clear error, and compact finished phases (section 8).
+- **Phase that never ends.** The model never calls the gate tool, so the phase keeps working under the same prompt and the same tools. Only the budget stops it.
+  Mitigation: make the gate the only exit; give each phase its own step budget; a spent budget moves to the next phase or escalates.
+- **Trajectory that carries every phase.** One trajectory grows with each phase. It still holds calls to tools the current phase does not mount, and the model may try them again.
+  Mitigation: name the current phase and its tools in the phase prompt; reject a call to an unmounted tool with a clear error; compact finished phases (section 8).
 
 ---
 
@@ -189,5 +197,5 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent): `tools/delegate_tool.py`, `tools/async_delegation.py`, `batch_runner.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the run loop and budgets in `agents/default.py`, `run/benchmarks/swebench.py`.
 - [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰, 多 Agent 协作; the Chinese original is canonical):
-  multi-stage role switching over one trajectory, with a per-phase system prompt and tool set, phase gates as tool calls, and review routing back to implementation.
-  The shape rests on the book's own experiment, a single source. The same chapter keeps "collaboration topology" and "orchestration" as its primary terms.
+  multi-stage role switching on one trajectory: a system prompt and a tool set per phase, phase gates as tool calls, and review routing back to implementation.
+  The only evidence is the book's own experiment. The same chapter keeps "collaboration topology" and "orchestration" as its primary terms.

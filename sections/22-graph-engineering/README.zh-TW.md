@@ -60,22 +60,6 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 怎麼選？原則就是省 token：分支條件寫得出來的，就交給程式碼；model 呼叫只留給真的需要判斷的 node。
 
-### Phase node
-
-Agent node 每次經過都從全新的 `messages[]` 開始。分支彼此無關的時候這樣最好；但幾個 node 其實是同一件事的不同階段，這樣就不對了。
-
-Phase node 就是把 trajectory 留下來的那個變體。整條路只有一份 `messages[]`。進到某個 phase 的時候，harness 換掉外面那層框：換一份 system prompt，換一套 tool。
-Explore 掛讀取和搜尋，implement 掛編輯和執行，review 掛讀取和一個下結論的 tool。這個 phase 要的東西 history 裡都有，不用再打包一次。
-
-Model 要離開一個 phase，就呼叫一個 gate tool，例如 `finish_exploring`。harness 把這個呼叫當成 edge，直接進下一個 phase。
-gate 是唯一的出口，所以一個 phase 什麼時候結束由 harness 決定，不是看 model 自己怎麼講。
-形狀是一條路加一條往回的 edge：explore、implement、review，而 review 可以把執行送回 implement，筆記本來就留在 history 裡。
-
-要掛哪一種，是 context 的取捨（第 8 章）。每個 node 都用全新的 `messages[]`，window 就小，分支之間也彼此獨立。
-只留一條 trajectory 則是前後比較連貫，但路愈長，吃掉的 window 也愈多。
-記載這個做法的書把它算成 multi-agent，理由是每個 phase 的 prompt 和 tool 都不一樣；這個 repo 則把它算成同一個 agent 換了外框。
-機制是同一個，所以引用的時候要先講清楚你用的是哪個定義。這個做法的證據來自書裡自己做的實驗，只有這一個來源。
-
 ### 常見的圖形
 
 出處裡叫得出名字的 workflow pattern，其實都是圖形：
@@ -86,8 +70,8 @@ gate 是唯一的出口，所以一個 phase 什麼時候結束由 harness 決�
 - **Orchestrator-workers**：一個 node 在執行時決定要派出多少工作，再由一個 node 收攏。edge 是動態的，但形狀仍然是圖。
 - **Evaluator-optimizer**：一個 worker node、一個 checker node，加一條往回的 edge。這就是第 21 章的驗證 loop，放進圖裡變成一個子圖。
 
-名字還沒有統一。`ai-agent-book` 主要用的詞是「collaboration topology」和「orchestration」，「graph engineering」只被它放在一則術語註記裡。
-這一章沿用這個名字，因為它講的東西就是一張寫在程式碼裡的圖。看不同來源的時候，對得上的是機制，不是那個詞。
+各家的講法還沒統一。同樣的東西，`ai-agent-book` 用的詞是「collaboration topology」和「orchestration」，「graph engineering」它只在術語註記裡提了一句。
+這一章還是用自己的名字，因為它講的就是一張寫在程式碼裡的圖。你去看別的來源時，對照的是機制，不是那個詞。
 
 ### 什麼時候不要畫圖
 
@@ -124,6 +108,30 @@ edges = {
 }
 ```
 
+### 延伸閱讀
+
+下面這個做法出自 ai-agent-book，那本書寫的是真的跑在產品裡的 agent。
+這一章的可執行程式沒有做這件事，下面表格裡那幾個系統，也沒有證據說它們是這樣做的。
+
+**Phase node**：agent node 每次經過都從全新的 `messages[]` 開始。分支之間沒關係的時候，這樣最好。
+但幾個 node 其實是同一件事的不同階段，這樣就不對了，因為每個階段都得把任務重讀一次。
+
+Phase node 反過來，把 trajectory 留著。整條路只有一份 `messages[]`。進到一個 phase 的時候，harness 換兩樣東西：system prompt 和整套 tool。
+Explore 掛讀取和搜尋，implement 掛編輯和執行，review 掛讀取和一個下結論的 tool。
+沒有東西要打包給下一個 phase，因為它要的 history 裡都有。
+
+Model 想結束一個 phase，就呼叫一個 gate tool，例如 `finish_exploring`。harness 把這個呼叫當成 edge，直接開始下一個 phase。
+gate 是唯一的出口，所以一個 phase 什麼時候結束，是 harness 說了算，不是 model。
+
+路線是先 explore，再 implement，最後 review。review 可以把執行送回 implement。這個形狀就是一條路加一條往回的 edge。
+送回去也不用交接，因為 review 寫的東西就在同一份 history 裡。
+
+要掛哪一種，看你怎麼分配 context（第 8 章）。每個 node 都用全新的 `messages[]`，window 就小，分支之間也互不干擾。
+只留一條 trajectory 則是前面查到的東西都還看得到，但路愈長，被吃掉的 window 也愈多。
+
+書把這個做法算成 multi-agent，理由是每個 phase 的 prompt 和 tool 都不一樣；這個 repo 則算成同一個 agent 換了 prompt 和 tool。
+算哪一種都好，機制是同一個，所以引用的時候先講清楚你用的是哪個定義。這個做法的證據只有書裡自己做的實驗。
+
 ---
 
 ## 各系統做法
@@ -154,10 +162,10 @@ edges = {
   緩解：嚴格的 state 邊界；node 只讀需要的子集，只回傳自己的更新（第 8 章）。
 - **跑到一半掛掉（Mid-run death）**：一張長圖在第七個 node 掛掉，重來卻從第一個 node 開始。
   緩解：記下每個 node 的輸出；續跑時跑完的 node 從紀錄重放（第 11、12 章）。
-- **Phase 走不完（Phase that never ends）**：phase node 的 gate tool 一直沒被呼叫，它就用同一份 prompt、同一套 tool 一直做下去，直到 budget 用完。
+- **Phase 走不完（Phase that never ends）**：model 一直不呼叫 gate tool，這個 phase 就用同一份 prompt、同一套 tool 一直做下去，只有 budget 停得了它。
   緩解：gate 是唯一的出口；每個 phase 各自有 step budget；budget 用完就往下一個 phase 走，或者交給人。
-- **Trajectory 背著每個 phase（Trajectory that carries every phase）**：只有一條 trajectory，每過一個 phase 就長一截，裡面還留著現在這個 phase 沒掛的 tool 的呼叫紀錄。
-  緩解：在 phase 的 prompt 裡講清楚現在是哪個 phase、有哪些 tool；呼叫沒掛的 tool 就回一個清楚的錯誤；跑完的 phase 拿去 compact（第 8 章）。
+- **Trajectory 背著每個 phase（Trajectory that carries every phase）**：只有一條 trajectory，每過一個 phase 就長一截。裡面還留著現在沒掛的 tool 的呼叫紀錄，model 可能會再叫一次。
+  緩解：在 phase 的 prompt 裡寫清楚現在是哪個 phase、有哪些 tool；叫到沒掛的 tool 就回一個清楚的錯誤；跑完的 phase 拿去 compact（第 8 章）。
 
 ---
 
@@ -187,5 +195,5 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 與 budget、`run/benchmarks/swebench.py`。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版為準）：
-  在同一條 trajectory 上做多階段角色轉換，每個 phase 一份 system prompt 和一套 tool，phase 之間用 tool call 當關卡，review 可以繞回實作。
-  這個做法的依據是書裡自己做的實驗，只有這一個來源。同一章主要用的詞是「collaboration topology」和「orchestration」。
+  在同一條 trajectory 上做多階段角色轉換：每個 phase 一份 system prompt 和一套 tool，phase 之間用 tool call 當關卡，review 可以繞回實作。
+  這個做法的證據只有書裡自己做的實驗。同一章主要用的詞是「collaboration topology」和「orchestration」。
