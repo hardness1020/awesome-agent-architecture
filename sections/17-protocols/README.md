@@ -146,27 +146,27 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 ### Further reading
 
-The two designs below are not in this section's `src/`. One comes from ai-agent-book's account of production agents, the other from an external protocol spec.
+Two designs sit outside this section's `src/`: stopping a whole fan out, and talking to an agent across an organization boundary.
+One comes from ai-agent-book's account of production agents, the other from an external protocol spec.
 Read them as designs worth knowing about, not as confirmed behavior of the systems in the per-system table.
 
-**Stopping a whole fan out.** The demo stops one teammate. The same exchange has a second use.
-A lead sends several workers at one problem and needs only one answer. The first worker to succeed reports back.
-The lead then sends a stop to every other worker. A worker that loses still finishes its file and closes its task record, because the stop is the same request and confirm.
-Nothing new goes on the wire. It is the shutdown flow, sent to many.
+**Stopping a whole fan out.** A fan out sends several workers at one problem and needs only one answer.
+The first worker to succeed reports back, and the lead then sends a stop to every other worker.
+The demo only ever stops one teammate, but nothing new goes on the wire here. Each stop is the same request and confirm,
+so a worker that loses still finishes its file and closes its task record. It is the shutdown flow, sent to many.
 
-Two workers can succeed in the same instant. Then both count as first, the lead sends two rounds of stops, and two results get recorded.
+**Two winners at once.** Two workers can succeed in the same instant. Then both count as first, the lead sends two rounds of stops, and two results get recorded.
 A lock fixes that. The first worker to arrive takes the lock, writes down who won, and releases it.
 The second takes the lock next, sees a winner already written, and returns without stopping anyone. Whoever arrives first, the race settles once.
 
-A stop that waits for a confirm can also go unanswered. A worker inside a long tool call is not reading its inbox, so no confirmation comes back.
+**When the confirm never comes.** A stop that waits for a confirm can go unanswered. A worker inside a long tool call is not reading its inbox.
 So the stop has two tiers. The lead asks, waits for the confirm up to a deadline, then kills whatever is still running.
 The kill is the fallback, not the first move. The lead asks first, so cleanup runs whenever there is time for it.
 
-Both tiers and the lock come from one experiment by the book's own author. That is a single source, not a survey of several systems.
+**One source, not a survey.** Both tiers and the lock come from one experiment by the book's own author, not from a comparison of several systems.
 
 **Talking to an agent you do not own.** Everything above assumes one team, one process, one owner.
 The channel is shared, the roster is known at spawn time, and every agent trusts the ids on the wire.
-
 None of that survives an organization boundary. There is no shared inbox to stamp a `request_id` on. The other side's roster is not visible. Its tool list cannot be trusted.
 A2A is the protocol for that case. It keeps the request and reply core and adds three parts.
 
@@ -177,7 +177,7 @@ A2A is the protocol for that case. It keeps the request and reply core and adds 
 - **Opaque artifacts.** Results come back as artifacts: files, text, structured parts. The remote agent's trajectory never comes back.
   The caller cannot see how the work was done. Only the result crosses.
 
-The two designs track different things. This section tracks one request: it goes `pending`, then `approved` or `rejected`.
+**Request states and task states.** The two designs track different things. This section tracks one request: it goes `pending`, then `approved` or `rejected`.
 A2A tracks one task: `submitted`, `working`, `input-required`, `completed`, `failed`.
 The difference is how long the record lives. A request record ends with the exchange that created it.
 A task id still resolves later: after the reply lands, after a pause for more information, after the connection drops and comes back.
