@@ -113,8 +113,7 @@ What is new is the discipline: grade before done, budget before start, report al
 
 ### Further reading
 
-The rest of this section describes designs from ai-agent-book's account of production agents, plus published self-improvement research.
-None of it runs in this section's code, and none of it is confirmed behavior of the systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book and published self-improvement research, and is not confirmed of the systems in the table.
 
 **Routing a learned change.** Say a run finds out that the staging database needs a different connection string. Where does that go?
 The hard part of the improvement loop is not finding the lesson. It is picking where the lesson lands. There are four places to put it:
