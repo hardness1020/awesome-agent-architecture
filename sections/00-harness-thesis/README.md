@@ -50,7 +50,7 @@ Sections 20 and 21 build the measurements for this. mini-swe-agent is the extrem
 
 ### Further reading
 
-The two framings below come from ai-agent-book's account of production agents. Treat them as claims to test, not as findings from this repo.
+Two framings from ai-agent-book. Claims to test, not this repo's own findings.
 
 **Testing the boundary.** Where the line falls between model and harness changes as models get better. The book makes two claims you can check:
 
