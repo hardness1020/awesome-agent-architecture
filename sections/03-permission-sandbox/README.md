@@ -92,23 +92,30 @@ Real systems add rule priority, remembered approvals, and sandboxed execution. T
 
 ### Further reading
 
-The three designs below come from ai-agent-book's account of production coding agents. None of them are in this section's runnable code.
+The designs below come from ai-agent-book's account of production coding agents. None of them are in this section's runnable code.
 No system in the table below is confirmed to ship them. Read them as designs, not as observed behavior.
 
-**Reading the command, not matching it.** `decide()` gates by tool name. That is not enough for a shell tool. One tool name covers every
-program on the machine, so the real decision is about the command string. The usual first attempt is a deny list of strings, and it fails.
-`rm -rf /` is easy to catch. `find . -exec rm {} \;` puts the delete inside a flag. `$(echo rm) -rf /` builds the word `rm` at run time.
-`curl -o /etc/crontab` writes a file without naming a write command.
+**Checking what a command does, not how it is spelled.** The agent asks to run a shell command. `decide()` sees one tool name,
+so the real decision is about the command string. A deny list of strings is the usual answer, and it fails. `rm -rf /` is easy to catch.
+These get through:
 
-A parser catches these. It splits the command into programs and arguments. It knows which flags take a value, so it can tell an argument
-from a flag. Then it asks what each resolved program will do. `-exec` carries its own command, so that command gets checked too.
-`-o` names a file to write, so that path gets checked as a write. The check reads what the command does, not how it is spelled.
+- `find . -exec rm {} \;` puts the delete inside a flag.
+- `$(echo rm) -rf /` builds the word `rm` while the shell runs.
+- `curl -o /etc/crontab` writes a file without naming a write command.
 
-The same idea applies to results. A destructive shortcut can still leave the right end state. Dropping a table and rebuilding it works.
-Deleting a directory and cloning it again works. A result check (section 21) passes both, because it only looks at the end state.
-So the gate also limits how the agent gets there. Some actions stay blocked even when the result would pass.
+The fix is a parser that reads structure instead of text. It splits the command into programs and arguments. It knows which flags take
+a value, so it can tell an argument from a flag. Then it asks what each program will do. `-exec` carries its own command, so that command
+gets checked too. `-o` names a file to write, so that path gets checked as a write.
 
-**What the sandbox actually limits.** The gate decides what runs. The sandbox decides how much a wrong decision costs. Three limits do most of the work.
+The cost is that the parser needs rules per program. A program it does not know is a program it cannot read, so the sandbox still sits behind it.
+
+**Blocking destructive shortcuts that would still pass.** There are two ways to fix a broken table, and both end with a working table.
+One migrates it. The other drops it and rebuilds it from scratch. A result check (section 21) passes both, because it only looks at the end state.
+
+The fix is to gate the route, not only the destination. Drop and rebuild stays blocked even when the rebuilt table would be correct.
+The cost is that a rebuild which really is the right fix now needs a human to approve it.
+
+**What the sandbox limits.** The gate can be wrong. The sandbox is what keeps a wrong `allow` from costing much. Three limits do most of the work.
 
 - **Egress.** Block the network by default. Send allowed traffic through a proxy that holds a list of allowed hosts.
   This is the cheapest leg of the trifecta to cut. The agent still reads code and still writes files. It just cannot send them anywhere.
@@ -117,14 +124,15 @@ So the gate also limits how the agent gets there. Some actions stay blocked even
 - **Quotas.** Set limits on CPU, memory, disk, and wall clock time. When a limit is hit, return an error as the tool result.
   Do not kill the process silently. The model can read a timeout and try a shorter command. A silent kill gives it nothing to read.
 
-**Keeping the ask path fast.** An `ask` decision costs the user a turn. If the check itself is slow, the user waits twice.
-First for the harness to work out whether it needs to ask. Then for the prompt. A speculative check removes the first wait.
+**Asking without making the user wait twice.** The gate returns `ask`, and the user is now waiting. If the check itself was slow,
+they already waited once before the prompt even appeared. A speculative check removes that first wait. The order is:
 
-It works like this. The harness starts the permission check in the background. On screen it shows a progress line right away.
-That line changes nothing on the system. If the check comes back `allow` while the line is still showing, the tool runs and the user
-never sees a prompt. If the check is still undecided, the progress line turns into the confirm prompt.
+- The harness starts the permission check in the background.
+- The screen shows a progress line right away. That line changes nothing on the system.
+- If the check returns `allow` while the line is showing, the tool runs and no prompt appears.
+- If the check is still undecided, the line turns into the confirm prompt.
 
-Nothing unsafe runs early, because the only thing running early is the check. The tool still waits for its answer.
+Why this is still safe: the only thing running early is the check. The tool itself still waits for the answer.
 
 ---
 
