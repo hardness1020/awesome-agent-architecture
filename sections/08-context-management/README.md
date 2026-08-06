@@ -14,13 +14,13 @@ When context fills:
 2. Calls become slower and more expensive.
 3. Old, less useful content competes with current task information.
 
-The third item has a name: context rot. Retrieval precision falls as irrelevant text piles up, well before the window is full.
-The agent keeps running. It just decides worse.
+The third item has a name: context rot. The model finds the right fact less often as unrelated text piles up.
+This starts well before the window is full. The agent keeps running. It just decides worse.
 
-Compression has a second motive beyond fit and cost. In-context learning behaves like retrieval, not like reasoning.
-Attention finds a fact that is written down, but it does not reliably combine facts scattered across dozens of turns.
-A short precomputed summary beats leaving the model to re-derive the same conclusion from raw logs on every call.
-So a good compaction improves answer quality even when the window still has room.
+So compaction is not only about fit and cost. In-context learning works more like retrieval than like reasoning.
+The model can find a fact that is written down. It is worse at combining facts spread over dozens of turns.
+Writing the conclusion down once is cheaper than making the model derive it again on every call.
+So a good summary improves answers even when the window still has room.
 
 Without this layer, long tasks fail once the prompt no longer fits.
 
@@ -45,26 +45,6 @@ reactive -> truncate the head and re-summarize, with a retry cap
 ```
 
 Order matters. For example, a large tool result should be persisted before any pass replaces its body with a stub.
-
-The replacement text itself must be stable. Freeze the stub string at first use and reuse it byte for byte, including after a session is restored from disk.
-A stub that re-renders with a fresh timestamp or a new path changes the prefix and throws away the cache.
-
-That cache cost also shapes the trigger. Any edit to the history invalidates the cached prefix from the edit point onward.
-Trimming a little on every turn pays that rebuild every turn. One larger reduction at a token threshold pays it once.
-This is why compaction batches instead of running continuously. It belongs between API calls, never inside one.
-
-The Claude API offers a server-side version of the same idea. Context editing clears older tool results out of the prefix, so the harness ships no code for that pass.
-It still rebuilds the cache once, so it belongs near the overflow end of the order rather than on every turn.
-
-What a summary keeps matters as much as when it runs. Condition the summary on the current task instead of asking for a generic recap of the session.
-A task-aware summary answers one question: what does the next call still need. Keep, in this order:
-
-1. Architecture and design decisions already made.
-2. Files created or changed, and what changed in them.
-3. Pass and fail status of the last checks or tests.
-4. Open TODOs and the current step.
-
-Raw tool output is the first thing to drop. The budget pass already wrote the large results to disk, so the agent can re-read one when it matters.
 
 ### New: the reduction passes
 
@@ -98,6 +78,33 @@ This section changes the loop body itself. Earlier sections added tools or dispa
 Context reduction must run before every model call, so it has to live in the loop.
 
 The loop still keeps the same invariant: it calls the model with a valid `messages[]`, then appends the response and any tool results.
+
+### Further reading
+
+The rest of this section describes how production agents handle context, drawn from ai-agent-book's account of them.
+None of it runs in `src/`, and none of it is confirmed behavior of the systems in the table below.
+
+**Frozen tool-result stubs.** The text that replaces a tool result should be the same string every time.
+Pick it at the first replacement and reuse it byte for byte, including after a session is restored from disk.
+A stub that re-renders with a new timestamp or a new path changes the prefix, and the cache after it is gone.
+
+**Compression against the cache.** Editing the history invalidates the cache from the edit point onward.
+Trim a little on every turn and the next call re-reads the whole prefix every turn.
+Do one larger reduction at a token threshold and that happens once. Run it between API calls, never inside one.
+
+**API-level context editing.** The Claude API can run this kind of pass on the server.
+Context editing drops older tool results from the prefix, so the harness ships no code for it.
+It still rebuilds the cache once, so it fits near the overflow end of the order rather than on every turn.
+
+**Task-aware compression.** Write the summary for the current task, not as a recap of the whole session.
+The question it answers is what the next call still needs. Keep four things, in this order:
+
+1. Architecture and design decisions already made.
+2. Files created or changed, and what changed in them.
+3. Pass and fail status of the last checks or tests.
+4. Open TODOs and the current step.
+
+Drop raw tool output first. The budget pass already wrote the large results to disk, so the agent can read one back when it matters.
 
 ---
 
