@@ -79,6 +79,9 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
+The wrapper also sets what the model gets back. A backgrounded call only starts the work. It returns a task id, and the result arrives later as its own event.
+Name and describe slow tools that way (`initiate_export`, not `export`). Then the model reads the immediate `tool_result` as a receipt, not as the answer.
+
 ### How it integrates
 
 The loop drains pending completions at the start of a turn:
@@ -88,6 +91,29 @@ background.drain_into(messages, runtime)               # src/loop.py
 ```
 
 The one-tool-call-to-one-tool-result rule still holds. A late completion is not a delayed `tool_result` for the old `tool_use_id`. It is a new notification message.
+
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
+
+**Interrupts and safe points.** Some input cannot wait for the running tool call to finish.
+A user correction, a cancel, or an alert can land mid-call. One answer is to make every inbound input an event on one stream.
+The loop reads that stream only at a safe point, the gap between a finished tool result and the next model call.
+Writing into the middle of a call would break the transcript, so events wait for the gap.
+
+How urgent an event is decides which gap it waits for:
+
+- **Queue.** Wait for the next gap. This is the default for completions and low priority notices.
+- **Cancel.** Stop the running call to open a gap now. Use it when a correction makes the running work pointless.
+- **Parallel.** Run the event in a side loop and leave the main loop alone.
+
+Sorting events is itself cheap. A small model can do it, so triage costs one call per event.
+
+**Interrupt placeholders.** A cancel needs one more step before the transcript is legal again.
+The stopped call left a `tool_use` block with no `tool_result`, and the next model call needs that pair closed.
+ai-agent-book closes it right away. It writes a placeholder `tool_result` on the same id that says the call was interrupted.
+That does not break the no-reuse rule above. The placeholder closes the pair now. The real result still arrives later as its own notification.
+The placeholder is the book author's own design. No other source describes it.
 
 ---
 
@@ -111,6 +137,8 @@ How each agent moves work off the loop and reports completion.
 - **Interactive prompt stalls.** A background command waits for input. Detect prompt-like output and notify the model to kill or rerun non-interactively.
 - **Lost completion.** A finished task never reaches the loop. Send completion through one shared queue and mark tasks notified.
 - **Mispaired notification.** Reusing the old `tool_use_id` breaks the transcript. Use standalone notification text.
+- **Side effect after a kill.** A timeout or a cancel does not tell you whether the call landed. A blind retry can charge twice. Query state first, or send an idempotency key.
+- **Batched events dilute attention.** One drain can fold several notifications into one turn. The model then answers only the last one. Number the events and add a summary line.
 - **Too much concurrency.** Many background tasks can exhaust resources. Add kill paths and limits.
 - **Process leak on exit.** Background work can outlive the session. Register cleanup.
 
@@ -138,3 +166,5 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code):
   `tools/BashTool/BashTool.tsx`, `tools/SleepTool/prompt.ts`, `utils/task/framework.ts`, `utils/messageQueueManager.ts`.
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical.
+  Idempotency and cancel semantics, initiate-and-complete naming, event triage at safe points, interrupt placeholders, batched-event attention.

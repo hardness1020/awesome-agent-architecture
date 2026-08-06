@@ -31,6 +31,7 @@
 - 一次性（one-shot）的 schedule fire 一次後就把自己刪掉。
 - 週期性（recurring）的 schedule 會重新裝填到下一個間隔。
 - 一個 durable 的 schedule 能在重啟後存活，但在 host 關機時它不會 fire。
+- heartbeat 是一種週期性 schedule，它問的是一個問題。它醒來、看一眼來源，多數時候判斷沒什麼好講的。
 
 ### New: scheduler 與 fire queue
 
@@ -78,6 +79,18 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 - 沒有 channel 表示答案留在本地，也就是加入投遞之前的行為。
 - `bool` 回傳值讓 driver 可以改走別條路（demo 會印出未投遞的答案），而不是無聲地丟掉答案。
 
+### Heartbeat
+
+有些來源不會主動推播：沒有 webhook 的信箱、沒有 feed 的網頁、你不問就不回答的服務。
+對這些來源，能用的觸發條件只剩時鐘。做法叫 heartbeat：一個週期性的 schedule，prompt 是叫 agent 去看一眼，不是叫它動手。
+看一下來源，判斷有沒有變化值得講一句，沒有就閉嘴。
+
+heartbeat 跑完發現沒什麼好講的，就回一個 `[SILENT]`。照上面那條規則，`deliver` 什麼都不會送出去。
+這一次 tick 只花一次 model 呼叫，channel 上不會多一則訊息，所以這個 schedule 可以跑得比較密。
+
+heartbeat 和 cron 在這裡用的是同一組零件：一個 prompt、一個重複間隔、一個 channel。差別只在 prompt。
+cron 的 prompt 是下命令，heartbeat 的 prompt 是問問題。
+
 ### 如何整合
 
 排程分成兩半。`tick` 在自己的 daemon thread 上跑（第 13 章的背景執行），它不碰 model，fire 時只把 prompt 放進 queue：
@@ -99,6 +112,18 @@ for task in sched.drain():                            # src/demo.py · between t
 ```
 
 一個 fire 出來的 prompt 會變成一個新的、類似 user 的 turn。它用的是同一套 loop、權限、hook、記憶、context 管理和復原路徑。它的答案會送到該 task 的 channel。
+
+### 延伸閱讀
+
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
+
+**時鐘做得到的極限：**heartbeat 只有一個參數要調，就是間隔。它同時決定了帳單和最糟情況下的延遲，這兩件事會互相拉扯。
+間隔短，model 一直醒過來，多半什麼也沒發現。間隔長，便宜，但消息晚。
+換哪個間隔都解不掉。時鐘是在取樣狀態，不是在盯著事件，所以它只知道自己上次是什麼時候看的，不知道事情是什麼時候發生的。
+
+**能用推播就用推播：**來源如果能主動呼叫 agent，事情發生的當下就觸發，輪詢成本歸零。
+所以順序是：來源支援推播就用推播，不支援才用 heartbeat，真的跟時間綁在一起的工作（例如週一的報表）才用 cron。
+入站推播那一側由第 19 章負責。
 
 ---
 
@@ -124,6 +149,8 @@ for task in sched.drain():                            # src/demo.py · between t
 - **durable 不等於永遠開機：**本地 durable schedule 只能在重啟後存活。要離線 fire，改用 remote trigger 或 OS timer。
 - **cron 表達式有誤（Bad cron expression）：**在 create 時驗證，並跳過無效的已載入項目。
 - **loop 正忙：**把 prompt 放進 queue，等 turn 之間再拿出來跑。
+- **通知疲乏（Alert fatigue）：**heartbeat 每次 tick 都回報，使用者就學會忽略它。讓 prompt 自己判斷什麼值得送出，其餘時候閉嘴。
+- **兩次 tick 之間的事件：**時鐘取樣的是狀態。在兩次 tick 之間出現又消失的變化，它看不到。改讀 log 或游標，或把來源換成推播。
 
 ---
 
@@ -146,6 +173,10 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。
-- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`cron/scheduler.py`（`tick`、`_resolve_cron_disabled_toolsets`）、`cron/jobs.py`（`_jobs_lock`、`claim_dispatch`）、`hermes_time.py`。
+- [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：
+  `tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。
+- [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
+  `cron/scheduler.py`（`tick`、`_resolve_cron_disabled_toolsets`）、`cron/jobs.py`（`_jobs_lock`、`claim_dispatch`）、`hermes_time.py`。
 - [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版為準。
+  帶判斷的 heartbeat 喚醒、通知疲乏，以及時間驅動觸發的極限。
