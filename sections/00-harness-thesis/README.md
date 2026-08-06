@@ -48,29 +48,30 @@ Each layer covers something the current model cannot do alone. That gives every 
 So harness engineering is not only adding. When the model changes, re-evaluate each layer: keep what still helps, delete what the new model covers.
 Sections 20 and 21 build the measurements for this. mini-swe-agent is the extreme case: almost no harness, so almost nothing to re-evaluate.
 
-### Testing the boundary
+### Further reading
 
-The line between model and harness moves as models improve. Two claims make that movement testable.
+The two framings below come from ai-agent-book's account of production agents. Treat them as claims to test, not as findings from this repo.
 
-Scaffold thickness should track model strength. A weaker model needs the forced plan, the retry ladder, and the scripted check.
-A stronger model already does that work, so the same layer only spends tokens and overrides a better decision.
-Run one scaffold across two model generations and the result can reverse. Take the direction as the claim, not the size: the reversal comes from one book experiment.
+**Testing the boundary.** Where the line falls between model and harness changes as models get better. Two claims make that testable.
 
-Some behavior looks like a harness setting and is not. When to stop gathering information and start editing is one.
-That threshold is learned during training, so it travels with the model into any harness. Prompt lines and step limits nudge it. They do not set it.
+How much scaffolding a task needs depends on how strong the model is. A weak model needs the forced plan, the retry ladder, and the scripted check.
+A strong model does that work on its own. The same layer then only burns tokens and overrides a better decision.
+Run one scaffold on two model generations and the scores can move in opposite directions. One book experiment reports this, so test the direction rather than trusting the size.
 
-So the question for each layer is which side of the boundary it sits on. If the model already owns the decision, the layer is a duplicate.
+Some behavior looks like a harness setting but is not. When to stop reading code and start editing is one.
+The model learns that threshold in training and carries it into any harness. A prompt line or a step limit can nudge it. Neither one sets it.
 
-### Where agents work first
+So ask of each layer which side it sits on. If the model already makes that call, the layer is a duplicate.
 
-Two properties decide whether a task suits an agent today: how exactly the goal can be stated, and whether a machine can check the result.
+**Where agents work first.** Two things decide whether a task suits an agent today. How exactly can you state the goal, and can a machine check the result.
 
-Coding scores high on both. A ticket or a failing test states the goal. Tests, types, linters, and git decide when the work is done.
-That infrastructure was built for humans, and an agent reuses it as a ready-made verification harness. This is why coding agents matured first.
+Coding scores high on both. A ticket or a failing test states the goal. Tests, types, linters, and git say when the work is done.
+People built that infrastructure for themselves, and an agent reuses it as a ready-made verification harness. This is why coding agents matured first.
 
-Tasks low on either property stay hard. A vague goal gives the loop nothing to aim at.
-An unverifiable result gives it no stop condition, so mistakes accumulate instead of surfacing.
-Section 21 builds those checks when the domain does not supply them.
+Lose one of the two and the task gets hard in a specific way. Clear goal, no automatic check: rewriting a page so it reads better.
+The loop has no stop condition, so it calls the work done because nothing says otherwise. Automatic check, no clear goal: cleaning up a module.
+The loop aims at the check and proves nothing broke, which is not the same as doing what you asked.
+Section 21 builds a missing check. No check fixes a goal you cannot state.
 
 ---
 
@@ -95,7 +96,7 @@ What the model decides versus what the surrounding code builds.
 - **Hard-coding decisions the model should make.** Rigid tool order and scripted planning can fight the model. Let the model decide when judgment is required.
 - **Too little harness.** A loop with no tools, permissions, or context management keeps the model at chatbot behavior. Add the missing layer.
 - **Too much harness.** Each layer adds maintenance, and a layer built for an older model can hold a newer one back. Re-evaluate on model change, delete what no longer helps.
-- **Treating a model policy as a harness setting.** When to stop gathering information is learned, not configured. Prompt rules nudge it. Measure before keeping the layer.
+- **Treating a model policy as a harness setting.** The model learns when to stop gathering information. A prompt rule only nudges it. Measure the layer before you keep it.
 - **Running an agent where no machine can check the result.** The loop cannot tell a finished task from a wrong one. Add a checker, or keep a person in the path.
 - **Mixed responsibilities.** Permission logic inside tool execution is harder to test and replace. Keep clear contracts such as `Tool.ts` and `PreToolUse`.
 
