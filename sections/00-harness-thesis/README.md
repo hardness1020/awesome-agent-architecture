@@ -52,26 +52,25 @@ Sections 20 and 21 build the measurements for this. mini-swe-agent is the extrem
 
 The two framings below come from ai-agent-book's account of production agents. Treat them as claims to test, not as findings from this repo.
 
-**Testing the boundary.** Where the line falls between model and harness changes as models get better. Two claims make that testable.
+**Testing the boundary.** Where the line falls between model and harness changes as models get better. The book makes two claims you can check:
 
-How much scaffolding a task needs depends on how strong the model is. A weak model needs the forced plan, the retry ladder, and the scripted check.
-A strong model does that work on its own. The same layer then only burns tokens and overrides a better decision.
-Run one scaffold on two model generations and the scores can move in opposite directions. One book experiment reports this, so test the direction rather than trusting the size.
+- **Scaffolding tracks model strength.** A weak model needs the forced plan, the retry ladder, and the scripted check. A strong model does that work itself.
+- **The reading threshold is model policy.** When to stop reading code and start editing is learned in training. A prompt line or a step limit nudges it. Neither sets it.
 
-Some behavior looks like a harness setting but is not. When to stop reading code and start editing is one.
-The model learns that threshold in training and carries it into any harness. A prompt line or a step limit can nudge it. Neither one sets it.
+**Both claims turn into one test.** Run the same scaffold on two model generations and the scores can move in opposite directions.
+One book experiment reports this, so test the direction rather than trusting the size.
+Then ask of each layer which side of the line it sits on. If the model already makes that call, the layer is a duplicate and only burns tokens.
 
-So ask of each layer which side it sits on. If the model already makes that call, the layer is a duplicate.
-
-**Where agents work first.** Two things decide whether a task suits an agent today. How exactly can you state the goal, and can a machine check the result.
-
+**Where agents work first.** Two things decide whether a task suits an agent today: how exactly you can state the goal, and whether a machine can check the result.
 Coding scores high on both. A ticket or a failing test states the goal. Tests, types, linters, and git say when the work is done.
 People built that infrastructure for themselves, and an agent reuses it as a ready-made verification harness. This is why coding agents matured first.
 
-Lose one of the two and the task gets hard in a specific way. Clear goal, no automatic check: rewriting a page so it reads better.
-The loop has no stop condition, so it calls the work done because nothing says otherwise. Automatic check, no clear goal: cleaning up a module.
-The loop aims at the check and proves nothing broke, which is not the same as doing what you asked.
-Section 21 builds a missing check. No check fixes a goal you cannot state.
+**When one property is missing.** The task does not get vaguely harder. It fails in a specific way, and there are two cases:
+
+- **Clear goal, no automatic check.** Rewrite a page so it reads better. The loop has no stop condition, so it calls the work done because nothing says otherwise.
+- **Automatic check, no clear goal.** Clean up a module. The loop aims at the check instead of the goal. It proves nothing broke, which is not what you asked for.
+
+**Each case needs a different fix.** Section 21 builds the check when the domain has none. No check fixes a goal you cannot state.
 
 ---
 
