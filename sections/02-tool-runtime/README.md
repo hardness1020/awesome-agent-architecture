@@ -20,7 +20,7 @@ Without this layer, the model can ask to act but nothing can execute the action.
 
 With only one `bash` tool, every capability becomes string handling. There is no per-tool validation or permission logic.
 
-Two failures start here and get blamed on the model: a wrong tool picked from overlapping descriptions, and an edit that fails because the harness rewrote the input.
+Two failures start here and get blamed on the model. It picks the wrong tool because two descriptions overlap. An edit fails because the harness rewrote the input.
 
 ---
 
@@ -78,34 +78,38 @@ The loop body is otherwise unchanged. Only the dispatch step now uses the regist
 `_dispatch` is the next extension point. Section 3 adds the permission gate there. Section 4 adds hooks there.
 
 The demo dispatches sequentially for clarity. Real runtimes batch safe calls and load large tool schemas on demand.
-The rest of this section is what a growing catalog adds.
 
-### Grouping and granularity
+### Further reading
 
-A flat registry hides the shape of a catalog. Tools group five ways, by the direction a call travels and what it touches: perception (read the outside world),
-execution (change it), collaboration (reach another agent), event trigger (let the world wake the agent), and user communication (reach the person).
-Sections 6, 12, and 16 build the collaboration group, sections 13 and 14 the event triggers, section 19 the user channel. This section is the plumbing all five run on.
+The designs below are not in `src/`. They come from ai-agent-book's account of how production agents are built, and from published work on tool use.
+Read them as reported design, not as confirmed behavior of the systems in the table below.
+Where Claude Code is named, the contrast comes from its own source, cited at the end.
 
-Granularity is the choice inside a group. Merge tools when function and use overlap: one `read_document` with a type parameter beats one reader per file format.
-Split them when the parameters diverge, since a union of unrelated fields says nothing about what applies, and an overloaded schema draws wrong-parameter picks.
+**Grouping.** A flat registry hides the shape of a catalog. Tools fall into five groups, by where a call goes and what it touches.
+Perception reads the outside world. Execution changes it. Collaboration reaches another agent. An event trigger lets the outside world wake the agent.
+User communication reaches the person. Sections 6, 12, and 16 build the collaboration group. Sections 13 and 14 build the event triggers.
+Section 19 builds the user channel. This section builds the layer all five sit on.
 
-### Describing a tool
+**Granularity.** Merge two tools when they do the same kind of work on the same kind of input. One `read_document` with a type parameter beats one reader per file format.
+Split them when the parameters stop overlapping. A schema that unions unrelated fields cannot say which fields apply, so the model fills the wrong ones.
 
-`description` is not documentation. It is the only thing the model reads before choosing. A useful one states when to use the tool, the boundary of what it does not do,
-concrete parameter examples, the shape of what comes back, and the cost of calling it. A few real call examples help more than more prose.
-The book reports a large gain from adding them, with no citation behind the figure, so take the direction and not the size.
+**Description craft.** `description` is not documentation. It is the only thing the model reads before it picks. A good one says when to use the tool and when not to.
+It gives real parameter values, shows what comes back, and says what a call costs. A few worked examples help more than another paragraph of prose.
+The book reports a large gain from adding examples. That figure has no citation, so take the direction and not the size.
 
-The harness then has to pass the input through unchanged. Normalizing quotes, trimming whitespace, or adding an argument the model never wrote breaks the call invisibly:
-it sent the right input, the result says the edit did not match, and nothing in the transcript explains the gap. Validate and reject, never silently rewrite.
+**Parameter fidelity.** The harness has to hand the input to the handler unchanged. Say it normalizes a quote character, trims whitespace,
+or adds an argument the model never wrote. The call then fails for a reason the model cannot see. It sent the right input.
+The result says the edit did not match. Nothing in the transcript explains the gap. Reject bad input and say why. Do not rewrite it.
 
-Some parameters exist to be ignored. A checklist parameter (`expected_price`, `expected_status`) makes the model state what it believes before the call runs.
-The handler never acts on it. It reads stored truth, decides on that, and logs the mismatch, so the last gate stands on data the model cannot forge.
-τ-bench grades the same way, reading the final database state rather than what the agent said about it.
+**Checklist parameters.** Some parameters exist to be ignored. A parameter like `expected_price` makes the model write down what it believes before the call runs.
+The handler does not act on that number. It reads the stored value, decides on that, and logs the two when they differ.
+The last check then stands on data the model cannot forge. τ-bench scores runs the same way. It reads the final database state, not what the agent said it did.
 
-### Perception interfaces
+**Perception interfaces.** A perception tool usually finds more than fits in the context. Three rules keep the result honest.
+Search returns one page of candidates plus a cursor. A read takes an offset and a limit, so the model can walk a long file. Truncation is labeled in the result.
+A silent cut is worse than an error, because the model then reads a partial file as if it were whole.
 
-Perception tools return more than fits. Search returns a page of candidates plus a cursor. Reads take an offset and a limit. Truncation is labeled, never silent.
-Code search is where those rules bite. Four approaches, and no system uses only one:
+Code search shows the choice. Four approaches, and no system uses only one:
 
 | Approach | Finds | Cost |
 | --- | --- | --- |
@@ -114,9 +118,10 @@ Code search is where those rules bite. Four approaches, and no system uses only 
 | **Embedding index** | Code by meaning, so a plain-language query lands. | An index to build and keep in sync. Opaque ranking. |
 | **LSP symbols** | Definitions, references, and types, exactly. | A language server per language. |
 
-Claude Code ships no index and searches agentically: glob, then grep, then read, narrowing between calls. Cursor pays for the index and gets recall on plain-language queries.
+Claude Code ships no index. It searches step by step: glob, then grep, then read, and the model narrows the query between calls.
+The book describes Cursor taking the other route, paying to build an index so that a plain-language query can find code that names no identifier.
 
-Editing has a matching spread. Five ways to say what changed:
+Editing splits the same way. Five ways to say what changed:
 
 | Scheme | The model emits | Trade-off |
 | --- | --- | --- |
@@ -126,27 +131,27 @@ Editing has a matching spread. Five ways to say what changed:
 | **Editor commands** | A small command language, vim style. | Terse. One more syntax to get wrong. |
 | **Anchors** | A start marker and an end marker. | Survives shifts. Ambiguous when the marker repeats. |
 
-Claude Code replaces an exact old string and requires a read first, so a mismatch is a visible error instead of a wrong edit.
-Cursor emits the skeleton and lets a trained apply model rewrite the file, which beats emitting a precise patch on speed.
+Claude Code replaces an exact old string and makes the model read the file first, so a stale string fails loudly instead of editing the wrong line.
+The book describes Cursor sending a rough skeleton instead, with a second trained model rewriting the file from it, and reports that route as the faster one.
 
-### Running calls: early start and shell state
+**Early start and cascade abort.** Batching is not the only way to overlap work. A call can start the moment its own arguments finish parsing,
+while the model is still writing the rest of the batch. That hides the call's latency inside generation. It needs one rule for failure:
+an error stops the calls that depended on it. Independent calls in the same batch keep running, and so does the parent turn.
 
-Batching is not the only overlap available. A call can start as soon as its own arguments finish parsing, while the model is still generating the rest of the batch.
-That hides latency inside generation, and it needs a failure rule: an error aborts the calls that depended on the failed one, never the independent calls in the
-same batch, and never the parent turn. Shell state is the other choice at this layer, and both answers are defensible.
+**Shell state.** Two designs, both defensible.
 
-- **Per-call reset.** Claude Code's bash tool does not carry a live shell between calls. Environment variables and shell functions set in one call are gone in the
-  next, and the description tells the model to use absolute paths. Every call is reproducible on its own, and nothing leaks between parallel calls.
-- **One persistent session.** The book makes a shared terminal the default, so `cd`, exported variables, and an activated virtual environment survive.
-  Isolated shells stay available for parallel work. The model repeats fewer setup commands, and the harness gains state to track and reset.
+- **Reset per call.** Claude Code's bash tool does not keep a live shell between calls. Environment variables and shell functions set in one call are gone by the next,
+  and the tool description tells the model to use absolute paths. Each call reproduces on its own, and parallel calls cannot leak into each other.
+- **One persistent session.** The book makes a shared terminal the default. `cd`, exported variables, and an activated virtual environment all survive.
+  Separate shells stay available for parallel work. The model repeats fewer setup commands. The harness gains session state to track and reset.
 
-### Discovery at scale
+**Discovery at scale.** A big catalog cannot ship in full, so the registry sends names first and loads a full schema when something asks for it.
+The ask can come from the model, in plain language. MCP-Zero has the agent say which capability it is missing, matches that to a server, then to a tool on that server,
+and injects only the matched schema. The model never had to know the tool existed, which is the part a keyword search cannot do.
 
-A large catalog cannot ship in full. The registry advertises names first and loads full schemas on request. The request can come from the model, in its own words:
-MCP-Zero has the agent declare a capability gap in natural language, matches it server first and then tool, and injects only the matched schema.
-The model does not have to know a tool exists to ask for it, which is the part keyword search cannot do.
-The injection then has to be cache safe. Append the discovered schema once, at the end of the context, and leave it there. Editing the tool block at the prefix
-invalidates the KV cache for every token after it (section 8). Appending keeps the prefix intact, and the schema becomes ordinary history on the next turn.
+**Cache-safe loading.** Where the schema lands matters. Append it once, at the end of the context, and leave it there.
+Editing the tool block at the front of the prompt invalidates the cached prefix and every token after it (section 10).
+Appending leaves the prefix alone, and the schema turns into ordinary history on the next turn.
 
 ---
 
@@ -173,7 +178,7 @@ How each agent defines tools, routes calls, handles parallelism, and exposes a l
 - **Unsafe parallelism.** Two writes can corrupt the same file. Default to serial execution unless a tool is known to be safe.
 - **Catalog overflow.** Too many tool schemas can crowd the prompt. Defer full schemas until needed, and append a loaded schema at the end so the cached prefix survives.
 - **Oversized results.** Large outputs can fill the context window. Cap results, persist the full output, and return a preview plus a path.
-  Label the cut. Silent truncation leaves the model reasoning over a partial file it believes is whole.
+  Label the cut. A silent one leaves the model reading a partial file as if it were whole.
 - **Wrong tool picked.** Two descriptions overlap, or one tool does two jobs. Merge duplicates, split overloaded schemas, and say what each tool is not for.
 - **Silent input drift.** The harness normalizes or adds an argument on the way to the handler. The call fails and the model cannot tell why. Reject bad input with a reason.
 - **Batch failure spreads.** One failed call in a parallel batch kills the whole turn. Abort only the calls that depended on it.
