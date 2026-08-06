@@ -144,9 +144,7 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 ### 延伸阅读
 
-有两套做法不在这一章的 `src/` 里：一次停掉一整批 worker，还有跟组织外面的 agent 讲话。
-一套来自 ai-agent-book 对线上 agent 的描述，一套来自外部的 protocol 规格。
-当成值得知道的设计看就好，不要当成上面那张表里的系统确定会这样做。
+以下设计 `src/` 都没有实现，出自 ai-agent-book 和 A2A 规格，也未经下面表格的系统证实。
 
 **一次停掉一整批：**同一件事派好几个 worker 去做，但只要一个答案。
 第一个做成功的 worker 回报上来，lead 就对其余每个 worker 各送一条停止。

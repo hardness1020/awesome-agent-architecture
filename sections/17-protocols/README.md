@@ -146,9 +146,7 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 
 ### Further reading
 
-Two designs sit outside this section's `src/`: stopping a whole fan out, and talking to an agent across an organization boundary.
-One comes from ai-agent-book's account of production agents, the other from an external protocol spec.
-Read them as designs worth knowing about, not as confirmed behavior of the systems in the per-system table.
+None of this is in `src/`. It comes from ai-agent-book and the A2A spec, and is not confirmed of the systems in the table.
 
 **Stopping a whole fan out.** A fan out sends several workers at one problem and needs only one answer.
 The first worker to succeed reports back, and the lead then sends a stop to every other worker.
