@@ -91,8 +91,7 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 ### 延伸閱讀
 
-下面這幾個設計出自 ai-agent-book 對 production coding agent 的描述。這一章的可執行程式都沒有做這些事，
-下面表格裡的系統也沒有一個確認有這些行為。把它們當成設計來讀，不是當成觀察到的行為。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
 
 **先看懂指令，不要比對字串：**agent 要求跑一條 shell 指令。`decide()` 只看得到一個工具名稱，所以真正要判斷的是那串指令。
 一般的做法是拉一份字串 deny 清單，而這招會失敗。`rm -rf /` 很好抓，下面這幾條會過：

@@ -92,8 +92,7 @@ Real systems add rule priority, remembered approvals, and sandboxed execution. T
 
 ### Further reading
 
-The designs below come from ai-agent-book's account of production coding agents. None of them are in this section's runnable code.
-No system in the table below is confirmed to ship them. Read them as designs, not as observed behavior.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **Checking what a command does, not how it is spelled.** The agent asks to run a shell command. `decide()` sees one tool name,
 so the real decision is about the command string. A deny list of strings is the usual answer, and it fails. `rm -rf /` is easy to catch.
