@@ -30,9 +30,9 @@ skill 系統必須做到：
 
 skill 使用 progressive disclosure。模型只會看到剛好足夠的資訊，來決定要不要載入更多。
 
-1. **Metadata。** 來自 frontmatter 的 `name` 和 `description`，再加上這個 skill 的路徑。這份 catalog 只佔少量 token，所以一直放在 system prompt 裡。
-2. **Instructions。** `SKILL.md` 的本文。只有在某個任務需要這個 skill 時，模型才會去讀這個檔案。
-3. **Resources。** skill 資料夾裡的額外檔案。指令指向它們時，模型用同一個 file tool 讀取。
+1. **Metadata：**來自 frontmatter 的 `name` 和 `description`，再加上這個 skill 的路徑。這份 catalog 只佔少量 token，所以一直放在 system prompt 裡。
+2. **Instructions：**`SKILL.md` 的本文。只有在某個任務需要這個 skill 時，模型才會去讀這個檔案。
+3. **Resources：**skill 資料夾裡的額外檔案。指令指向它們時，模型用同一個 file tool 讀取。
 
 不需要專門的 skill tool。只要 catalog 列出每個 skill 的名稱和路徑，agent 就用一般的 Read tool 去讀那個檔案來載入 skill。L2 和 L3 都只是讀檔而已。
 
@@ -163,11 +163,11 @@ skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書�
 
 **整併是離線做的：**curator 是排程跑的，不是即時跑的。書裡叫它 sleep-time learning，分成五步：
 
-1. **觸發。** 排程時間到、系統閒置，或 store 大小超過上限。
-2. **定位。** 先對 store 做一次快照，後面每一步才都能回滾。
-3. **蒐集與合併。** 讀使用記錄和最近幾次執行，把幾乎重複的 skill 併成一個，再把 candidate 收進來。
-4. **驗證與核准。** 拿產生它們的那幾次執行，去檢查合併後的本文。沒過的就不收。
-5. **修剪與建索引。** 依固定規則封存過期的 skill，然後重建 catalog。
+1. **觸發：**排程時間到、系統閒置，或 store 大小超過上限。
+2. **定位：**先對 store 做一次快照，後面每一步才都能回滾。
+3. **蒐集與合併：**讀使用記錄和最近幾次執行，把幾乎重複的 skill 併成一個，再把 candidate 收進來。
+4. **驗證與核准：**拿產生它們的那幾次執行，去檢查合併後的本文。沒過的就不收。
+5. **修剪與建索引：**依固定規則封存過期的 skill，然後重建 catalog。
 
 **為什麼一定要離線：**把 curator 放在離線跑，本身就是一條安全邊界。線上 loop 只負責執行和記錄，跑到一半絕不去動 store。
 所以一趟剛好成功的執行沒辦法把自己升級，agent 從外面讀進來的文字，也沒辦法在兩個 turn 之間變成永久指令。
