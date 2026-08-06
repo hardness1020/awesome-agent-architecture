@@ -10,15 +10,16 @@ A tool runtime without permissions is close to an unattended remote shell.
 
 A bad tool call can delete files, leak secrets, or push the wrong code. Trusting the model is not a safety boundary. Code must check the request before execution.
 
-The danger has a shape. Three capabilities together turn a helpful agent into an exfiltration tool: access to private data,
-exposure to untrusted content, and the ability to communicate externally. Any two are survivable. All three at once mean that
-text the agent merely reads can steer it into opening a secret and posting it somewhere. This is the lethal trifecta.
+The reason is simple. The model reads text that other people wrote. A web page, an issue comment, or a file in the repo can carry
+instructions aimed at the agent. Three capabilities decide what those instructions can do. The agent can read private data.
+The agent takes in untrusted content. The agent can send data out. Any two of the three are survivable. All three at once mean
+injected text can tell the agent to open a secret and post it somewhere. That combination is called the lethal trifecta.
 
-Persistent memory adds a fourth axis. A poisoned instruction written into a memory file (section 9) is read back in the next session,
-so one injection keeps paying out after the session that carried it is gone.
+Persistent memory makes it worse. If the injected instruction lands in a memory file (section 9), the next session reads it back.
+One injection then keeps working long after the session that carried it ended.
 
-The gate cannot remove those capabilities. An agent that reads nothing and reaches nothing does no work. What the gate can do is
-put a decision in front of the calls that complete the trio, and a sandbox behind the ones it allows.
+The gate cannot take those three capabilities away. An agent that reads nothing and reaches nothing cannot work. So the gate does
+two other things. It puts a decision in front of calls that would complete the trio. It puts a sandbox behind the calls it allows.
 
 The permission layer must:
 
@@ -89,42 +90,41 @@ The key invariant stays intact: every tool call produces a result message, even 
 
 Real systems add rule priority, remembered approvals, and sandboxed execution. Those are extensions of the same gate.
 
-The next three parts describe such extensions. They come from one book's account of production coding agents, not from source this repo reads.
-Treat them as a described design, not as confirmed behavior of the systems in the table below.
+### Further reading
 
-### Reading the command, not matching it
+The three designs below come from ai-agent-book's account of production coding agents. None of them are in this section's runnable code.
+No system in the table below is confirmed to ship them. Read them as designs, not as observed behavior.
 
-`decide()` gates by tool name. A shell tool needs more, because one name covers every program on the machine.
-A deny list of strings is the usual first attempt, and it loses. `rm -rf /` is easy to match. `find . -exec rm {} \;` hides
-the delete inside a flag. `$(echo rm) -rf /` hides it inside a substitution. `curl -o /etc/crontab` never spells `write` at all.
+**Reading the command, not matching it.** `decide()` gates by tool name. That is not enough for a shell tool. One tool name covers every
+program on the machine, so the real decision is about the command string. The usual first attempt is a deny list of strings, and it fails.
+`rm -rf /` is easy to catch. `find . -exec rm {} \;` puts the delete inside a flag. `$(echo rm) -rf /` builds the word `rm` at run time.
+`curl -o /etc/crontab` writes a file without naming a write command.
 
-A semantic parser closes those gaps. It splits the command into programs and arguments, applies each program's rules for which flags
-consume a value, and asks what the resolved call does. `-exec` carries a subcommand, so the subcommand gets gated too.
-`-o` names a write target, so that path gets gated as a write. The check runs on meaning, not on spelling.
+A parser catches these. It splits the command into programs and arguments. It knows which flags take a value, so it can tell an argument
+from a flag. Then it asks what each resolved program will do. `-exec` carries its own command, so that command gets checked too.
+`-o` names a file to write, so that path gets checked as a write. The check reads what the command does, not how it is spelled.
 
-The same reasoning extends from the command to the goal. A destructive shortcut can still produce a correct end state: drop the table
-and recreate it, delete the directory and clone it again. A result check (section 21) approves that, because it only reads the outcome.
-So the gate constrains the path as well. Some actions stay blocked even when the result they would produce passes verification.
+The same idea applies to results. A destructive shortcut can still leave the right end state. Dropping a table and rebuilding it works.
+Deleting a directory and cloning it again works. A result check (section 21) passes both, because it only looks at the end state.
+So the gate also limits how the agent gets there. Some actions stay blocked even when the result would pass.
 
-### What the sandbox actually limits
+**What the sandbox actually limits.** The gate decides what runs. The sandbox decides how much a wrong decision costs. Three limits do most of the work.
 
-The gate decides. The sandbox bounds what a wrong decision costs. Three dimensions carry most of that weight.
+- **Egress.** Block the network by default. Send allowed traffic through a proxy that holds a list of allowed hosts.
+  This is the cheapest leg of the trifecta to cut. The agent still reads code and still writes files. It just cannot send them anywhere.
+- **Mounts.** Mount the source read-only. Do not mount credential files at all. Give one writable working directory and nothing else.
+  The agent cannot leak a file it cannot open.
+- **Quotas.** Set limits on CPU, memory, disk, and wall clock time. When a limit is hit, return an error as the tool result.
+  Do not kill the process silently. The model can read a timeout and try a shorter command. A silent kill gives it nothing to read.
 
-- **Egress.** Deny network by default and route allowed traffic through a proxy that holds a host allowlist.
-  This is the one leg of the trifecta a harness can cut cheaply. The agent still reads code and still writes files. It just cannot post them out.
-- **Mounts.** Mount source read-only. Mount credential files nowhere. Give one writable workspace and nothing else.
-  A secret that never enters the visible filesystem cannot be read out of it.
-- **Quotas.** Cap CPU, memory, disk, and wall clock. When a cap trips, return a structured error as the tool result instead of killing the
-  process silently. The model then reads a timeout and can shorten the command. A silent kill leaves it guessing.
+**Keeping the ask path fast.** An `ask` decision costs the user a turn. If the check itself is slow, the user waits twice.
+First for the harness to work out whether it needs to ask. Then for the prompt. A speculative check removes the first wait.
 
-### Keeping the ask path fast
+It works like this. The harness starts the permission check in the background. On screen it shows a progress line right away.
+That line changes nothing on the system. If the check comes back `allow` while the line is still showing, the tool runs and the user
+never sees a prompt. If the check is still undecided, the progress line turns into the confirm prompt.
 
-An `ask` decision already costs a human turn. A slow decision adds a second wait in front of it, while the user watches nothing happen and
-the harness works out whether it even needs to ask. A speculative check hides that wait. The harness starts the permission check in the
-background and immediately shows progress that has no side effect. If the check resolves to `allow` first, the call runs and no prompt appears.
-Only a check that cannot decide fast is promoted into a confirm prompt.
-
-The safety property holds because the speculative branch never runs the tool. It runs the decision.
+Nothing unsafe runs early, because the only thing running early is the check. The tool still waits for its answer.
 
 ---
 
@@ -146,15 +146,15 @@ How each agent gates side effects, changes modes, and remembers decisions.
 
 ## Failure modes
 
-- **Pattern-match bypass.** String deny lists miss shell variants. Parse the command and gate what it resolves to, then keep a sandbox behind the parser.
+- **Pattern-match bypass.** String deny lists miss shell variants. Parse the command and check what it will actually do. Keep a sandbox behind the parser.
 - **Mode left too open.** A broad allow rule or bypass mode can let later risky calls run silently. Scope bypasses and surface the active mode.
 - **Approval fatigue.** Asking on every call trains users to approve without reading. Preapprove low-risk classes, but keep destructive actions explicit.
 - **Silent denial in a subagent.** A child agent may have no terminal to ask through. Bubble the prompt to the parent instead of failing quietly.
 - **Sandbox disabled.** If an allowed command runs outside the sandbox, the permission prompt is the last check. Gate any unsandboxed path behind policy.
-- **Exfiltration through approved calls.** Every call can pass the gate on its own and the session can still read a secret and send it out.
-  Deny egress by default so the trio never closes.
-- **Verified but destructive.** Delete and rebuild passes a result check, because the end state is right. Gate the action, not only the outcome.
-- **Poisoned memory.** An instruction injected into a memory file replays in every later session. Treat stored memory as untrusted content, never as an operator rule.
+- **Exfiltration through approved calls.** Each call can pass the gate on its own, and the session as a whole still reads a secret and sends it out.
+  Block the network by default, so the third capability is never there to use.
+- **Verified but destructive.** Delete and rebuild passes a result check, because the end state is right. Check the action, not only the end state.
+- **Poisoned memory.** An instruction injected into a memory file is read back in every later session. Treat stored memory as untrusted content, never as an operator rule.
 
 ---
 
