@@ -20,6 +20,8 @@ protocol 必须：
 2. 把每条回复对应到它所回答的请求。
 3. 在任何工作开始前先为有风险的计划设闸门。
 4. 停止一个 agent 而不丢失进行中的工作。
+5. 一批 worker 里有人先做完，就把整批停掉，而且这个竞态只结算一次。
+6. 接得上团队外面的 agent，跨过信任边界。
 
 少了这一层，协调就只是传来传去的闲聊：有风险的动作没有闸门拦着，停止不会干净收尾，收到回复也对不上它在回答哪个请求。
 
@@ -140,6 +142,43 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 - plan-approval 流程就是同一套 handshake 反过来跑（先 `ExitPlanMode` 再 `ApprovePlan`），由相同的工具驱动，并在 test.py 里验证。
 - loop 没有改变。protocol 只动管道上的消息：请求照格式送出，回复对回原本的请求，turn 的内部不用动。
 
+### 延伸阅读
+
+以下设计 `src/` 都没有实现，出自 ai-agent-book 和 A2A 规格，也未经下面表格的系统证实。
+
+**一次停掉一整批：**同一件事派好几个 worker 去做，但只要一个答案。
+第一个做成功的 worker 回报上来，lead 就对其余每个 worker 各送一条停止。
+demo 只停过一个队友，不过这里线上并没有新东西。每一条停止都还是那套先请求再确认，
+所以没抢到的 worker 一样会把文件写完、把 task 记录收掉。就是 shutdown 流程一次送给很多人。
+
+**同一瞬间两个都赢：**两个 worker 有可能同时做完。这时两个都算第一名，lead 会送两轮停止，结果也记成两笔。
+加一把锁就好了。先到的那个拿到锁，写下谁赢了，再放掉。
+第二个接着拿到锁，看到已经有人写了，就直接回去，不再去停任何人。不管谁先到，这件事都只结算一次。
+
+**确认一直不回来：**等确认的停止有可能没人回。worker 卡在一个很久的 tool call 里，根本没在读 inbox。
+所以停止分成两层：lead 先问，等确认等到一个期限，期限一到就把还在跑的直接砍掉。
+砍掉是备援，不是第一步。lead 一定先问，所以只要还来得及收尾，收尾就会跑。
+
+**只有单一来源：**这两层和那把锁都出自书作者自己的一个实验，不是比较过好几个系统之后的结论。
+
+**跟不是自己家的 agent 讲话：**上面讲的都假设是同一个团队、同一个 process、同一个拥有者。
+管道是共享的，成员名单在 spawn 时就知道，agent 之间也都信得过线上那些 id。
+一跨出组织，这些就全都不成立了。没有共享的 inbox 可以盖 `request_id`。对方有哪些成员看不到。对方的工具清单也不能直接信。
+A2A 就是为这种情况设计的 protocol。它保留请求配回复这个核心，另外加三样东西。
+
+- **Agent Card discovery。** 每个 agent 在一个固定的 URL 上放一份文件：名字、会做什么、endpoint，还有要怎么认证。
+  调用方先读这张卡，再决定要送什么过去。团队里的名单在 spawn 时就拿到了；跨出去就得自己去抓。
+- **Task lifecycle。** 一次远端调用是一个带 id 的 task，状态有 `submitted`、`working`、`input-required`、`completed`、`failed`。调用方拿这个 id 去轮询或订阅。
+  `input-required` 正好是这一章没有名字的那个状态：对面停下来要更多信息，而 task 在等的期间还活着。
+- **Opaque artifacts。** 结果是以 artifact 返回的：文件、文字、结构化片段。对方的 trajectory 不会返回。
+  调用方看不到那边是怎么做出来的，过得来的只有结果。
+
+**请求的状态和 task 的状态：**两套做法记的东西不一样。这一章记的是一次请求：从 `pending` 走到 `approved` 或 `rejected`。
+A2A 记的是一个 task：`submitted`、`working`、`input-required`、`completed`、`failed`。
+差别在这笔记录活多久。请求的记录跟着那次来回一起结束。
+task 的 id 之后还查得到：回复收到之后、中途停下来要信息之后、连接断掉又接回来之后，都还查得到。
+跨边界的调用方两种都要留。请求状态讲的是这一条消息对方收不收，task 状态讲的是整件事现在做到哪。
+
 ---
 
 ## 各系统做法
@@ -164,6 +203,12 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 - **类型混淆：**只靠 id 对应回复，会让一条 shutdown 回复解析掉一条 plan 请求。检查回复的 variant 是否符合记录下的请求类型。
 - **审核却不强制：**一个被审核通过的计划，仍需要权限层来为执行设闸门（第 3 章）。在响应里携带 `permissionMode`。
 - **重复回复：**一条重发的回复可能把已经定案的状态翻掉。任何针对非 pending id 的回复都不做事。
+- **停一整批却没有锁：**两个 worker 同一瞬间做完，两个都算第一名，lead 就送了两轮停止，结果也记成两笔。
+  写下谁赢之前先拿锁。晚一步的赢家看到名字已经在上面，就谁也不停。
+- **等确认却没有期限：**worker 忙在一个很久的 tool call 里，根本没读到请求。确认一直不来，lead 就一直等下去。
+  等待要设期限，超过就直接砍。先问还是第一步，只是不再是唯一一步。
+- **把远端 task 当成一条回复：**不是自己家的 agent 会停下来要更多信息。那是一个 task 状态，不是一条回复。
+  记下 task id 和它的状态。起头那次来回结束之后，停住的工作还找得回来。
 
 ---
 
@@ -189,3 +234,8 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 - [Claude Code 的 protocol 格式](https://github.com/yasasbanukaofficial/claude-code)：`tools/SendMessageTool/SendMessageTool.ts`、`utils/teammateMailbox.ts`。
 - [Claude Code plan 与 stop](https://github.com/yasasbanukaofficial/claude-code)：`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`、`tasks/stopTask.ts`、`coordinator/coordinatorMode.ts`。
 - [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter10.md`（多 Agent 协作），以中文原版为准。
+  先收尾再回 ack 的停止、砍掉那一层备援，以及第一个做成功就把整批停掉、靠一把锁让这件事只结算一次。
+  两者都出自书作者自己的实验，属于单一来源。
+- [A2A protocol](https://github.com/a2aproject/A2A)（Linux Foundation）：Agent Card discovery、task 生命周期的各个状态
+  （`submitted`、`working`、`input-required`、`completed`、`failed`），以及跨信任边界的 opaque artifact 交换。

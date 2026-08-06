@@ -4,7 +4,8 @@
 
 > Give messages a contract: approve before acting, confirm before stopping.
 
-Coordination (section 16) gives agents a channel, but a channel only moves text. Text alone has no rules: nothing tells a request from a reply, and nothing makes one side wait for an answer before acting.
+Coordination (section 16) gives agents a channel, but a channel only moves text.
+Text alone has no rules: nothing tells a request from a reply, and nothing makes one side wait for an answer before acting.
 
 A protocol is the agreed rule on top of the channel: how a request and its reply are shaped, and how a reply is matched to the request it answers.
 
@@ -20,6 +21,8 @@ A protocol must:
 2. Correlate each reply to the request it answers.
 3. Gate a risky plan before any work starts.
 4. Stop an agent without losing work in flight.
+5. Stop a whole fan out once one worker wins, and settle that race exactly once.
+6. Reach an agent outside the team, across a trust boundary.
 
 Without this layer, coordination is unstructured chat. Nothing is gated, nothing stops cleanly, and a reply cannot be matched to what it answers.
 
@@ -39,7 +42,8 @@ Three rules make it a protocol, not just two messages:
 - **Correlation id.** `requestId` is set when the request goes out and echoed in the reply. The sender knows which pending request a reply resolves.
 - **A small state machine.** A request goes `pending` then `approved` or `rejected`. A reply for an already resolved id is ignored, so duplicates are harmless.
 
-The shutdown and plan flows are the same exchange in opposite directions. In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
+The shutdown and plan flows are the same exchange in opposite directions.
+In shutdown the lead requests and the teammate confirms. In plan approval the teammate requests and the lead confirms.
 
 The approval can also carry the permission mode the work runs under, so the verdict and the mode travel together (section 3).
 
@@ -140,6 +144,43 @@ state = next(filter(None, (lead_proto.resolve(m) for m in team.drain("lead")   #
 - The plan-approval flow is the symmetric inverse (`ExitPlanMode` then `ApprovePlan`), driven by the same tools and proven in test.py.
 - The loop does not change. Protocols wrap a turn by shaping requests and resolving replies on the channel.
 
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book and the A2A spec, and is not confirmed of the systems in the table.
+
+**Stopping a whole fan out.** A fan out sends several workers at one problem and needs only one answer.
+The first worker to succeed reports back, and the lead then sends a stop to every other worker.
+The demo only ever stops one teammate, but nothing new goes on the wire here. Each stop is the same request and confirm,
+so a worker that loses still finishes its file and closes its task record. It is the shutdown flow, sent to many.
+
+**Two winners at once.** Two workers can succeed in the same instant. Then both count as first, the lead sends two rounds of stops, and two results get recorded.
+A lock fixes that. The first worker to arrive takes the lock, writes down who won, and releases it.
+The second takes the lock next, sees a winner already written, and returns without stopping anyone. Whoever arrives first, the race settles once.
+
+**When the confirm never comes.** A stop that waits for a confirm can go unanswered. A worker inside a long tool call is not reading its inbox.
+So the stop has two tiers. The lead asks, waits for the confirm up to a deadline, then kills whatever is still running.
+The kill is the fallback, not the first move. The lead asks first, so cleanup runs whenever there is time for it.
+
+**One source, not a survey.** Both tiers and the lock come from one experiment by the book's own author, not from a comparison of several systems.
+
+**Talking to an agent you do not own.** Everything above assumes one team, one process, one owner.
+The channel is shared, the roster is known at spawn time, and every agent trusts the ids on the wire.
+None of that survives an organization boundary. There is no shared inbox to stamp a `request_id` on. The other side's roster is not visible. Its tool list cannot be trusted.
+A2A is the protocol for that case. It keeps the request and reply core and adds three parts.
+
+- **Agent Card discovery.** Each agent publishes a document at a known URL: name, skills, endpoint, and how to authenticate.
+  A caller reads the card first, then decides what to send. Inside the team the roster arrives at spawn time. Across a boundary the caller has to fetch it.
+- **A task lifecycle.** A remote call is a task with an id and a state: `submitted`, `working`, `input-required`, `completed`, `failed`. The caller polls or subscribes on that id.
+  `input-required` is the state this section has no name for. The remote agent pauses and asks for more information, and the task stays alive while it waits.
+- **Opaque artifacts.** Results come back as artifacts: files, text, structured parts. The remote agent's trajectory never comes back.
+  The caller cannot see how the work was done. Only the result crosses.
+
+**Request states and task states.** The two designs track different things. This section tracks one request: it goes `pending`, then `approved` or `rejected`.
+A2A tracks one task: `submitted`, `working`, `input-required`, `completed`, `failed`.
+The difference is how long the record lives. A request record ends with the exchange that created it.
+A task id still resolves later: after the reply lands, after a pause for more information, after the connection drops and comes back.
+A caller across a boundary keeps both. The request states say whether this one message was accepted. The task states say where the whole job stands.
+
 ---
 
 ## Per system
@@ -164,6 +205,12 @@ How one design shapes requests, gates plans, and stops agents cleanly.
 - **Type confusion.** Matching a reply by id alone lets a shutdown reply resolve a plan request. Check that the reply variant matches the recorded request type.
 - **Approval without enforcement.** An approved plan still needs the permission layer to gate execution (section 3). Carry the `permissionMode` in the response.
 - **Duplicate replies.** A retried reply can flip an already resolved state. Treat any reply to a non pending id as a no op.
+- **Stopping a fan out without a lock.** Two workers finish in the same instant, so both count as first. The lead then sends two rounds of stops and records two winners.
+  Take the lock before writing down who won. A later winner sees the name already there and stops no one.
+- **Waiting for a confirm with no deadline.** A worker busy in a long tool call never reads the request. The confirm never arrives and the lead waits forever.
+  Put a deadline on the wait and kill after it. Asking stays the first move. It is no longer the only one.
+- **A remote task treated as one reply.** An agent you do not own can pause and ask for more information. That is a task state, not a reply.
+  Track a task id and its state. A paused job is then still addressable after the exchange that started it ends.
 
 ---
 
@@ -190,3 +237,8 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 - [Claude Code plan and stop](https://github.com/yasasbanukaofficial/claude-code):
   `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tasks/stopTask.ts`, `coordinator/coordinatorMode.ts`.
 - [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter10.md` (多 Agent 协作), Chinese original canonical.
+  A stop that cleans up and acks, a kill as the fallback tier, and stopping a whole fan out on first success with a lock so the race settles once.
+  Both rest on the book author's own experiment, a single source.
+- [A2A protocol](https://github.com/a2aproject/A2A) (Linux Foundation): Agent Card discovery, the task lifecycle states
+  (`submitted`, `working`, `input-required`, `completed`, `failed`), and opaque artifact exchange across a trust boundary.
