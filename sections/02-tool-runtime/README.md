@@ -81,9 +81,8 @@ The demo dispatches sequentially for clarity. Real runtimes batch safe calls and
 
 ### Further reading
 
-The designs below are not in `src/`. They come from ai-agent-book's account of how production agents are built, and from published work on tool use.
-Read them as reported design, not as confirmed behavior of the systems in the table below.
-Where Claude Code is named, the contrast comes from its own source, cited at the end.
+None of this is in `src/`. It comes from ai-agent-book and published work on tool use, and is not confirmed of the systems in the table.
+Where Claude Code is named, the contrast comes from its own source.
 
 **Grouping.** Tools sort into five groups, by where a call goes and what it touches.
 
