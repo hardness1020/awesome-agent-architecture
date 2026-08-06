@@ -6,7 +6,8 @@
 
 A single working directory is shared mutable state. If two agents write the same file at the same time, one can overwrite the other's work.
 
-The task system decides what work exists. Subagents decide how work is split. Worktree isolation keeps the writes separate: each agent writes in its own directory, so they do not interfere.
+The task system decides what work exists. Subagents decide how work is split.
+Worktree isolation keeps the writes separate: each agent writes in its own directory, so they do not interfere.
 
 Each unit of work gets its own checkout and branch. The agent's file and shell tools resolve paths inside that checkout.
 

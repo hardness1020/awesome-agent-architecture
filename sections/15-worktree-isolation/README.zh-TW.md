@@ -128,5 +128,6 @@ uv run python sections/15-worktree-isolation/src/demo.py  # live demo, needs a k
 
 ## 出處
 
-- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`tools/EnterWorktreeTool/`、`tools/ExitWorktreeTool/`、`utils/worktree.ts`、`utils/cwd.ts`、`tools/AgentTool/AgentTool.tsx`。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
+  `tools/EnterWorktreeTool/`、`tools/ExitWorktreeTool/`、`utils/worktree.ts`、`utils/cwd.ts`、`tools/AgentTool/AgentTool.tsx`。
 - [learn-claude-code · s18_worktree_isolation](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

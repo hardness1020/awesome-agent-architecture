@@ -6,7 +6,8 @@
 
 The main agent can hand work to a subagent: the delegating side is the parent, the one sent off is the child.
 
-To the parent, this is just one tool call. But inside that call runs a complete agent loop. The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.
+To the parent, this is just one tool call. But inside that call runs a complete agent loop.
+The parent gives the child a prompt. The child gets a fresh `messages[]`, runs to completion, and returns its final answer.
 
 This keeps side investigations out of the parent context. The parent does not need every file read or command result from the child. It usually needs the conclusion.
 

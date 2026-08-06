@@ -200,15 +200,15 @@ Evaluation reuses the harness rather than adding to it:
 
 How each system builds the test bed a score comes from.
 
-|                            | Claude Code                                          | mini-swe-agent                                 | τ²-bench                                      | Verifiers                                    |
-| -------------------------- | ---------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------- | -------------------------------------------- |
-| **Pros**             | Bad work is caught before it lands.                  | The benchmark runner ships with the agent.     | Any correct route passes.                       | One task set can grade any model or harness. |
-| **Cons**             | No eval suite in source.                             | The benchmark's tests are the only rubric.     | A second model plays the user, so scores drift. | Heavy setup for a one-off eval.              |
-| **Why**              | Catch bad work inside the run.                       | A task is one repo bug with tests.             | Support work is a conversation.                 | Eval and training share one environment.     |
-| **How: environment** | Reconstruction: a scratch copy.                      | One container per instance: that is the reset. | A domain database and a policy.                 | A fresh sandboxed runtime per run.           |
-| **How: task set**    | Reconstruction: held-out tasks from scrubbed traces. | A published benchmark split.                   | Hand written per domain.                        | A module loaded by id, local or from a hub.  |
-| **How: scoring**     | A reviewer agent and a fixed rubric.                 | Failing tests pass, passing ones stay.         | End state against a gold replay.                | Reward functions and a code-running judge.   |
-| **How: repeats**     | Verify passes inside one run.                        | One run per instance.                          | k trials, scored as reliability.                | Rollouts per task is a flag.                 |
+| | Claude Code | mini-swe-agent | τ²-bench | Verifiers |
+| --- | --- | --- | --- | --- |
+| **Pros** | Bad work is caught before it lands. | The benchmark runner ships with the agent. | Any correct route passes. | One task set can grade any model or harness. |
+| **Cons** | No eval suite in source. | The benchmark's tests are the only rubric. | A second model plays the user, so scores drift. | Heavy setup for a one-off eval. |
+| **Why** | Catch bad work inside the run. | A task is one repo bug with tests. | Support work is a conversation. | Eval and training share one environment. |
+| **How: environment** | Reconstruction: a scratch copy. | One container per instance: that is the reset. | A domain database and a policy. | A fresh sandboxed runtime per run. |
+| **How: task set** | Reconstruction: held-out tasks from scrubbed traces. | A published benchmark split. | Hand written per domain. | A module loaded by id, local or from a hub. |
+| **How: scoring** | A reviewer agent and a fixed rubric. | Failing tests pass, passing ones stay. | End state against a gold replay. | Reward functions and a code-running judge. |
+| **How: repeats** | Verify passes inside one run. | One run per instance. | k trials, scored as reliability. | Rollouts per task is a flag. |
 
 ---
 

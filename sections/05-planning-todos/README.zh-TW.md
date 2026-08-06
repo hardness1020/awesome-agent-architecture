@@ -109,6 +109,7 @@ uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`tools/TodoWriteTool/TodoWriteTool.ts`、`tools/EnterPlanModeTool/EnterPlanModeTool.ts`、`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
+  `tools/TodoWriteTool/TodoWriteTool.ts`、`tools/EnterPlanModeTool/EnterPlanModeTool.ts`、`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`。
 - [Claude Code planning helpers](https://github.com/yasasbanukaofficial/claude-code)：`utils/plans.ts`、`utils/todo/types.ts`、`types/permissions.ts`。
 - [learn-claude-code · s05_todo_write](https://github.com/shareAI-lab/learn-claude-code)：section framing。
