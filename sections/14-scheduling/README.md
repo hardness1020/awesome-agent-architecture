@@ -117,8 +117,7 @@ A fired prompt becomes a new user-style turn. It uses the same loop, permissions
 
 ### Further reading
 
-What follows is not in this section's `src/`. It comes from ai-agent-book's account of production agents.
-Read it as one reported design. It is not confirmed behavior of the systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **The limits of a clock.** A heartbeat has one setting that matters: the interval.
 It sets the bill and the worst case delay at once, and those two pull against each other.

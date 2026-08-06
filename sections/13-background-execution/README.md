@@ -94,8 +94,7 @@ The one-tool-call-to-one-tool-result rule still holds. A late completion is not 
 
 ### Further reading
 
-What follows is not in this section's `src/`. It comes from ai-agent-book's account of production agents.
-Read it as one reported design. It is not confirmed behavior of the system in the table below.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **Interrupts and safe points.** Some input cannot wait for the running tool call to finish.
 A user correction, a cancel, or an alert can land mid-call. One answer is to make every inbound input an event on one stream.

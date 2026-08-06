@@ -94,8 +94,7 @@ background.drain_into(messages, runtime)               # src/loop.py
 
 ### 延伸阅读
 
-下面这段没有做进这一章的 `src/`。它来自 ai-agent-book 对 production agent 的整理。
-把它当成一种被记录下来的做法就好，不代表下面表格里那个系统确认就是这样跑的。
+以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
 
 **打断与安全点：**有些消息不能等当前这个工具调用跑完。
 用户的修正、一个取消、一则告警，都可能在调用跑到一半时进来。一种做法是把所有进来的消息都变成同一条 stream 上的 event。

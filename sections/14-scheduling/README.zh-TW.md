@@ -115,8 +115,7 @@ for task in sched.drain():                            # src/demo.py · between t
 
 ### 延伸閱讀
 
-下面這段沒有做進這一章的 `src/`。它來自 ai-agent-book 對 production agent 的整理。
-把它當成一種被記錄下來的做法就好，不代表下面表格裡那些系統確認就是這樣跑的。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
 
 **時鐘做得到的極限：**heartbeat 只有一個參數要調，就是間隔。它同時決定了帳單和最糟情況下的延遲，這兩件事會互相拉扯。
 間隔短，model 一直醒過來，多半什麼也沒發現。間隔長，便宜，但消息晚。
