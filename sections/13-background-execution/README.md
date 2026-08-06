@@ -108,11 +108,12 @@ How urgent an event is decides which gap it waits for:
 - **Cancel.** Stop the running call to open a gap now. Use it when a correction makes the running work pointless.
 - **Parallel.** Run the event in a side loop and leave the main loop alone.
 
-A small model can sort events into those three, so triage costs one cheap call each.
+Sorting events is itself cheap. A small model can do it, so triage costs one call per event.
 
-**Interrupt placeholders.** A cancel leaves a `tool_use` block with no `tool_result`, and the next model call needs that pair closed.
-ai-agent-book closes it at once. It writes a placeholder `tool_result` on the same id that says the call was interrupted.
-That does not break the no-reuse rule above. The placeholder closes the pair now, and the real result still arrives later as its own notification.
+**Interrupt placeholders.** A cancel needs one more step before the transcript is legal again.
+The stopped call left a `tool_use` block with no `tool_result`, and the next model call needs that pair closed.
+ai-agent-book closes it right away. It writes a placeholder `tool_result` on the same id that says the call was interrupted.
+That does not break the no-reuse rule above. The placeholder closes the pair now. The real result still arrives later as its own notification.
 The placeholder is the book author's own design. No other source describes it.
 
 ---

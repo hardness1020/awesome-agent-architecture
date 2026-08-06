@@ -120,7 +120,8 @@ A fired prompt becomes a new user-style turn. It uses the same loop, permissions
 What follows is not in this section's `src/`. It comes from ai-agent-book's account of production agents.
 Read it as one reported design. It is not confirmed behavior of the systems in the table below.
 
-**The limits of a clock.** The interval sets the bill and the worst case delay at the same time, and the two pull against each other.
+**The limits of a clock.** A heartbeat has one setting that matters: the interval.
+It sets the bill and the worst case delay at once, and those two pull against each other.
 A short interval wakes the model often and finds nothing most times. A long interval is cheap and late.
 No interval fixes this. A clock samples state instead of watching events, so it knows when it last looked, not when the thing happened.
 
