@@ -85,29 +85,56 @@ The designs below are not in `src/`. They come from ai-agent-book's account of h
 Read them as reported design, not as confirmed behavior of the systems in the table below.
 Where Claude Code is named, the contrast comes from its own source, cited at the end.
 
-**Grouping.** A flat registry hides the shape of a catalog. Tools fall into five groups, by where a call goes and what it touches.
-Perception reads the outside world. Execution changes it. Collaboration reaches another agent. An event trigger lets the outside world wake the agent.
-User communication reaches the person. Sections 6, 12, and 16 build the collaboration group. Sections 13 and 14 build the event triggers.
-Section 19 builds the user channel. This section builds the layer all five sit on.
+**Grouping.** Tools sort into five groups, by where a call goes and what it touches.
 
-**Granularity.** Merge two tools when they do the same kind of work on the same kind of input. One `read_document` with a type parameter beats one reader per file format.
+- **Perception** reads the outside world.
+- **Execution** changes it.
+- **Collaboration** reaches another agent.
+- **Event trigger** lets the outside world wake the agent.
+- **User communication** reaches the person.
+
+Four of the five groups get their own section later. Sections 6, 12, and 16 build collaboration. Sections 13 and 14 build the event triggers.
+Section 19 builds the user channel. This section builds the layer all five sit on.
+The grouping earns its keep because the contract differs: a perception call can repeat and batch safely, an execution call cannot.
+
+**Granularity.** Say the agent has to read PDFs, Word files, and spreadsheets. One tool or three?
+
+Merge them when they do the same work on the same kind of input. One `read_document` with a type parameter is easier to pick than three near-identical readers.
 Split them when the parameters stop overlapping. A schema that unions unrelated fields cannot say which fields apply, so the model fills the wrong ones.
 
-**Description craft.** `description` is not documentation. It is the only thing the model reads before it picks. A good one says when to use the tool and when not to.
-It gives real parameter values, shows what comes back, and says what a call costs. A few worked examples help more than another paragraph of prose.
-The book reports a large gain from adding examples. That figure has no citation, so take the direction and not the size.
+**Description craft.** `description` is the only text the model reads before it picks a tool. It is not documentation for a human.
 
-**Parameter fidelity.** The harness has to hand the input to the handler unchanged. Say it normalizes a quote character, trims whitespace,
-or adds an argument the model never wrote. The call then fails for a reason the model cannot see. It sent the right input.
-The result says the edit did not match. Nothing in the transcript explains the gap. Reject bad input and say why. Do not rewrite it.
+A useful one covers five things:
 
-**Checklist parameters.** Some parameters exist to be ignored. A parameter like `expected_price` makes the model write down what it believes before the call runs.
-The handler does not act on that number. It reads the stored value, decides on that, and logs the two when they differ.
-The last check then stands on data the model cannot forge. τ-bench scores runs the same way. It reads the final database state, not what the agent said it did.
+- When to use the tool.
+- When not to use it.
+- Real values for each parameter.
+- The shape of what comes back.
+- What a call costs.
 
-**Perception interfaces.** A perception tool usually finds more than fits in the context. Three rules keep the result honest.
-Search returns one page of candidates plus a cursor. A read takes an offset and a limit, so the model can walk a long file. Truncation is labeled in the result.
-A silent cut is worse than an error, because the model then reads a partial file as if it were whole.
+A few worked examples help more than another paragraph of prose. The book reports a large gain from adding them.
+That figure carries no citation, so take the direction and not the size.
+
+**Parameter fidelity.** The model sends an edit whose search text contains a curly quote. On the way to the handler, the harness straightens it.
+
+The edit now misses, and the model sees only that the string did not match. It sent the right input, so nothing in the transcript explains the gap.
+The rule follows: pass the input to the handler untouched. Reject bad input and say why. Never rewrite it, and never add an argument the model did not write.
+
+**Checklist parameters.** A refund tool takes an `expected_price` that the handler never uses.
+
+Writing it down is the whole point. The model has to state the price it believes before the call runs.
+The handler reads the stored price, decides on that, and logs the two when they differ.
+So the last check stands on data the model cannot forge. τ-bench scores runs the same way: it reads the final database state, not what the agent said it did.
+
+**Perception interfaces.** A search over a large repository matches four thousand lines, and only the first fifty fit in the context.
+
+Three rules keep the result honest:
+
+- Search returns one page of candidates plus a cursor.
+- A read takes an offset and a limit, so the model can walk a long file.
+- Truncation is labeled in the result.
+
+A silent cut is worse than an error. The model reads a partial file as if it were whole, and every later step inherits the gap.
 
 Code search shows the choice. Four approaches, and no system uses only one:
 
@@ -118,8 +145,9 @@ Code search shows the choice. Four approaches, and no system uses only one:
 | **Embedding index** | Code by meaning, so a plain-language query lands. | An index to build and keep in sync. Opaque ranking. |
 | **LSP symbols** | Definitions, references, and types, exactly. | A language server per language. |
 
-Claude Code ships no index. It searches step by step: glob, then grep, then read, and the model narrows the query between calls.
-The book describes Cursor taking the other route, paying to build an index so that a plain-language query can find code that names no identifier.
+Claude Code and Cursor sit at opposite ends of that table. Claude Code ships no index and searches step by step: glob, then grep, then read,
+with the model narrowing the query between calls. The book describes Cursor paying to build an index instead, so a plain-language query
+can find code that names no identifier.
 
 Editing splits the same way. Five ways to say what changed:
 
@@ -131,26 +159,31 @@ Editing splits the same way. Five ways to say what changed:
 | **Editor commands** | A small command language, vim style. | Terse. One more syntax to get wrong. |
 | **Anchors** | A start marker and an end marker. | Survives shifts. Ambiguous when the marker repeats. |
 
-Claude Code replaces an exact old string and makes the model read the file first, so a stale string fails loudly instead of editing the wrong line.
-The book describes Cursor sending a rough skeleton instead, with a second trained model rewriting the file from it, and reports that route as the faster one.
+The same two systems split again on edits. Claude Code replaces an exact old string and makes the model read the file first,
+so a stale string fails loudly instead of editing the wrong line. The book describes Cursor sending a rough skeleton instead,
+with a second trained model rewriting the file from it, and reports that route as the faster one.
 
-**Early start and cascade abort.** Batching is not the only way to overlap work. A call can start the moment its own arguments finish parsing,
-while the model is still writing the rest of the batch. That hides the call's latency inside generation. It needs one rule for failure:
-an error stops the calls that depended on it. Independent calls in the same batch keep running, and so does the parent turn.
+**Early start and cascade abort.** A call does not have to wait for the rest of the batch. It can start the moment its own arguments finish parsing.
 
-**Shell state.** Two designs, both defensible.
+The model is still writing the later calls, so the early call's latency hides inside generation. That buys speed and needs one rule for failure.
+An error stops the calls that depended on it. Independent calls in the same batch keep running, and so does the parent turn.
 
-- **Reset per call.** Claude Code's bash tool does not keep a live shell between calls. Environment variables and shell functions set in one call are gone by the next,
+**Shell state.** One call runs `cd build`, then activates a virtual environment. Does the next call still see either one? Two designs, both defensible.
+
+- **Reset per call.** Claude Code's bash tool keeps no live shell between calls. Variables and shell functions set in one call are gone by the next,
   and the tool description tells the model to use absolute paths. Each call reproduces on its own, and parallel calls cannot leak into each other.
-- **One persistent session.** The book makes a shared terminal the default. `cd`, exported variables, and an activated virtual environment all survive.
-  Separate shells stay available for parallel work. The model repeats fewer setup commands. The harness gains session state to track and reset.
+- **One persistent session.** The book makes a shared terminal the default, so `cd`, exported variables, and an active virtual environment all survive.
+  Separate shells stay available for parallel work. The model repeats fewer setup commands, and the harness gains session state to track and reset.
 
-**Discovery at scale.** A big catalog cannot ship in full, so the registry sends names first and loads a full schema when something asks for it.
-The ask can come from the model, in plain language. MCP-Zero has the agent say which capability it is missing, matches that to a server, then to a tool on that server,
-and injects only the matched schema. The model never had to know the tool existed, which is the part a keyword search cannot do.
+**Discovery at scale.** Twenty connected servers offer hundreds of tools, and their full schemas do not fit in the prompt.
 
-**Cache-safe loading.** Where the schema lands matters. Append it once, at the end of the context, and leave it there.
-Editing the tool block at the front of the prompt invalidates the cached prefix and every token after it (section 10).
+So the registry sends names first and loads a full schema only when something asks for it. The ask can come from the model, in plain language.
+MCP-Zero has the agent say which capability it is missing, matches that to a server, then to a tool on that server, and injects only the matched schema.
+The model never had to know the tool existed, which is what a keyword search cannot do.
+
+**Cache-safe loading.** Where a loaded schema lands in the context decides what it costs.
+
+Append it once, at the end, and leave it there. Editing the tool block at the front of the prompt invalidates the cached prefix and every token after it (section 10).
 Appending leaves the prefix alone, and the schema turns into ordinary history on the next turn.
 
 ---
