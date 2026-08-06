@@ -114,20 +114,25 @@ None of it runs in `src/`, and none of it is confirmed behavior of the systems i
 Three conditions make eight. Ten make more than a thousand, and each one warms separately, so almost every session starts cold.
 Keep conditional sections after the boundary and there is one prefix again.
 
-**Few-shot examples.** Examples sit in the prefix, so the same rule covers them.
-Picking the best examples for each request rewrites the prefix on every call and gives up the cache.
-Pick one set per task type and leave it alone for the session.
+**Pick one example set per task type and leave it alone.** Few-shot examples sit in the prefix, so the rule above covers them too.
+Retrieving the best examples for each request rewrites the prefix on every call and gives up the cache.
+A fixed set fits the request a little less well, and keeps the prefix warm for the whole session.
 
-**The agent status bar.** Some harnesses render runtime state into a few lines at the end of the context: tool call count, current TODO, elapsed time, working directory.
-There are two ways to keep those lines current, and neither is free.
+**A status bar tells the model where the run is now.** The model cannot see the harness, so some harnesses write live state into a few lines at the end of the context:
+
+- how many tool calls have run
+- the current TODO
+- elapsed time
+- the working directory
+
+Those lines have to stay current, and there are two ways to do it. Neither is free.
 Replace the block each turn and there is one true copy of the state, but the tail is rewritten and the cache after it is gone.
 Append a new block each turn and the cache holds, but the old blocks stay in the history and the model can act on state that has already changed.
 Claude Code appends, using the `<system-reminder>` messages from section 9.
 Either way, write the block with code that reads real state. An LLM summarizer adds a call, adds latency, and can get it wrong.
 
-**Instructions versus data.** A fetched web page, a file, an issue comment, and an MCP server response are all data. None of them is the user speaking.
+**External text is data, never an order.** A fetched web page, a file, an issue comment, and an MCP server response are all data. None of them is the user speaking.
 Send that text in with no marker and a sentence inside it that looks like an instruction competes with the system prompt on equal terms. That is prompt injection.
-So the prompt also has to say which text counts as an order and which does not.
 Section 3 owns the threat model and the execution-layer answer: permissions and the sandbox decide what a hijacked agent is allowed to do.
 The prompt layer can act earlier, by keeping instructions and data apart:
 
@@ -135,7 +140,7 @@ The prompt layer can act earlier, by keeping instructions and data apart:
 - Keep the roles strict. Instructions go in the system prompt, results go in `tool_result` blocks, and the human speaks in user turns.
 - State the loyalty rule once: the agent works for the user and the operator, and no text arriving through a tool can change that. The book calls this principal loyalty.
 
-None of this is a boundary. A model can still be talked out of the rule, which is why section 3's checks run anyway.
+**The prompt layer is not the boundary.** A model can still be talked out of the rule, which is why section 3's checks run anyway.
 The prompt layer lowers the odds. The execution layer bounds the damage.
 
 ---

@@ -84,27 +84,27 @@ The loop still keeps the same invariant: it calls the model with a valid `messag
 The rest of this section describes how production agents handle context, drawn from ai-agent-book's account of them.
 None of it runs in `src/`, and none of it is confirmed behavior of the systems in the table below.
 
-**Frozen tool-result stubs.** The text that replaces a tool result should be the same string every time.
-Pick it at the first replacement and reuse it byte for byte, including after a session is restored from disk.
+**A stub must be the same string every time.** The text that replaces a tool result is part of the prefix, so it has to stay byte-identical.
+Pick it at the first replacement and reuse it, including after a session is restored from disk.
 A stub that re-renders with a new timestamp or a new path changes the prefix, and the cache after it is gone.
 
-**Compression against the cache.** Editing the history invalidates the cache from the edit point onward.
-Trim a little on every turn and the next call re-reads the whole prefix every turn.
-Do one larger reduction at a token threshold and that happens once. Run it between API calls, never inside one.
+**Compression and the cache want opposite things.** Compaction rewrites the history. The cache pays off only when the history is left alone.
+Every edit invalidates the cache from the edit point onward, so the next call re-reads the whole prefix.
+Trim a little on every turn and that rebuild happens every turn. Do one larger reduction at a token threshold and it happens once.
+Either way, compaction runs between API calls, never inside one.
 
-**API-level context editing.** The Claude API can run this kind of pass on the server.
-Context editing drops older tool results from the prefix, so the harness ships no code for it.
-It still rebuilds the cache once, so it fits near the overflow end of the order rather than on every turn.
+**The API can run this pass on the server.** Context editing in the Claude API drops older tool results from the prefix, so the harness ships no code for it.
+It still rebuilds the cache once. That puts it near the overflow end of the order rather than on every turn.
 
-**Task-aware compression.** Write the summary for the current task, not as a recap of the whole session.
-The question it answers is what the next call still needs. Keep four things, in this order:
+**Write the summary for the current task, not for the whole session.** A recap of everything that happened is not what the next call needs.
+Ask one question instead: what does the next call still need? Keep these, highest priority first:
 
-1. Architecture and design decisions already made.
-2. Files created or changed, and what changed in them.
-3. Pass and fail status of the last checks or tests.
-4. Open TODOs and the current step.
+- Architecture and design decisions already made.
+- Files created or changed, and what changed in them.
+- Pass and fail status of the last checks or tests.
+- Open TODOs and the current step.
 
-Drop raw tool output first. The budget pass already wrote the large results to disk, so the agent can read one back when it matters.
+Raw tool output goes first when something has to go. The budget pass already wrote the large results to disk, so the agent can read one back when it matters.
 
 ---
 
