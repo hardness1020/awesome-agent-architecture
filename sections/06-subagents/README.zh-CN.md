@@ -45,9 +45,9 @@ loop 不会改变。subagent 只是另一个调用 loop 的 tool handler。
 
 有三个特性很重要：
 
-- **全新情境。** child 不会继承 parent 的 transcript。parent 也不会继承 child 的轨迹。
-- **继承的权限。** child 会复制 parent 的 permission mode 和 allow rules。情境隔离不等于权限隔离。
-- **递归上限。** 这个 demo 从 child registry 中省略了 `Agent`，所以 child 无法再生出另一个 child。
+- **全新情境：**child 不会继承 parent 的 transcript。parent 也不会继承 child 的轨迹。
+- **继承的权限：**child 会复制 parent 的 permission mode 和 allow rules。情境隔离不等于权限隔离。
+- **递归上限：**这个 demo 从 child registry 中省略了 `Agent`，所以 child 无法再生出另一个 child。
 
 ---
 

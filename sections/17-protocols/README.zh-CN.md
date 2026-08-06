@@ -37,9 +37,9 @@ sender 把请求记为 pending，按类型路由回复，并解析出相符的�
 
 有三条规则让它成为一个 protocol，而不只是两条消息：
 
-- **Typed variants。** 每条消息是 `type` 字段上的一个 variant。handler 按类型 dispatch，所以回复绝不会被误认为某个不相干的请求。
-- **Correlation id。** `requestId` 在请求发出时设置，并在回复里返回。sender 就知道一条回复解析的是哪一条 pending 请求。
-- **A small state machine。** 一条请求从 `pending` 走到 `approved` 或 `rejected`。一个 id 有了结果之后，再收到的回复都会被忽略，所以同一条回复重复送也没关系。
+- **Typed variants：**每条消息是 `type` 字段上的一个 variant。handler 按类型 dispatch，所以回复绝不会被误认为某个不相干的请求。
+- **Correlation id：**`requestId` 在请求发出时设置，并在回复里返回。sender 就知道一条回复解析的是哪一条 pending 请求。
+- **A small state machine：**一条请求从 `pending` 走到 `approved` 或 `rejected`。一个 id 有了结果之后，再收到的回复都会被忽略，所以同一条回复重复送也没关系。
 
 shutdown 与 plan 这两个流程一样，只是方向相反：shutdown 是 lead 请求、队友确认；plan approval 是队友请求、lead 确认。
 
@@ -166,11 +166,11 @@ demo 只停过一个队友，不过这里线上并没有新东西。每一条停
 一跨出组织，这些就全都不成立了。没有共享的 inbox 可以盖 `request_id`。对方有哪些成员看不到。对方的工具清单也不能直接信。
 A2A 就是为这种情况设计的 protocol。它保留请求配回复这个核心，另外加三样东西。
 
-- **Agent Card discovery。** 每个 agent 在一个固定的 URL 上放一份文件：名字、会做什么、endpoint，还有要怎么认证。
+- **Agent Card discovery：**每个 agent 在一个固定的 URL 上放一份文件：名字、会做什么、endpoint，还有要怎么认证。
   调用方先读这张卡，再决定要送什么过去。团队里的名单在 spawn 时就拿到了；跨出去就得自己去抓。
-- **Task lifecycle。** 一次远端调用是一个带 id 的 task，状态有 `submitted`、`working`、`input-required`、`completed`、`failed`。调用方拿这个 id 去轮询或订阅。
+- **Task lifecycle：**一次远端调用是一个带 id 的 task，状态有 `submitted`、`working`、`input-required`、`completed`、`failed`。调用方拿这个 id 去轮询或订阅。
   `input-required` 正好是这一章没有名字的那个状态：对面停下来要更多信息，而 task 在等的期间还活着。
-- **Opaque artifacts。** 结果是以 artifact 返回的：文件、文字、结构化片段。对方的 trajectory 不会返回。
+- **Opaque artifacts：**结果是以 artifact 返回的：文件、文字、结构化片段。对方的 trajectory 不会返回。
   调用方看不到那边是怎么做出来的，过得来的只有结果。
 
 **请求的状态和 task 的状态：**两套做法记的东西不一样。这一章记的是一次请求：从 `pending` 走到 `approved` 或 `rejected`。

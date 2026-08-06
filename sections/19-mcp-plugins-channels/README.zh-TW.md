@@ -35,18 +35,18 @@ MCP 之外，這一章還講兩個搭在它上面的機制：plugin 把 server �
 2026-07-28 版的 spec 把 protocol 本身改成了 stateless：每個 request 都是獨立的，哪台 server 副本都能接。
 上面 harness 端做的事（探索、包裝、合併）都不變。變的是 client 跟 server 之間實際往來的訊息：
 
-- **不用握手了。** 以前 client 得先呼叫 `initialize`、等 server 回應，才能做別的事。
+- **不用握手了：**以前 client 得先呼叫 `initialize`、等 server 回應，才能做別的事。
   現在任何 request 都能直接發，每個 request 自己在 `_meta` 裡帶上 protocol 版本和能力。
   想先確認版本，就呼叫 `server/discover` 問 server。
-- **沒有 session 了。** 以前 server 靠一個 session header 幫每條連線記狀態。
+- **沒有 session 了：**以前 server 靠一個 session header 幫每條連線記狀態。
   現在 server 若需要跨呼叫記東西，就回傳一個 handle，client 之後當成普通的工具參數帶回來。
-- **通知走一條 stream。** 以前 client 得掛著一條 GET 連線聽變動。
+- **通知走一條 stream：**以前 client 得掛著一條 GET 連線聽變動。
   現在它開一條 `subscriptions/listen` stream，指名要聽哪些事件（工具清單變了、resource 變了）。
   list 的結果也多了 `ttlMs` 欄位，告訴 client 可以 cache 多久。
-- **server 用回覆提問，不再回頭呼叫。** 以前 server 可以在工具跑到一半時，反過來對 client 發 request
+- **server 用回覆提問，不再回頭呼叫：**以前 server 可以在工具跑到一半時，反過來對 client 發 request
   （問使用者一個問題、請模型 sample）。現在它回傳一個標著 `input_required` 的中間結果，
   client 把答案附上，重發同一個 request。
-- **功能變少了。** Roots、Sampling、Logging 和舊的 HTTP+SSE transport 都列為 deprecated。
+- **功能變少了：**Roots、Sampling、Logging 和舊的 HTTP+SSE transport 都列為 deprecated。
   官方 transport 剩兩種：本地用 stdio，遠端用 Streamable HTTP。
 
 對用 agent 的人來說，畫面上什麼都沒變：舊 server 照常運作，v1 SDK 也繼續維護。
@@ -167,9 +167,9 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 **公告的程度有三種可以挑：**一個 server 一個 server 決定公告多少，不是全部一起套。
 
-- **全部都公告。** 最單純。適合那種幾乎每一輪都會用到的 server。
-- **只公告一份索引。** 先給名稱和一句話說明。等模型指名要哪個工具，再把完整的 schema 載進來（探索那一側在第 2 章）。
-- **只開一扇門。** 只公告一個工具，參數是 server 名稱和工具名稱，其他都放在它後面。agent 只要付一份 schema，不用付五十份。
+- **全部都公告：**最單純。適合那種幾乎每一輪都會用到的 server。
+- **只公告一份索引：**先給名稱和一句話說明。等模型指名要哪個工具，再把完整的 schema 載進來（探索那一側在第 2 章）。
+- **只開一扇門：**只公告一個工具，參數是 server 名稱和工具名稱，其他都放在它後面。agent 只要付一份 schema，不用付五十份。
 
 **protocol 完全沒管這件事：**它只規定工具怎麼列、怎麼呼叫。有多少工具會進到 prompt，是 client 自己決定的。
 所以延後載入是你要去自己的 harness 裡確認的設定，server 不能假設它一定開著。
