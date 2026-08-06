@@ -6,10 +6,10 @@
 
 An agent run can span many model calls. Any call can fail because of network issues, overload, rate limits, output limits, or context overflow.
 
-Model calls are only one layer. A study of production coding agents sorts failures into four layers: API, tool, context, and control flow.
-API failures are timeouts, rate limits, and overload. Tool failures are a command that exits non-zero or a handler that raises.
-Context failures are prompt overflow and a broken message history. Control-flow failures are steps that repeat without making progress.
-Classify the layer first, then count attempts. A counter that fires before classification spends the budget on errors no retry can fix.
+Model calls are only one source of failure. One study of production coding agents sorts failures into four layers.
+API failures are timeouts, rate limits, and overload. Tool failures are a command that exits non-zero, or a handler that raises.
+Context failures are prompt overflow and a broken message history. Control-flow failures are steps that repeat and get nowhere.
+Work out the layer first, then start counting attempts. Counting first spends the budget on errors that no retry can fix.
 
 The loop needs different responses for different failures:
 
@@ -101,40 +101,43 @@ response = recovery.with_retry(
 - `_reactive_trim` mutates `messages[]` in place for one overflow retry.
 - When recovery gives up, the error is surfaced instead of hidden.
 
-### Beyond the model call
+### Further reading
 
-The helper above covers the API layer. The other three layers need their own checks.
+The designs below come from ai-agent-book's account of production agents. None of them is implemented in this section's `src/`.
+None of them is confirmed behaviour of the systems in the table either. Read them as designs, not as findings.
 
-**No progress.** Fingerprint every tool call as its name plus its arguments. A fingerprint that repeats means the agent is running the same action and learning nothing.
-A step cap catches this eventually, after spending the whole budget. A fingerprint counter catches it in a few steps and can name the stuck call.
-Give each recovery path its own failure counter too, so a path that keeps failing trips its own breaker instead of waiting for the global cap.
+**Beyond the model call.** The helper above covers the API layer. The other three layers need checks of their own.
 
-**No liveness.** A connect timeout does not see a stream that opened and then went quiet. Run an idle watchdog beside it,
-and cancel the call when no token arrives inside the window. The retry helper then handles the cancellation as an ordinary transient failure.
+**No progress.** Give every tool call a fingerprint: its name plus its arguments. A fingerprint that repeats means the agent is redoing the same call.
+Nothing raises, so no retry path fires. A step cap does stop the run, but only once the budget is gone.
+A fingerprint counter stops it in a few steps, and it can name the call that is stuck.
+Give each recovery path its own counter too. A path that keeps failing then trips its own breaker.
 
-**Broken history.** A crash mid turn can leave a `tool_use` block with no matching `tool_result`. The next request fails on message shape, not on the work.
-Repair the pairs before sending. What repair means depends on what the transcript is for.
-A product harness inserts a placeholder result that says the call was interrupted, so the run continues.
-A harness recording training data refuses the repair, because a synthetic result would teach a step that never ran.
+**No liveness.** A connect timeout only checks that the stream opened. It does not notice a stream that opens and then goes quiet.
+Add an idle watchdog. When no token arrives inside the window, cancel the call.
+The retry helper then treats the cancellation as an ordinary transient failure.
 
-### Grading the recovery
+**Broken history.** A crash mid turn can leave a `tool_use` block with no matching `tool_result`.
+The next request fails on message shape, not on the work. So repair the pairs before sending.
+What repair means depends on what the transcript is for.
+A product harness adds a placeholder result saying the call was interrupted, and the run continues.
+A harness that records training data refuses to repair. A made-up result would teach a step that never ran.
 
-Recovery is not one decision. Grade it by how much the caller should see.
+**Grading the recovery.** Recovery is not one decision. Grade it by how much the caller should see.
 
-1. Retry silently. The caller sees only the final result.
-2. Degrade and continue. Return a reduced result and say what was lost.
-3. Surface the failure, with the attempts listed, so the model can pick a different path.
+1. Retry quietly. The caller sees only the final result.
+2. Degrade and continue. Return a smaller result, and say what is missing.
+3. Surface the failure. List the attempts, so the model can try another path.
 
-Quarantine the errors from the first two grades. Hold them inside the helper and release them only when recovery gives up.
-An intermediate error that reaches the model reads as final, and can push it to redo work that already succeeded.
+Errors from the first two grades stay inside the helper. Release them only when recovery gives up.
+An error that reaches the model early looks final. The model may then redo work that had already succeeded.
 
-Recovery can also feed itself. An error path that triggers side-effect logic (a hook, a summary, a notification) calls the model again and fails again.
-Disable that logic on error paths, and carry a recursion depth counter to break any chain that survives.
-Background calls get no retries at all. They sit off the critical path, so retrying them only spends quota the main loop needs.
+Recovery can also feed itself. An error path can trigger a hook, a summary, or a notification.
+That work calls the model again, and fails again. So turn off side-effect logic on error paths.
+Keep a recursion depth counter too, to break any chain that survives.
+Background calls get no retries at all. They sit off the critical path, so a retry only spends quota the main loop needs.
 
-Set the bounds from measured failures, not from intuition. One reported session failed the same recovery path over 3000 times,
-and loops like it accounted for roughly 250 thousand API calls a day. That measurement is where the three-strike compaction bound came from.
-The figures come from one source, so read them as one period of one implementation.
+Set the bounds from measured failures, not from intuition. The book's three-strike compaction bound came from production data on repeated recovery failures.
 
 ---
 
@@ -160,10 +163,10 @@ Recovery wraps the model call. The loop body stays the same.
 - **Overflow cannot shrink.** If one reactive compaction fails, stop instead of compacting forever.
 - **Error disappears.** A swallowed error leaves the transcript with a missing result. Surface failure after recovery is exhausted.
 - **Stop hook repeats an API error.** Skip stop hooks for API-error messages.
-- **Stuck without an error.** A repeated call raises nothing, so no retry path fires. Count repeated tool-plus-args fingerprints and break the loop.
-- **Silent stream stall.** A stream that opens and then goes quiet passes the connect timeout. Run an idle watchdog and cancel the call.
-- **Repair pollutes the record.** A placeholder `tool_result` keeps a product run alive but records a step that never ran. Refuse the repair when the transcript is training data.
-- **Intermediate error leaks.** An error shown before recovery finishes reads as final and triggers redundant work. Quarantine it until recovery gives up.
+- **Stuck without an error.** A call that keeps repeating raises nothing, so no retry path fires. Count repeated tool-plus-args fingerprints, and stop the run.
+- **Silent stream stall.** A stream can open and then go quiet. The connect timeout has already passed, so nothing fires. Add an idle watchdog.
+- **Repair pollutes the record.** A placeholder `tool_result` keeps a product run alive. It also records a step that never ran. Do not repair a transcript kept as training data.
+- **Intermediate error leaks.** An error shown before recovery finishes looks final, and the model redoes the work. Hold it inside the helper until recovery gives up.
 
 ---
 
@@ -192,6 +195,5 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 - [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   the four-layer failure taxonomy, tool-plus-args loop fingerprints, the idle watchdog, `tool_result` pair repair with its product versus training-data split,
   graded recovery with error quarantine, and the death-spiral defenses. Its footnote ch5-3 sources the taxonomy from a study of production agents,
-  Claude Code among them, and warns that the implementation moves fast. The 3000-failure session and the 250 thousand daily calls behind the three-strike bound
-  are the book's own production data, a single source.
+  Claude Code among them, and warns that the implementation moves fast. It also sets its three-strike compaction bound from measured production failures.
 - [learn-claude-code · s11_error_recovery](https://github.com/shareAI-lab/learn-claude-code): section framing.
