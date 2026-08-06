@@ -14,10 +14,12 @@ A worker that goes idle the moment it finishes also wastes the context it just l
 
 The fix is self organization, not central assignment.
 
-Central assignment is still a real design, and most published multi-agent work describes it.
-In the manager pattern each child is registered as a tool, and one manager assigns every subtask.
-A manager that holds the whole plan can order the work, drop duplicates, and stop the run early. It also handles every task twice, to assign it and to read the result back.
-The trade is plain. A manager buys global ordering and pays in planner turns. A board buys throughput and pays in locks and stale claims. This section builds the board.
+Central assignment is still a real design, and most published multi-agent work describes that one.
+In the manager pattern, each child agent is registered as a tool, and one manager hands out every subtask.
+The manager holds the whole plan, so it can order the work, drop duplicate tasks, and stop the run early.
+It also touches every task twice: once to hand it out, once to read the result.
+The two designs cost different things. A manager gives one global ordering, and every task waits for the manager's turn.
+A board gives throughput, and it needs locks because claims go stale. This section builds the board.
 
 Autonomy must let an idle agent:
 
@@ -147,41 +149,43 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 - After the spawn, pulling work and deciding when to stop are each worker's own doing, not the lead's or the script's. The main process only waits for the workers to wind down.
 - Forming the team, spawning, and posting the board are the model's decisions (sections 16 and 12); the autonomous claim is section 18's addition.
 
-### Asking a busy worker
+### Further reading
 
-The poll tells a worker what to do next. It does not tell the lead how a worker is doing.
+The two designs below are not in this section's runnable code. They come from ai-agent-book's account of production agents and from published research.
+They are also not confirmed behaviour of the systems in the table below. Read them as designs to try.
 
-A status RPC looks like the answer, and it is weak. A worker inside a tool call is not waiting on a receive, so a pull-style call blocks or returns nothing.
-The stuck worker is exactly the one that will not reply.
+**Asking a busy worker.** The poll tells a worker what to do next. It never tells the lead how a running worker is doing.
 
-Three ways work, ordered from most cooperation needed to least:
+A status call looks like the fix. It is weak. A worker in the middle of a tool call is not listening for messages.
+So the call either hangs or comes back empty. The worker that is truly stuck is the one that will not answer.
 
-1. Ask by message. Put a status request in the inbox (section 16) and let the worker answer on its next poll. Accurate, but only while the worker still polls.
-2. Read an agreed progress file. The worker appends one line per step to a path both sides know. The reader never interrupts the work.
-3. Tail the persisted trajectory. The runtime already writes each turn to disk (section 13), so the lead reads the worker's turns with no cooperation at all.
+Three other ways do work. The first one needs the worker's help, and the last one needs none:
 
-The last two also give a stall signal for free. Compare the file's mtime against now: no write means no progress.
+1. Ask by message. Drop a status request in the inbox (section 16). The worker answers on its next poll. This is accurate, and it works only while the worker still polls.
+2. Read an agreed progress file. The worker adds one line per step to a path both sides know. The reader never interrupts the work.
+3. Tail the saved trajectory. The runtime already writes every turn to disk (section 13). The lead reads those turns, and the worker does nothing at all.
 
-One threshold turns that into a decision. A long tool call writes nothing either, so pick a gap longer than the slowest legitimate call. Past it, treat the worker as stuck.
+The last two give a stall signal for free. Check when the file was last written. No new write means no new progress.
 
-That threshold is what the stuck-busy failure mode was missing. With it the lead can preempt the task or open a shutdown handshake (section 17) instead of waiting forever.
+One threshold turns that into a decision. A slow tool call writes nothing while it runs, so set the threshold above the slowest call you expect. Past it, call the worker stuck.
 
-### Budgets on the pool
+That is the trigger the stuck-busy failure mode was missing. The lead can now take the task back, or start a shutdown handshake (section 17), instead of waiting forever.
 
-Autonomy with no budget has no spending limit. Every idle worker claims another task, so the run ends when the spend runs out, not when the work is done.
+**Budgets on the pool.** Nothing in the poll tells a worker to stop claiming. Every idle worker takes one more task.
+So the run ends when the budget runs out, not when the work is done.
 
-In one published multi-agent system, token use alone explained about 80% of the variance in performance. So tokens, not turns, are the unit worth allocating.
+One published multi-agent system found that token use alone explained about 80% of the difference in how well its runs went. So the thing to hand out is tokens, not turns.
 
 Four knobs attach to the board and the worker pool:
 
-- Per task budget. A task carries its own step cap and token cap, written when it is posted. One runaway task cannot drain the whole run.
-- Concurrency cap. Bound how many tasks may be `in_progress` at once. The board already counts them, so the claim refuses once the cap is reached.
-- Model placement. The strongest model goes where the decision is hardest. Plan quality drives the outcome, so the lead gets it and routine workers run a cheaper one.
-- Preemption. A worker over budget, or stalled past the mtime threshold, has its task released back to the board. The next claimer starts clean.
+- Per task budget. Each task carries its own step cap and token cap, written when it is posted. One runaway task then cannot drain the whole run.
+- Concurrency cap. Limit how many tasks sit in `in_progress` at once. The board already counts them, so a claim past the cap simply fails.
+- Model placement. Put the strongest model where the thinking is hardest. Plan quality decides the result, so the lead gets that model and routine workers run a cheaper one.
+- Preemption. A worker over budget, or stalled past the threshold, loses its task back to the board. Whoever claims it next starts from a clean state.
 
-The remaining budget is worth showing the worker. An agent that knows what is left spends it differently from one that only gets a bigger cap.
+It also helps to tell the worker how much budget is left. An agent that knows what it has left spends it differently from one that just gets a bigger cap.
 
-The book reports this from its own experiment, so it rests on a single source. Treat it as a direction to test, not a number to copy.
+That comes from the book's own experiment, so one source backs it. Treat it as something to test, not a number to copy.
 
 ---
 
@@ -207,8 +211,8 @@ How an idle agent finds and claims its own work.
 - **Premature claim of blocked work.** An agent claims a task whose dependencies are not done, then stalls. Skip any task whose `blockedBy` holds an unresolved id (section 12).
 - **Identity loss after compaction.** A long-running teammate is auto-compacted mid-run (section 8) and forgets its role. Preserve the system prompt so the role survives.
 - **Stuck busy, or stuck idle.** A phase that never reaches `end_turn` never frees it; a poll with no exit spins. End on the stop signal (section 1); check abort each poll.
-- **Undetected stall.** A worker holds a task and looks busy, so the board never frees it. Compare its progress file mtime against the slowest legitimate tool call, then preempt.
-- **Unbounded pool spend.** Idle workers keep claiming, so the run ends when the budget is gone. Give every task a step and token cap, and cap how many run at once.
+- **Undetected stall.** A worker holds a task, looks busy, and gets nowhere, so the board never frees it. Watch when its progress file was last written, then take the task back.
+- **Unbounded pool spend.** Idle workers keep claiming, so the run ends only when the budget is gone. Give every task a step and token cap, and cap how many run at once.
 - **Preemption double-write.** A released task is reclaimed while the old worker runs, so two agents write the same files. Release only after the stop is acked (section 17).
 
 ---
