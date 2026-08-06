@@ -66,6 +66,21 @@ The demo uses a `PreToolUse` hook to block `rm -rf` even under `bypassPermission
 
 This section covers lifecycle hooks. React render hooks in a `hooks/` folder are unrelated UI code that share the same word.
 
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
+
+The example is lint on write. A write or edit tool returns. The hook then runs the linter on the file that changed.
+It adds the diagnostics to the tool result. The model reads the error on its next turn, next to the write confirmation.
+Without the hook, that error waits for the next build or test run.
+
+The pattern stays cheap for two reasons.
+
+- The diagnostics go back inside the tool result, so no extra turn is needed.
+- The check covers one file, not the whole project, so it takes about as long as the write.
+
+The pattern has one limit. A blocked write never runs, so the hook produces no diagnostics.
+
 ---
 
 ## Per system
@@ -90,6 +105,7 @@ How each agent exposes interception points around the loop.
 - **Hook config changes mid-session.** A process may edit settings after startup. Snapshot the hook config once.
 - **Slow hook stalls the loop.** A hook can shell out to slow work. Add a timeout.
 - **PostToolUse stops unexpectedly.** If a post-hook returns `preventContinuation`, surface it as a graceful stop, not a crash.
+- **Diagnostics flood the result.** A lint run over the whole project can return more text than the write itself. Check only the file that changed, and cap what gets appended.
 
 ---
 
@@ -113,3 +129,5 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  lint on write: the tool layer runs a linter after a write and adds the diagnostics to the tool result.

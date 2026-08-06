@@ -66,6 +66,21 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 本章談的是生命週期 hook。放在 `hooks/` 資料夾中的 React render hook，是不相干的 UI 程式碼，只是共用同一個字。
 
+### 延伸閱讀
+
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
+
+例子是寫入後跑 lint。write 或 edit 工具一回傳，hook 就對剛改過的那個檔案跑 linter，
+再把診斷訊息加進 tool result。模型下一輪就會看到這個錯誤，位置就在寫入成功的訊息旁邊。
+少了這個 hook，同樣的錯誤要等到下次 build 或跑測試才會冒出來。
+
+這個做法成本低，有兩個原因。
+
+- 診斷訊息是包在 tool result 裡一起回去的，不用多跑一輪。
+- 檢查只跑一個檔案，不是整個專案，花的時間跟那次寫入差不多。
+
+這個做法有一個限制。寫入被擋下就不會執行，hook 也就不會有診斷訊息可以加。
+
 ---
 
 ## 各系統做法
@@ -90,6 +105,7 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 - **hook 設定在 session 中途改變：**某個程序可能在啟動後修改 settings。要對 hook 設定做一次快照。
 - **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 回傳 `preventContinuation`，要把它呈現為一個優雅的停止，而不是崩潰。
+- **診斷訊息淹沒結果：**整個專案跑一次 lint，回來的文字可能比寫入本身還多。只檢查剛改過的那個檔案，加回去的量也要設上限。
 
 ---
 
@@ -110,5 +126,8 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 ## 出處
 
-- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
+- [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
+  `types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code)：section framing。
+- [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
+  寫入後跑 lint：工具層在寫入之後跑 linter，把診斷訊息加進 tool result。
