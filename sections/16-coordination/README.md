@@ -8,8 +8,8 @@ One agent has one context window and one active line of work. Large jobs often n
 
 A subagent can handle a focused task, but a one-shot subagent is hard to steer after it starts.
 
-A team is not free. Every extra agent costs tokens, and two agents can disagree about the same file.
-So the first decision is the shape: how many agents, whether they share one context, and who directs whom.
+Every extra agent costs tokens, and two agents can edit the same file in different directions.
+So the first decision is the shape of the team: how many agents, whether they share one context, and who tells whom what to do.
 
 Coordinated agents need a way to spawn each other, stable names, inboxes to talk, and a way to send permission requests back to a human.
 
@@ -47,36 +47,6 @@ There is no central broker in the demo. There is a shared convention for names, 
 - Senders write and return. They do not block waiting for a reply.
 - A teammate pulls its inbox each poll and folds new messages into its next turn.
 - Permission requests use the same channel.
-
-### Choosing a team shape
-
-A second agent helps only when it brings information the first one lacked: a test result, a screenshot, a lookup, a check against a real system.
-An agent that rereads the same text and votes adds tokens, not information.
-Under equal thinking token budgets, a single agent matched multi-agent systems on the tasks Tran and Kiela measured.
-Anthropic reports its research team spending roughly fifteen times the tokens of a single chat turn. The team has to buy something with that spend.
-
-The next choice is whether contexts are shared:
-
-- **Shared.** The next agent inherits the whole trajectory. Nothing has to be packed, and no fact is lost in transit. One agent runs at a time, and the window fills for everyone.
-- **Isolated.** Each agent keeps its own window and states what it needs. Agents run in parallel, and one agent's confusion stays local. Every handoff has to be written out.
-
-Share when the subtasks are few, the combined history still fits one window with room to spare, and the work is serial anyway.
-Isolate when subtasks are many, when the history would not fit, when the work parallelizes, or when a bad turn must not spread.
-This repo isolates throughout: a subagent starts fresh (section 6), and a teammate owns an inbox.
-
-Topology is the third choice. It only applies to isolated agents:
-
-- **Peer.** Agents of equal standing message each other. Fits review and cross-checking.
-- **Manager.** One lead splits the work, assigns it, and merges the results. Children return summaries, not trajectories.
-- **Decentralized.** No lead. Each agent hands the work to whichever agent it thinks fits next.
-
-This section builds a manager: the lead forms the roster, spawns, and delegates.
-The lead plans for everyone, so the plan bounds the run and no worker recovers a bad split. Put the strongest model on the lead and cheaper models on the workers.
-
-Decentralized designs differ in how a handoff finds its target.
-MetaGPT publishes each message to a pool and roles subscribe to the types they handle, so a sender never names a receiver.
-AutoGen's group chat keeps one shared transcript and a central selector picks the next speaker, which can livelock when it keeps picking the same pair.
-OpenAI Swarm makes the handoff a tool call and caps the hops, so a handoff cycle ends.
 
 ### New: forming the team
 
@@ -127,12 +97,14 @@ def serve_mailbox(team, me, work, *, poll=0.05, max_idle_polls=None):   # src/ma
 
 ### The inbox and the permission channel
 
-Isolated agents talk in one of two paradigms, the same two that processes use.
-Shared memory: everyone reads and writes one place and sees the same state. Message passing: a sender addresses a copy to a receiver, and the two hold nothing in common.
-Three channels cover most designs. Tool-call arguments are one shot with no reply path. A shared filesystem is durable but needs locks.
-A message bus is addressed and ordered, and durable only if it persists.
-Inboxes here are message passing. Team memory (section 9) and the task board (section 18) are shared memory.
-A team usually wants both: messages to direct work, shared memory for facts that outlive a message.
+Agents with separate contexts have two ways to talk, the same two that processes have.
+With shared memory, everyone reads and writes one place and sees the same state.
+With message passing, a sender addresses a copy to one receiver, and the two share nothing.
+Three channels carry those two. Tool-call arguments go one way and have no reply path. Files survive a restart but need locks.
+A message bus adds addresses and ordering, and survives a restart only if it writes to disk.
+An inbox here is a locked file, so it is message passing over a shared filesystem.
+Team memory (section 9) and the task board (section 18) are the shared-memory side.
+Most teams want both: messages to hand out work, shared memory for facts that outlive a message.
 
 `mailbox.py` implements a `Team` of named inboxes:
 
@@ -182,31 +154,6 @@ Without `human`, the answer must come from elsewhere (a lead on another thread, 
 The approver polls its inbox up to `timeout` and then denies: an unanswered permission is a no, never a stall or a yes.
 This mirrors Hermes' clarify gateway, where `wait_for_response` blocks the agent thread until a chat adapter answers or the timeout fires.
 
-### Where team state lives
-
-Agents address each other by name and address state by path. The book splits the tree into four regions, each with its own rule:
-
-- **Private scratchpad.** One agent writes and nobody else reads. Drafts and intermediate output. No coordination needed.
-- **Shared workspace.** Any teammate reads and writes: the repo, the task board, team memory. Conflicts live here, so it needs locks or separate worktrees (section 15).
-- **External mounts.** Data the team did not produce, such as a checkout or a dataset. A write here is an effect on the outside world.
-- **Read-only built-ins.** Skills, prompts, tool definitions (sections 7 and 2). Fixed for the run, so every agent sees the same copy.
-
-Misplacing state shows up as a coordination bug. Two agents editing one file is a shared-workspace problem, and a fact repeated across three messages belonged in team memory.
-
-### What a handoff carries
-
-A teammate cannot see the lead's chat, so "fix the failing test" is not actionable. A handoff packet carries three things:
-
-1. The task, with acceptance criteria the receiver can check by itself.
-2. The facts already confirmed and the constraints that hold, so the receiver neither rediscovers nor breaks them.
-3. Paths to the artifacts: files, logs, branches.
-
-The raw trajectory stays out. It is long, it carries dead ends, and it makes the receiver re-read the sender's mistakes.
-
-Shared-context handoff is the alternative. One agent transfers control and the whole history rides along, so nothing gets packed and nothing is dropped in transit.
-The book shows this with a role-to-role transfer tool. That is the book's own experiment, so treat it as a single source.
-Control is a baton there: one agent holds it, so nothing runs in parallel. Packets cost writing effort and buy parallelism.
-
 ### How it integrates
 
 The demo runs one main agent. The lead takes one step, and the teammate runs itself:
@@ -225,6 +172,54 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 - Each teammate runs `serve_mailbox` on a section-13 thread: it pulls its inbox, works, and replies. The number of replies is the lead's choice; the main process only waits.
 - `loop.py` stays generic. Folding and the pull loop are coordination, done in this wrapper, not inside `run_turn`.
 - The permission gate does not change; a gated call still bubbles to the lead.
+
+### Further reading
+
+The designs below are not in this section's runnable code. They come from ai-agent-book's account of production agents and from published multi-agent research.
+None of it is confirmed behaviour of the two systems in the table below.
+
+**When a team beats one agent.** Add a second agent only when it brings back something the first one could not see.
+A test result, a screenshot, a page it fetched, an answer from a running system. That is new information.
+An agent that reads the same text again and votes brings no new information. It only spends tokens.
+Tran and Kiela gave a single agent and a team the same thinking token budget. On the tasks they measured, the single agent kept up.
+Anthropic reports its research team using about fifteen times the tokens of one chat turn. A team that expensive has to bring something back.
+
+**Shared or isolated context.** Two agents either share one history or keep separate ones.
+Shared means the next agent inherits everything, so nothing has to be packed and no fact goes missing.
+The cost is that one agent runs at a time, and one window holds the whole team's history.
+Isolated means each agent gets its own window and has to say what it needs. Agents run at the same time, and one agent's confusion stops at its own window.
+The cost is that every handoff has to be written down.
+Share when there are few subtasks, the history fits one window, and the steps run in order anyway. Isolate otherwise.
+This repo isolates: a subagent starts empty (section 6), and a teammate reads only its inbox.
+
+**Three topologies.** Isolated agents still have to know who talks to whom.
+In a peer team, agents of equal standing message each other. Review and cross-checking fit here.
+In a manager team, one lead splits the work, hands it out, and merges what comes back. Children return summaries, not their histories.
+In a decentralized team there is no lead, and each agent picks who gets the work next.
+This section builds a manager. The lead plans for everyone, so a bad split stays bad and no worker can fix it.
+That is the argument for giving the lead the strongest model and the workers cheaper ones.
+
+**How decentralized teams route work.** MetaGPT posts every message to a pool. Each role subscribes to the message types it handles, so a sender never names a receiver.
+AutoGen's group chat keeps one transcript and lets a central selector pick who speaks next. If the selector keeps picking the same two agents, the chat livelocks.
+OpenAI Swarm makes each handoff a tool call and caps how many times work can change hands, so a chain of handoffs ends.
+
+**Four regions of the file tree.** Agents find each other by name. They find state by path. The book splits the tree into four regions.
+A private scratchpad holds one agent's drafts. Nobody else reads it, so nothing needs coordinating.
+A shared workspace holds the repo, the task board, and team memory. Every teammate writes here, so this is where conflicts happen.
+It needs locks, or a worktree per agent (section 15).
+External mounts hold data the team did not make, such as a checkout or a dataset. A write here changes something outside the team.
+Read-only built-ins hold skills, prompts, and tool definitions (sections 7 and 2). They do not change during the run, so every agent sees the same copy.
+Put state in the wrong region and it comes back as a coordination bug. Two agents editing one file means that file sat in the shared workspace.
+A fact sent three times means it should have gone to team memory.
+
+**What a handoff carries.** A teammate cannot see the lead's chat, so "fix the failing test" gives it nothing to act on. A handoff packet carries three things.
+First, the task, with acceptance criteria the receiver can check on its own.
+Second, the facts already confirmed and the constraints that hold, so the receiver does not look them up again or break them.
+Third, paths to the files, logs, and branches.
+The sender's raw history stays out. It is long, it is full of dead ends, and it makes the receiver read the sender's mistakes.
+Shared-context handoff skips the packet. One agent hands control to another and the whole history goes along, so nothing is left behind.
+The book shows this with a tool that moves control between roles. That is the author's own experiment, so treat it as one source.
+The cost is that only one agent holds control, so nothing runs at the same time. A packet takes work to write and buys work that runs in parallel.
 
 > **Next:** A teammate here is a daemon with no graceful stop, and it only reacts to messages.
 > Section 17 adds the shutdown handshake so the lead can end a teammate cleanly.
@@ -257,13 +252,14 @@ How one design spawns cooperating agents and spreads work across them.
 - **Orphaned teammate.** A spawned teammate keeps polling after its work is done. Bound the idle wait, or stop it with the section-17 handshake.
 - **Vague cross-agent message.** A teammate cannot see the lead's chat. Send a packet: task, acceptance criteria, confirmed facts, artifact paths.
 - **Chat used as memory.** Durable shared facts belong in team memory.
-- **Byzantine teammate.** A failed agent does not crash. It returns a confident wrong answer, so retries and votes over the same evidence miss it.
-  Only a check against something outside the model catches it.
-- **Lost update on a shared file.** Two agents read one file, both write, and the first write is gone. Lock the write, or store a version and retry when it does not match.
-- **Semantic conflict.** Both writes land cleanly and the result is still wrong: one agent renamed what the other called.
-  Split work so two agents never own one concept, or merge at one point.
-- **Error cascade.** A wrong fact from an upstream agent gets repeated downstream and starts reading as confirmed.
-  A reviewer that sees only conclusions finds them consistent. Review against the raw evidence, by an agent that did not produce it.
+- **Byzantine teammate.** A failed agent does not crash. It returns a wrong answer and sounds sure of it.
+  Retrying it or voting over the same evidence gets the same answer back. Only a check against something outside the model catches it.
+- **Lost update on a shared file.** Two agents read one file and both write it back. The first write is gone.
+  Lock the write, or save a version number and retry when it does not match.
+- **Semantic conflict.** Both writes apply cleanly and the result is still broken. One agent renamed a function while the other added calls to the old name.
+  Split the work so no two agents own the same thing, or merge at one point.
+- **Error cascade.** One agent gets a fact wrong. The next agent repeats it, the one after that repeats it again, and by then it reads as confirmed.
+  A reviewer that sees only the conclusions finds them consistent. Have someone check the raw evidence, and not the agent that produced it.
 
 ---
 
