@@ -151,8 +151,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 ### Further reading
 
-The two designs below are not in this section's runnable code. They come from ai-agent-book's account of production agents and from published research.
-They are also not confirmed behaviour of the systems in the table below. Read them as designs to try.
+None of this is in `src/`. It comes from ai-agent-book and published research, and is not confirmed of the systems in the table.
 
 **Asking a busy worker.** The poll tells a worker what to do next. It never tells the lead how a running worker is doing.
 

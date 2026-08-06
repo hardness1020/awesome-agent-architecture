@@ -151,8 +151,7 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 ### 延伸閱讀
 
-底下這兩套設計，這一章的可執行程式並沒有實作。它們來自 ai-agent-book 對線上 agent 的描述，以及已發表的研究。
-它們也不是下面表格那些系統確定的行為。把它們當成可以試試看的設計就好。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book 和已發表的研究，也未經下面表格的系統證實。
 
 **怎麼問一個正在忙的 worker：**poll 只告訴 worker 下一步做什麼，它從來不會告訴 lead 某個正在跑的 worker 現在怎麼樣。
 
