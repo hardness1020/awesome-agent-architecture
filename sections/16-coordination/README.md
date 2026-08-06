@@ -175,8 +175,7 @@ run_turn([...goal...], model, lead_reg, session)        # the one agent call in 
 
 ### Further reading
 
-The designs below are not in this section's runnable code. They come from ai-agent-book's account of production agents and from published multi-agent research.
-None of it is confirmed behaviour of the two systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book and published multi-agent research, and is not confirmed of the systems in the table.
 
 **When a team beats one agent.** Add a second agent only when it brings back something the first one could not see.
 A test result, a screenshot, a page it fetched, an answer from a running system. That is new information.
