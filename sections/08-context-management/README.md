@@ -81,8 +81,7 @@ The loop still keeps the same invariant: it calls the model with a valid `messag
 
 ### Further reading
 
-The rest of this section describes how production agents handle context, drawn from ai-agent-book's account of them.
-None of it runs in `src/`, and none of it is confirmed behavior of the systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **A stub must be the same string every time.** The text that replaces a tool result is part of the prefix, so it has to stay byte-identical.
 Pick it at the first replacement and reuse it, including after a session is restored from disk.

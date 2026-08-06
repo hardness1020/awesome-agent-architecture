@@ -107,8 +107,7 @@ for _ in range(max_steps):                             # src/loop.py
 
 ### Further reading
 
-The rest of this section describes how production agents build prompts, drawn from ai-agent-book's account of them.
-None of it runs in `src/`, and none of it is confirmed behavior of the systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **Conditions before the boundary multiply the prefix.** Put one runtime condition before the boundary and the cache has to hold two prefixes, one per outcome.
 Three conditions make eight. Ten make more than a thousand, and each one warms separately, so almost every session starts cold.
