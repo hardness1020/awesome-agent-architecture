@@ -127,7 +127,8 @@ The hard part of the improvement loop is not finding the lesson. It is picking w
 The rule is to pick the smallest place that can hold the change. Smallest also means easiest to check and easiest to undo.
 The connection string is a fact, so it goes in a doc. It does not go in the system prompt.
 
-Prompt edits get abused most, so they need gates. Write the edit from a failure that happened several times, not from one bad run.
+The second place, a prompt or a skill, gets abused most, so it needs gates of its own.
+Write the edit from a failure that happened several times, not from one bad run.
 Say when it applies, so it stays quiet on unrelated runs. Then check it twice: on cases near the edit, and on a holdout set you did not write it from.
 Ship it to part of the traffic first, and keep the rollback ready.
 Karpathy calls this system prompt learning: you edit words instead of weights.
