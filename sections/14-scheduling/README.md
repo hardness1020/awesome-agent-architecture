@@ -32,7 +32,7 @@ and runs each prompt through the same agent loop that handles user input.
 - A one-shot fires once and then deletes itself.
 - A recurring schedule re-arms to the next interval.
 - A durable schedule survives restart, but it does not fire while the host is off.
-- A heartbeat is a recurring schedule whose prompt is a question. It wakes, looks at a source, and usually decides there is nothing worth saying.
+- A heartbeat is a recurring schedule that asks a question. It wakes, checks a source, and usually decides there is nothing to say.
 
 ### New: the scheduler and fire queue
 
@@ -81,23 +81,17 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 - No channel means the answer stays local, the pre-delivery behavior.
 - The `bool` return lets the driver fall back (the demo prints undelivered answers) instead of losing the answer silently.
 
-### Heartbeat and the limits of a clock
+### Heartbeat
 
-Some sources cannot push. A mailbox with no webhook, a page with no feed, a service that only answers when asked.
-For those, the only trigger left is time, and the pattern is a heartbeat: a recurring schedule whose prompt tells the agent to look and judge, not to act.
+Some sources never push. A mailbox with no webhook, a page with no feed, a service that only answers when asked.
+For those the only trigger left is the clock. The pattern is a heartbeat: a recurring schedule whose prompt tells the agent to look, not to act.
 Check the source, decide whether anything changed enough to be worth a message, and say nothing otherwise.
-`[SILENT]` makes silence the cheap default, so a heartbeat can run often without filling a channel with noise.
 
-A heartbeat and a cron entry use the same machinery here, a prompt with a repeat interval and a channel.
-The prompt is what differs. A cron prompt commands, a heartbeat prompt asks.
+A heartbeat run that finds nothing worth reporting answers `[SILENT]`. By the rule above, `deliver` then sends nothing.
+The tick costs one model call and no message, so the schedule can run often without flooding the channel.
 
-The interval sets both the bill and the worst case delay, and those pull in opposite directions.
-A short interval wakes the model constantly to learn nothing most times. A long interval is cheap and late.
-No interval removes the trade-off, because a clock samples state instead of observing events. It knows when it last looked, not when the thing happened.
-
-Push removes it. When the source can call the agent, the trigger fires when the event happens and the polling cost drops to zero.
-So the order of preference is push where the source supports it, heartbeat where it does not, and cron for work that is genuinely time-based, like a Monday report.
-Section 19 covers the inbound push side.
+A heartbeat and a cron entry use the same parts here: a prompt, a repeat interval, and a channel. Only the prompt differs.
+A cron prompt gives an order. A heartbeat prompt asks a question.
 
 ### How it integrates
 
@@ -120,6 +114,19 @@ for task in sched.drain():                            # src/demo.py · between t
 ```
 
 A fired prompt becomes a new user-style turn. It uses the same loop, permissions, hooks, memory, context management, and recovery paths. Its answer routes to the task's channel.
+
+### Further reading
+
+What follows is not in this section's `src/`. It comes from ai-agent-book's account of production agents.
+Read it as one reported design. It is not confirmed behavior of the systems in the table below.
+
+**The limits of a clock.** The interval sets the bill and the worst case delay at the same time, and the two pull against each other.
+A short interval wakes the model often and finds nothing most times. A long interval is cheap and late.
+No interval fixes this. A clock samples state instead of watching events, so it knows when it last looked, not when the thing happened.
+
+**Prefer push where you can get it.** When the source can call the agent, the trigger fires as the event happens and the polling cost drops to zero.
+So the order is push where the source supports it, heartbeat where it does not, and cron for work that really is time-based, like a Monday report.
+Section 19 covers the inbound push side.
 
 ---
 
@@ -145,8 +152,8 @@ How each agent decides when to run scheduled work.
 - **Durable means always-on.** Local durable schedules only survive restart. Use remote triggers or an OS timer for offline firing.
 - **Bad cron expression.** Validate on create and skip invalid loaded entries.
 - **Loop is busy.** Enqueue the prompt and drain it between turns.
-- **Alert fatigue.** A heartbeat that reports every tick trains the user to ignore it. Make the prompt judge what is worth sending and stay silent otherwise.
-- **Events between ticks.** A clock samples state, so a change that appears and reverts between two ticks is invisible. Read a log or a cursor, or move the source to push.
+- **Alert fatigue.** A heartbeat that reports on every tick teaches the user to ignore it. Let the prompt decide what is worth sending and stay silent otherwise.
+- **Events between ticks.** A clock samples state. A change that appears and reverts between two ticks is invisible. Read a log or a cursor, or move the source to push.
 
 ---
 

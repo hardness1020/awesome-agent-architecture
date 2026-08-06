@@ -79,28 +79,8 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
-这层包装也决定了 model 该有什么预期。丢到后台的调用只是"启动"这一步：它返回一个 task id，做完是稍后另一则事件。
-所以跑很久的工具，名字和描述都该照这个样子写（`initiate_export`，而不是 `export`），model 才会把当下那则 `tool_result` 读成收据，而不是答案。
-
-### 打断与安全点
-
-不是每个进来的消息都能等当前这个工具调用跑完。用户的修正、一个取消、一则告警，都可能在调用跑到一半时才到。
-
-一种做法是把所有进来的消息都变成同一条 stream 上的 event，而且只在安全点（safe point）消化它：
-也就是一则工具结果刚跑完、下一次 model 调用还没发出的那个交界。调用跑到一半硬塞会弄坏对话记录，所以 event 得等到那个交界。
-至于要等哪一个交界，看这则 event 有多急：
-
-- **Queue**：先收着，等下一个自然的交界再交出去。完成通知和不急的消息都走这条。
-- **Cancel**：直接中止进行中的调用，当场做出一个交界。适合那种再跑下去也白跑的修正。
-- **Parallel**：把这则 event 丢到旁边的 loop 去跑，主 loop 不动。适合不该打扰当前工作的事。
-
-分类这件事用一个小 model 就能做，所以每则 event 只多花一次便宜的调用。
-
-Cancel 会带出一个对话记录的问题。被中止的调用留下一个 `tool_use` block，却没有对应的 `tool_result`，而下一次 model 调用需要这一对是完整的。
-有两种设计在处理它。Claude Code 从不拿进行中的 `tool_use_id` 去装那个迟到的真结果：真结果会以一则独立的 notification 消息回来。
-ai-agent-book 则是在打断的当下，就对同一个 id 补一则占位用的 `tool_result`，内容写这个调用被中断了，当场把这一对补齐。
-两者可以并存：占位的那则负责在取消时把这一对收干净，真的结果照样稍后以新的 notification 送进来。
-书上这套占位做法是作者自己提的设计，目前只有这一个出处。
+这层包装也决定了 model 会拿到什么。丢到后台的调用只是把工作启动起来：它返回一个 task id，结果稍后才用自己的那则事件送回来。
+跑很久的工具，名字和描述就照这样写（`initiate_export`，不要写成 `export`）。model 才会把当下那则 `tool_result` 读成收据，而不是答案。
 
 ### 如何整合
 
@@ -111,6 +91,29 @@ background.drain_into(messages, runtime)               # src/loop.py
 ```
 
 "一个工具调用对一个工具结果"的规则依然成立。一则迟来的完成 notification，不是给旧 `tool_use_id` 的延迟 `tool_result`。它是一则全新的 notification 消息。
+
+### 延伸阅读
+
+下面这段没有做进这一章的 `src/`。它来自 ai-agent-book 对 production agent 的整理。
+把它当成一种被记录下来的做法就好，不代表下面表格里那个系统确认就是这样跑的。
+
+**打断与安全点。**有些消息不能等当前这个工具调用跑完。
+用户的修正、一个取消、一则告警，都可能在调用跑到一半时进来。一种做法是把所有进来的消息都变成同一条 stream 上的 event。
+loop 只在安全点（safe point）去读这条 stream，也就是一则工具结果刚跑完、下一次 model 调用还没发出的那个空档。
+调用跑到一半硬塞会弄坏对话记录，所以 event 得等那个空档。
+
+event 有多急，决定它要等哪一个空档：
+
+- **Queue**：等下一个空档。完成通知和不急的消息都走这条。
+- **Cancel**：直接中止进行中的调用，当场空出一个空档。适合那种再跑下去也白跑的修正。
+- **Parallel**：丢到旁边的 loop 去跑，主 loop 不动。
+
+用一个小 model 就能把 event 分成这三类，所以每则 event 只多花一次便宜的调用。
+
+**打断占位。**取消会留下一个 `tool_use` block，却没有对应的 `tool_result`，而下一次 model 调用需要这一对是完整的。
+ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `tool_result`，内容写这个调用被中断了。
+这跟上面那条不重用 id 的规则不冲突。占位的那则当下把这一对收干净，真的结果照样稍后用自己的 notification 送进来。
+占位这套是书作者自己提的设计，目前没有第二个出处。
 
 ---
 
@@ -134,8 +137,8 @@ background.drain_into(messages, runtime)               # src/loop.py
 - **交互式提示卡住（Interactive prompt stalls）：**某个后台指令在等输入。检测像提示的输出，并通知 model 去 kill 它，或以非交互方式重跑。
 - **完成消息丢失（Lost completion）：**某个完成的 task 从没抵达 loop。让完成消息走同一个共享 queue，并把 task 标记为已通知。
 - **配对错误的 notification（Mispaired notification）：**重用旧的 `tool_use_id` 会弄坏 transcript。改用独立的 notification 文字。
-- **被 kill 之后的副作用（Side effect after a kill）：**timeout 或取消都不会告诉你那个调用到底做成了没。盲目重试可能扣两次款。用 idempotency key，或先查状态再写入。
-- **批次 event 稀释注意力（Batched events dilute attention）：**一次 drain 把好几则 notification 并进同一个 turn，model 只回应最后一则。给每则 event 编号，再加一行摘要。
+- **被 kill 之后的副作用（Side effect after a kill）：**timeout 或取消都不会告诉你那个调用到底做成了没。盲目重试可能扣两次款。先查状态再写入，或带上 idempotency key。
+- **批次 event 稀释注意力（Batched events dilute attention）：**一次 drain 可能把好几则 notification 并进同一个 turn，model 就只回应最后一则。给每则 event 编号，再加一行摘要。
 - **并发太多（Too much concurrency）：**太多后台 task 会耗尽资源。加上 kill 路径和上限。
 - **退出时的 process 泄漏（Process leak on exit）：**后台工作可能活得比 session 还久。注册清理机制。
 

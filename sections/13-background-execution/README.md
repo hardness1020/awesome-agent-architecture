@@ -79,28 +79,8 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
-The wrapper also sets what the model should expect. A backgrounded call is an initiate step: it returns a task id, and completion arrives later as its own event.
-Name and describe slow tools that way (`initiate_export`, not `export`), so the model reads the immediate `tool_result` as a receipt and not as the answer.
-
-### Interrupts and safe points
-
-Not every input can wait for the current tool call to finish. A user correction, a cancel, or an alert can land mid-call.
-
-One way to handle this is to turn every inbound input into an event on one stream, and to consume that stream only at a safe point:
-the boundary between a finished tool result and the next model call. Injecting mid-call would leave the transcript inconsistent, so events wait for the boundary.
-Urgency then picks which boundary:
-
-- **Queue.** Hold the event and hand it over at the next natural boundary. The default for completions and low priority notices.
-- **Cancel.** Stop the in-flight call to make a boundary now. For a correction that makes the running work pointless.
-- **Parallel.** Run the event in a side loop and leave the main loop alone. For work that must not disturb the current task.
-
-A small model can do the routing, so triage costs one cheap call per event.
-
-Cancelling raises a transcript problem. The stopped call left a `tool_use` block with no matching `tool_result`, and the next model call needs that pair closed.
-Two designs answer it. Claude Code never reuses the in-flight `tool_use_id` for the late real result: the completion comes back as a standalone notification message.
-ai-agent-book writes a placeholder `tool_result` against that same id at interrupt time, saying the call was interrupted, which closes the pair on the spot.
-Both can hold together. The placeholder closes the pair at cancel time, and the real result still arrives later as a new notification.
-The book's placeholder scheme is the author's own design, single-source.
+The wrapper also sets what the model gets back. A backgrounded call only starts the work. It returns a task id, and the result arrives later as its own event.
+Name and describe slow tools that way (`initiate_export`, not `export`). Then the model reads the immediate `tool_result` as a receipt, not as the answer.
 
 ### How it integrates
 
@@ -111,6 +91,29 @@ background.drain_into(messages, runtime)               # src/loop.py
 ```
 
 The one-tool-call-to-one-tool-result rule still holds. A late completion is not a delayed `tool_result` for the old `tool_use_id`. It is a new notification message.
+
+### Further reading
+
+What follows is not in this section's `src/`. It comes from ai-agent-book's account of production agents.
+Read it as one reported design. It is not confirmed behavior of the system in the table below.
+
+**Interrupts and safe points.** Some input cannot wait for the running tool call to finish.
+A user correction, a cancel, or an alert can land mid-call. One answer is to make every inbound input an event on one stream.
+The loop reads that stream only at a safe point, the gap between a finished tool result and the next model call.
+Writing into the middle of a call would break the transcript, so events wait for the gap.
+
+How urgent an event is decides which gap it waits for:
+
+- **Queue.** Wait for the next gap. This is the default for completions and low priority notices.
+- **Cancel.** Stop the running call to open a gap now. Use it when a correction makes the running work pointless.
+- **Parallel.** Run the event in a side loop and leave the main loop alone.
+
+A small model can sort events into those three, so triage costs one cheap call each.
+
+**Interrupt placeholders.** A cancel leaves a `tool_use` block with no `tool_result`, and the next model call needs that pair closed.
+ai-agent-book closes it at once. It writes a placeholder `tool_result` on the same id that says the call was interrupted.
+That does not break the no-reuse rule above. The placeholder closes the pair now, and the real result still arrives later as its own notification.
+The placeholder is the book author's own design. No other source describes it.
 
 ---
 
@@ -134,8 +137,8 @@ How each agent moves work off the loop and reports completion.
 - **Interactive prompt stalls.** A background command waits for input. Detect prompt-like output and notify the model to kill or rerun non-interactively.
 - **Lost completion.** A finished task never reaches the loop. Send completion through one shared queue and mark tasks notified.
 - **Mispaired notification.** Reusing the old `tool_use_id` breaks the transcript. Use standalone notification text.
-- **Side effect after a kill.** A timeout or cancel does not say whether the call landed. A blind retry can charge twice. Use an idempotency key, or query state before mutating.
-- **Batched events dilute attention.** One drain folds several notifications into one turn, and the model answers only the last. Number each event and add a summary line.
+- **Side effect after a kill.** A timeout or a cancel does not tell you whether the call landed. A blind retry can charge twice. Query state first, or send an idempotency key.
+- **Batched events dilute attention.** One drain can fold several notifications into one turn. The model then answers only the last one. Number the events and add a summary line.
 - **Too much concurrency.** Many background tasks can exhaust resources. Add kill paths and limits.
 - **Process leak on exit.** Background work can outlive the session. Register cleanup.
 

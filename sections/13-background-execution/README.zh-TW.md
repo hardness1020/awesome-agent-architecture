@@ -79,28 +79,8 @@ def backgroundable(tool, runtime):                     # src/background.py; wrap
     return replace(tool, run=run, ...)
 ```
 
-這層包裝也決定了 model 該有什麼預期。丟到背景的呼叫只是「啟動」這一步：它回傳一個 task id，做完是稍後另一則事件。
-所以跑很久的工具，名字和描述都該照這個樣子寫（`initiate_export`，而不是 `export`），model 才會把當下那則 `tool_result` 讀成收據，而不是答案。
-
-### 打斷與安全點
-
-不是每個進來的訊息都能等目前這個工具呼叫跑完。使用者的修正、一個取消、一則警報，都可能在呼叫跑到一半時才到。
-
-一種做法是把所有進來的訊息都變成同一條 stream 上的 event，而且只在安全點（safe point）消化它：
-也就是一則工具結果剛跑完、下一次 model 呼叫還沒發出的那個交界。呼叫跑到一半硬塞會弄壞對話紀錄，所以 event 得等到那個交界。
-至於要等哪一個交界，看這則 event 有多急：
-
-- **Queue**：先收著，等下一個自然的交界再交出去。完成通知和不急的訊息都走這條。
-- **Cancel**：直接中止進行中的呼叫，當場做出一個交界。適合那種再跑下去也白跑的修正。
-- **Parallel**：把這則 event 丟到旁邊的 loop 去跑，主 loop 不動。適合不該打擾當前工作的事。
-
-分類這件事用一個小 model 就能做，所以每則 event 只多花一次便宜的呼叫。
-
-Cancel 會帶出一個對話紀錄的問題。被中止的呼叫留下一個 `tool_use` block，卻沒有對應的 `tool_result`，而下一次 model 呼叫需要這一對是完整的。
-有兩種設計在處理它。Claude Code 從不拿進行中的 `tool_use_id` 去裝那個遲到的真結果：真結果會以一則獨立的 notification 訊息回來。
-ai-agent-book 則是在打斷的當下，就對同一個 id 補一則佔位用的 `tool_result`，內容寫這個呼叫被中斷了，當場把這一對補齊。
-兩者可以並存：佔位的那則負責在取消時把這一對收乾淨，真的結果照樣稍後以新的 notification 送進來。
-書上這套佔位做法是作者自己提的設計，目前只有這一個出處。
+這層包裝也決定了 model 會拿到什麼。丟到背景的呼叫只是把工作啟動起來：它回傳一個 task id，結果稍後才用自己的那則事件送回來。
+跑很久的工具，名字和描述就照這樣寫（`initiate_export`，不要寫成 `export`）。model 才會把當下那則 `tool_result` 讀成收據，而不是答案。
 
 ### 如何整合
 
@@ -111,6 +91,29 @@ background.drain_into(messages, runtime)               # src/loop.py
 ```
 
 「一個工具呼叫對一個工具結果」的規則依然成立。一則遲來的完成 notification，不是給舊 `tool_use_id` 的延遲 `tool_result`。它是一則全新的 notification 訊息。
+
+### 延伸閱讀
+
+下面這段沒有做進這一章的 `src/`。它來自 ai-agent-book 對 production agent 的整理。
+把它當成一種被記錄下來的做法就好，不代表下面表格裡那個系統確認就是這樣跑的。
+
+**打斷與安全點。**有些訊息不能等目前這個工具呼叫跑完。
+使用者的修正、一個取消、一則警報，都可能在呼叫跑到一半時進來。一種做法是把所有進來的訊息都變成同一條 stream 上的 event。
+loop 只在安全點（safe point）去讀這條 stream，也就是一則工具結果剛跑完、下一次 model 呼叫還沒發出的那個空檔。
+呼叫跑到一半硬塞會弄壞對話紀錄，所以 event 得等那個空檔。
+
+event 有多急，決定它要等哪一個空檔：
+
+- **Queue**：等下一個空檔。完成通知和不急的訊息都走這條。
+- **Cancel**：直接中止進行中的呼叫，當場空出一個空檔。適合那種再跑下去也白跑的修正。
+- **Parallel**：丟到旁邊的 loop 去跑，主 loop 不動。
+
+用一個小 model 就能把 event 分成這三類，所以每則 event 只多花一次便宜的呼叫。
+
+**打斷佔位。**取消會留下一個 `tool_use` block，卻沒有對應的 `tool_result`，而下一次 model 呼叫需要這一對是完整的。
+ai-agent-book 的做法是當場補：對同一個 id 補一則佔位用的 `tool_result`，內容寫這個呼叫被中斷了。
+這跟上面那條不重用 id 的規則不衝突。佔位的那則當下把這一對收乾淨，真的結果照樣稍後用自己的 notification 送進來。
+佔位這套是書作者自己提的設計，目前沒有第二個出處。
 
 ---
 
@@ -134,8 +137,8 @@ background.drain_into(messages, runtime)               # src/loop.py
 - **互動式提示卡住（Interactive prompt stalls）：**某個背景指令在等輸入。偵測像提示的輸出，並通知 model 去 kill 它，或以非互動方式重跑。
 - **完成訊息遺失（Lost completion）：**某個完成的 task 從沒抵達 loop。讓完成訊息走同一個共享 queue，並把 task 標記為已通知。
 - **配對錯誤的 notification（Mispaired notification）：**重用舊的 `tool_use_id` 會弄壞 transcript。改用獨立的 notification 文字。
-- **被 kill 之後的副作用（Side effect after a kill）：**timeout 或取消都不會告訴你那個呼叫到底做成了沒。盲目重試可能扣兩次款。用 idempotency key，或先查狀態再寫入。
-- **批次 event 稀釋注意力（Batched events dilute attention）：**一次 drain 把好幾則 notification 併進同一個 turn，model 只回應最後一則。幫每則 event 編號，再加一行摘要。
+- **被 kill 之後的副作用（Side effect after a kill）：**timeout 或取消都不會告訴你那個呼叫到底做成了沒。盲目重試可能扣兩次款。先查狀態再寫入，或帶上 idempotency key。
+- **批次 event 稀釋注意力（Batched events dilute attention）：**一次 drain 可能把好幾則 notification 併進同一個 turn，model 就只回應最後一則。幫每則 event 編號，再加一行摘要。
 - **並行太多（Too much concurrency）：**太多背景 task 會耗盡資源。加上 kill 路徑和上限。
 - **離場時的 process 洩漏（Process leak on exit）：**背景工作可能活得比 session 還久。註冊清理機制。
 

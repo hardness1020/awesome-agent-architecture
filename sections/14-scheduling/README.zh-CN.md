@@ -31,7 +31,7 @@
 - 一次性（one-shot）的 schedule fire 一次后就把自己删掉。
 - 周期性（recurring）的 schedule 会重新装填到下一个间隔。
 - 一个 durable 的 schedule 能在重启后存活，但在 host 关机时它不会 fire。
-- heartbeat 是一种周期性 schedule，只是它的 prompt 是个问句。它醒来、看一眼来源，多数时候判断没什么好讲的。
+- heartbeat 是一种周期性 schedule，它问的是一个问题。它醒来、看一眼来源，多数时候判断没什么好讲的。
 
 ### New: scheduler 与 fire queue
 
@@ -79,22 +79,17 @@ def deliver(channels, fired, text) -> bool:      # src/scheduler.py
 - 没有 channel 表示答案留在本地，也就是加入投递之前的行为。
 - `bool` 返回值让 driver 可以改走别条路（demo 会打印出未投递的答案），而不是悄悄丢掉答案。
 
-### Heartbeat 与时钟的极限
+### Heartbeat
 
 有些来源不会主动推送：没有 webhook 的信箱、没有 feed 的网页、你不问就不回答的服务。
-对这些来源，剩下唯一能用的触发条件就是时间，做法叫 heartbeat：一个周期性的 schedule，prompt 是叫 agent 去看一眼、自己判断，而不是叫它动手。
-看一下来源，判断变化够不够格值得讲一句，不够就闭嘴。
-`[SILENT]` 让不讲话变成便宜的默认，所以 heartbeat 可以跑得比较密，也不会把 channel 灌满噪声。
+对这些来源，能用的触发条件只剩时钟。做法叫 heartbeat：一个周期性的 schedule，prompt 是叫 agent 去看一眼，不是叫它动手。
+看一下来源，判断有没有变化值得讲一句，没有就闭嘴。
 
-在这里，heartbeat 和 cron 用的是同一套机制：一个 prompt 配上重复间隔和一个 channel。差别在 prompt。cron 的 prompt 是命令，heartbeat 的 prompt 是问句。
+heartbeat 跑完发现没什么好讲的，就回一个 `[SILENT]`。照上面那条规则，`deliver` 什么都不会送出去。
+这一次 tick 只花一次 model 调用，channel 上不会多一则消息，所以这个 schedule 可以跑得比较密。
 
-间隔同时决定了账单和最糟情况下的延迟，而这两件事拉的方向相反。
-间隔短，model 一直醒过来，多半什么也没发现。间隔长，便宜，但消息晚。
-没有哪个间隔能解掉这个取舍，因为时钟是在采样状态，不是在观察事件。它只知道自己上次是什么时候看的，不知道事情是什么时候发生的。
-
-推送（push）才解得掉。来源如果能主动调用 agent，事情发生的当下就触发，轮询成本归零。
-所以优先顺序是：来源支持推送就用推送，不支持才用 heartbeat，真的跟时间绑定的工作（例如周一的报表）才用 cron。
-入站推送那一侧由第 19 章负责。
+heartbeat 和 cron 在这里用的是同一组零件：一个 prompt、一个重复间隔、一个 channel。差别只在 prompt。
+cron 的 prompt 是下命令，heartbeat 的 prompt 是问问题。
 
 ### 如何整合
 
@@ -117,6 +112,19 @@ for task in sched.drain():                            # src/demo.py · between t
 ```
 
 一个 fire 出来的 prompt 会变成一个新的、类似 user 的 turn。它用的是同一套 loop、权限、hook、记忆、context 管理和恢复路径。它的答案会送到该 task 的 channel。
+
+### 延伸阅读
+
+下面这段没有做进这一章的 `src/`。它来自 ai-agent-book 对 production agent 的整理。
+把它当成一种被记录下来的做法就好，不代表下面表格里那些系统确认就是这样跑的。
+
+**时钟做得到的极限。**间隔同时决定了账单和最糟情况下的延迟，这两件事会互相拉扯。
+间隔短，model 一直醒过来，多半什么也没发现。间隔长，便宜，但消息晚。
+换哪个间隔都解不掉。时钟是在采样状态，不是在盯着事件，所以它只知道自己上次是什么时候看的，不知道事情是什么时候发生的。
+
+**能用推送就用推送。**来源如果能主动调用 agent，事情发生的当下就触发，轮询成本归零。
+所以顺序是：来源支持推送就用推送，不支持才用 heartbeat，真的跟时间绑在一起的工作（例如周一的报表）才用 cron。
+入站推送那一侧由第 19 章负责。
 
 ---
 
@@ -143,7 +151,7 @@ for task in sched.drain():                            # src/demo.py · between t
 - **cron 表达式有误（Bad cron expression）：**在 create 时验证，并跳过无效的已加载条目。
 - **loop 正忙：**把 prompt 放进 queue，等 turn 之间再拿出来跑。
 - **通知疲劳（Alert fatigue）：**heartbeat 每次 tick 都汇报，用户就学会忽略它。让 prompt 自己判断什么值得送出，其余时候闭嘴。
-- **两次 tick 之间的事件：**时钟采样的是状态，所以在两次 tick 之间出现又消失的变化，它看不到。改读 log 或游标，或把来源换成推送。
+- **两次 tick 之间的事件：**时钟采样的是状态。在两次 tick 之间出现又消失的变化，它看不到。改读 log 或游标，或把来源换成推送。
 
 ---
 
