@@ -30,6 +30,9 @@
 
 loop 不會讀取整個儲存區。它先讀一份便宜的索引，然後只載入少數幾個符合當前查詢的記憶檔案。
 
+所以問題就變成：一個檔案要怎麼被找到。recall 只拿每個檔案的那一行索引來排序，選中之後才會去打開內文。
+索引那一行就是唯一的入口。
+
 一共有四種操作：
 
 - **Selection** 決定要儲存什麼。只儲存那些無法靠 grep、git 或專案檔案再次推導出來的事實。
@@ -153,6 +156,16 @@ if response.stop_reason != "tool_use":
 - `memory=None` 會維持第 8 章的 loop 行為。
 - 回想的文字會進入 `messages[]`，所以之後 context 管理可以把它壓縮。
 
+### 延伸閱讀
+
+`src/` 只用一個扁平的目錄，靠 glob 掃過去，所以每個檔案都自動進到索引裡。儲存區大到不能整個掃，就得自己把「找得到」這件事補回來。靠三個東西：
+
+- **自己維護一份索引：**用一個檔案列出所有記憶，recall 不必走遍整棵樹就有東西可以排序。
+- **記憶之間互相連結：**一個檔案指向相關的檔案，recall 就能從已經載入的檔案往外跟著連結走。
+- **分層摘要：**每一層摘要下面那一層，讀的人可以停在查詢需要的深度。
+
+OpenViking 的知識庫三個都做了，還給每個檔案一個 URI。這些 `src/` 都沒有實作。
+
 ---
 
 ## 各系統做法
@@ -179,6 +192,8 @@ if response.stop_reason != "tool_use":
 - **儲存區變雜亂：**合併重複項與相互矛盾的項目。
 - **儲存可推導的事實：**不要儲存 grep、git 或原始碼檔案能回答得更好的事實。
 - **Extraction 漏掉細節：**壓縮可能在 extraction 之前就移除了細微資訊。在接近執行結束時抽取，並把重要事實留在檔案裡。
+- **記憶檔案沒人連得到：**索引沒列它，也沒有別的檔案連過去，recall 就永遠碰不到它。這次寫入等於白寫。
+  寫檔案的那一步就順手把索引那行寫進去，相關的檔案也要互相連結。
 
 ---
 
@@ -204,3 +219,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 - [Claude Code 記憶服務](https://github.com/yasasbanukaofficial/claude-code)：`services/extractMemories/extractMemories.ts`、`services/autoDream/autoDream.ts`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/memory_tool.py`、`hermes_state.py`（`SessionDB`）、`tools/session_search_tool.py`、`tools/write_approval.py`。
 - [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter3.md`，以中文原著為準。檔案系統知識庫的範式。
+- [OpenViking](https://github.com/volcengine/OpenViking)：知識存成帶 URI 的檔案、分層摘要，以及 wiki 式的交叉連結。

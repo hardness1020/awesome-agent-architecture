@@ -30,10 +30,14 @@ Memory is a file store plus an index plus on-demand recall.
 
 The loop does not read the whole store. It reads a cheap index, then loads only the few memory files that match the current query.
 
+So the question becomes how a file gets found. Recall ranks one index line per file. It opens a body only after a file is picked.
+The index line is the only way in.
+
 There are four operations:
 
 - **Selection** decides what to save. Save facts that cannot be derived again with grep, git, or project files.
-- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies into the turn's `messages[]`, as a `<system-reminder>` block ahead of the user text.
+- **Recall** runs at query time. It ranks existing memories and injects only the selected bodies into the turn's `messages[]`,
+  as a `<system-reminder>` block ahead of the user text.
 - **Extraction** runs at run end. It writes new memory files.
 - **Consolidation** runs rarely. It merges duplicates and prunes stale entries.
 
@@ -81,7 +85,8 @@ def extract(memory_dir, messages, extractor) -> list[Path]:
     return written
 ```
 
-The memory dir above holds distilled facts, and it is not the only store. Raw history works as a second one: log each run's text, then search it back by keyword. The log keeps everything, so a fact extraction missed is still findable. This is the design behind Hermes's `state.db`.
+The memory dir above holds distilled facts, and it is not the only store. Raw history works as a second one: log each run's text, then search it back by keyword.
+The log keeps everything, so a fact extraction missed is still findable. This is the design behind Hermes's `state.db`.
 
 `log_run` appends each run's text to a SQLite FTS5 table at run end:
 
@@ -153,6 +158,16 @@ if response.stop_reason != "tool_use":
 - `memory=None` keeps the section-8 loop behavior.
 - Recalled text enters `messages[]`, so context management can later compact it.
 
+### Further reading
+
+`src/` keeps one flat directory and globs it, so every file lands in the index for free. A store too big to glob has to earn that reachability back. Three parts do it:
+
+- **A written index.** One maintained file lists every memory, so recall has something to rank without walking the tree.
+- **Links between memories.** A file points at related files, so recall can follow a link out of a file it already loaded.
+- **Layered summaries.** Each level summarizes the one below, so a read can stop at the depth the query needs.
+
+OpenViking's knowledge store combines all three and gives every file a URI. None of it is in `src/`.
+
 ---
 
 ## Per system
@@ -179,6 +194,8 @@ How each agent stores, recalls, extracts, and consolidates memory.
 - **Store gets noisy.** Consolidate duplicates and contradictions.
 - **Saving derivable facts.** Do not store facts that grep, git, or source files can answer better.
 - **Extraction misses details.** Compaction may have removed nuance before extraction. Extract near run end and keep important facts in files.
+- **Unlinked memory files.** The index does not list the file, and no other file links to it. Recall never finds it, so the write was wasted.
+  Write the index line in the same step that writes the file. Link related files to each other.
 
 ---
 
@@ -205,3 +222,5 @@ uv run python sections/09-memory/src/demo.py  # live demo, needs a key
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `tools/memory_tool.py`, `hermes_state.py` (`SessionDB`), `tools/session_search_tool.py`, `tools/write_approval.py`.
 - [learn-claude-code · s09_memory](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter3.md`, Chinese original canonical. The file-system knowledge paradigm.
+- [OpenViking](https://github.com/volcengine/OpenViking): knowledge as files with URIs, layered summaries, and wiki-style cross-links.
