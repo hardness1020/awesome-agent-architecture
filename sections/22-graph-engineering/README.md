@@ -113,24 +113,32 @@ edges = {
 What follows is a design from ai-agent-book, which writes up agents running in production.
 This section's runnable does not build it, and the systems in the table below are not confirmed to work this way.
 
-**Phase nodes.** An agent node starts a fresh `messages[]` on every visit. That is right when the branches are unrelated.
-It is wrong when the nodes are stages of one job, because every stage then reads the task from scratch.
+**Phase node.** A phase node runs one job as a series of stages, and every stage shares one `messages[]`.
+Explore, implement, and review are stages of a single piece of work, not three separate jobs.
+The trajectory carries what one stage found into the next, so no stage reads the task again from the top.
 
-A phase node keeps the trajectory instead. One `messages[]` runs the whole path. When a phase starts, the harness swaps two things: the system prompt and the tool set.
-Explore mounts read and search. Implement mounts edit and run. Review mounts read and a verdict tool.
-Nothing gets packed for the next phase, because the history already holds what it needs.
+**Tools per phase.** Each phase gets its own system prompt and its own tool set, and the harness swaps both when the phase changes.
+The history stays where it is, so nothing gets packed for the next phase. The three phases in the book's write-up:
 
-The model ends a phase by calling a gate tool, such as `finish_exploring`. The harness reads that call as the edge and starts the next phase.
-The gate is the only exit, so the harness decides when a phase ends, not the model.
+- **Explore.** Read and search.
+- **Implement.** Edit and run.
+- **Review.** Read, plus a tool that returns a verdict.
 
-The route is explore, then implement, then review. Review can send the run back to implement. That shape is a path with one backward edge.
-The trip back needs no handoff, because review wrote its notes into the same history.
+**Gate tools.** The model leaves a phase by calling a gate tool, such as `finish_exploring`.
+The harness reads that call as the edge and starts the next phase. The gate is the only exit, so the harness decides when a phase ends, not the model.
 
-Which variant to mount is a context question (section 8). A fresh `messages[]` keeps each node's window small and its branch independent.
-One trajectory keeps every earlier finding in view, and it fills more of the window as the path gets longer.
+**The route.** Explore runs first, then implement, then review. A failed review sends the run back to implement,
+which picks up with the review's notes already in the trajectory. In this section's terms that is a path with one backward edge,
+the same shape as evaluator-optimizer above.
 
-The book counts this as multi-agent, because the prompt and the tools change per phase. This repo counts it as one agent whose prompt and tools change.
-The mechanism is the same either way, so say which definition you mean when you cite it. The only evidence is the book's own experiment.
+**Which one to mount.** Use a fresh `messages[]` when the branches are unrelated. Use one trajectory when the nodes are stages of one job.
+A fresh `messages[]` keeps each node's window small and its branch independent.
+One trajectory keeps every earlier finding in view, and it fills more of the window as the path gets longer. The choice is a context question (section 8).
+
+**What counts as multi-agent.** The book calls this design multi-agent, because the prompt and the tools change at every phase.
+This repo calls it one agent whose prompt and tools change. The mechanism is the same under either name, so say which definition you mean when you cite the result.
+
+**One source.** The write-up rests on the book's own experiment. No independent report confirms it.
 
 ---
 
