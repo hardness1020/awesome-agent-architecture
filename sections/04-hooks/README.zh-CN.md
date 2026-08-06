@@ -62,16 +62,22 @@ hooks.fire_post(name, args, out)                         # 4 · PostToolUse
 - hook 可以收紧 permission 的结果，但不应该放宽它。
 - 在 Claude Code 中，`resolveHookPermissionDecision` 会把 hook 输出和基于规则的 permission 加以协调。
 
-`PostToolUse` 最典型的用法是写入后跑 lint。write 或 edit 工具一返回，hook 就对刚动过的那个文件跑 linter 或 type checker，
-再把诊断信息接到 tool result 后面。模型下一轮就会在写入成功的消息旁边看到错误，不用等到之后 build 或跑测试才撞上。
-
-这个做法靠两件事成立。检查是跟着 tool result 一起回去的，所以不必多跑一轮，也不用另外加 prompt。
-检查只针对刚动过的那个文件，成本大致跟那次写入差不多。
-`PostToolUse` 只在成功运行之后才会跑，所以写入被拦截时，就没有诊断信息可看。
-
 demo 用一个 `PreToolUse` hook，即使在 `bypassPermissions` 之下也拦截 `rm -rf`。
 
 本章谈的是生命周期 hook。放在 `hooks/` 文件夹中的 React render hook，是不相干的 UI 代码，只是共用同一个词。
+
+### 延伸阅读
+
+下面这个设计出自 ai-agent-book，讲的是实际上线的 coding agent 怎么做。本节的 `src/` 并没有实现它。
+下面表格里的那几个系统，也没有证据说它们就是这样做的。
+
+例子是写入后跑 lint。write 或 edit 工具一返回，hook 就对刚改过的那个文件跑 linter，
+再把诊断信息加进 tool result。模型下一轮就会看到这个错误，位置就在写入成功的消息旁边。
+少了这个 hook，同样的错误要等到下次 build 或跑测试才会冒出来。
+
+这个做法成本低，有两个原因。诊断信息是包在 tool result 里一起返回的，不用多跑一轮。
+检查只跑一个文件，不是整个项目，花的时间跟那次写入差不多。
+上面那条规则一样成立：写入被拦截就不会运行，自然也不会有诊断信息。
 
 ---
 
@@ -97,7 +103,7 @@ demo 用一个 `PreToolUse` hook，即使在 `bypassPermissions` 之下也拦截
 - **hook 配置在 session 中途改变：**某个进程可能在启动后修改 settings。要对 hook 配置做一次快照。
 - **慢速 hook 卡住 loop：**hook 可能 shell out 去做很慢的工作。要加上 timeout。
 - **PostToolUse 意外停止：**若 post-hook 返回 `preventContinuation`，要把它呈现为一次优雅的停止，而不是崩溃。
-- **诊断信息淹没结果：**整个项目跑一次 lint，接上去的文字可能比写入本身还多。检查只跑刚动过的文件，接上去的输出也要设上限。
+- **诊断信息淹没结果：**整个项目跑一次 lint，回来的文字可能比写入本身还多。只检查刚改过的那个文件，加回去的量也要设上限。
 
 ---
 
@@ -122,4 +128,4 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
   `types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code)：section framing。
 - [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
-  写入后跑 lint 这个工具层反馈做法，也就是把诊断信息接在 tool result 后面。
+  写入后跑 lint：工具层在写入之后跑 linter，把诊断信息加进 tool result。
