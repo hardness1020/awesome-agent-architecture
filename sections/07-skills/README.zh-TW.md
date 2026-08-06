@@ -128,35 +128,41 @@ loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照
 底下這些做法，`src/` 都沒有實作。它們來自 ai-agent-book 對正式環境 agent 的整理，還有一些廠商文件。
 上面各系統表格裡的那兩套系統，也沒有被證實就是這樣做的。
 
-**progressive disclosure 的成本。** 它是便宜，不是免費。catalog 在 prefill 階段還是要被讀一次。
-載入的本文也會一直佔著 context，直到有東西來壓縮它。第一個 turn 之後 prefix 就被快取住，後面每一次的成本都很低。
+**catalog 要花多少成本：**progressive disclosure 讓一個很大的 skill store 變便宜，但沒有讓它變免費。
+catalog 就在 prefix 裡，prefill 時要被讀一次，之後每個 turn 都要再送一次。
+第一個 turn 之後那段 prefix 就被快取住，所以重送的成本很低。
+載入本文比較貴，而且本文會一直佔著 context，直到有東西來壓縮它。
 所以真正要盯的數字是 catalog 掛了幾個 skill，而不是本文被讀了幾次。
 
-**catalog 放在哪。** 這份列表可以放在 system prompt，`src/` 就是這樣做的。
+**catalog 放在哪：**這份列表可以放在 system prompt，`src/` 就是這樣做的。
 它也可以塞進某一個啟用用 tool 的 description 裡，open standard 兩種都允許。
-放 system prompt，每個 session 的 prefix 都要付這筆 token；放進 tool，prefix 就小一些。
+差別在這筆 token 算到哪邊。放 system prompt，它就是每個 session prefix 的一部分。
+放進 tool description，prefix 就小一些，模型改成透過那個 tool 去看這份列表。
 
-**Deferred tool loading。** tool 也可以學同一招。prefix 裡只留 tool 名稱和一行描述。
-模型要用到某個 tool 時才去要完整 schema，要來的 schema 接在 context 尾端。
-快取住的 prefix 完全沒被動到，前面的東西都不用重算。
+**Deferred tool loading：**tool 也可以用同一套做法，理由也一樣：schema 很大，但大部分 turn 根本用不到。
+prefix 裡只留 tool 名稱和一行描述，模型要用到某個 tool 時，才去要完整 schema。
+要來的 schema 接在 context 尾端，所以快取住的 prefix 完全沒被動到，前面的東西也都不用重算。
 skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書上說，同一套做法現在也長到 tool 這一層了（第 2 章）。
 
-**什麼時候該寫一個 skill。** 這裡的 demo 是一次成功就寫：一段流程跑完，agent 呼叫一次 `WriteSkill`，下一次掃描就把它編進 catalog。
+**什麼時候該寫一個 skill：**假設某一趟執行第一次把一段長流程跑對了，這該不該存成 skill？
+這裡的 demo 說該。流程一跑完，agent 就呼叫一次 `WriteSkill`，下一次掃描把它編進 catalog。
 這是能把整個 loop 演出來的最小規則，也是可執行程式碼實際在做的事。
 
-書裡的門檻更高。它認為一次執行不算證據。
-它要求同一個模式至少在兩次沒有失敗的執行裡出現過，而且驗證那一步不能來自提出這個 skill 的那次執行。
-Voyager 也是這樣做：環境確認過，skill 才進得了 library。
-寫之前先搜一下 store。如果已經有很像的，就去改它，不要再多開一個重複的。
-本文裡也要留下這次踩到的坑，不要只留走得通的那條路。
+**書裡的門檻更高：**書的答案是不該，因為一趟執行不算證據。
+要讓一個 skill 變成正式能力，書要求四件事：
 
-兩種規則都說得通。一次成功比較好教機制，demo 也短。
-門檻則是在 store 長到幾百個的時候，擋住那些只用過一次的筆記。
+- 同一個模式至少在兩趟沒有失敗的執行裡出現過。
+- 驗證那一步不能來自提出這個 skill 的那趟執行。Voyager 也是這樣做：環境確認過，skill 才進得了 library。
+- 動手寫之前先搜一下 store。如果已經有很像的，就去改它，不要再多開一個重複的。
+- 這趟踩到的坑要留在本文裡，不要只留走得通的那條路。
+
+**該選哪一種：**兩種都說得通，因為它們回答的不是同一個問題。
+一次成功比較好教機制，demo 也短。門檻則是在 store 長到幾百個的時候，擋住那些只用過一次的筆記。
 中間還可以插一個 candidate 步驟。沉澱出來的流程先落成 candidate，不直接進 catalog。
 它會經過起草、測試、評估、修訂，才被升級。Anthropic 的 Skill Creator 就是跑這個 loop。
 放到這一章的程式碼裡，就是多一個暫存資料夾，`load_skills` 先跳過它，等 curator 升級才收。
 
-**整併是離線做的。** curator 是排程跑的，不是即時跑的。書裡叫它 sleep-time learning，分成五步：
+**整併是離線做的：**curator 是排程跑的，不是即時跑的。書裡叫它 sleep-time learning，分成五步：
 
 1. **觸發。** 排程時間到、系統閒置，或 store 大小超過上限。
 2. **定位。** 先對 store 做一次快照，後面每一步才都能回滾。
@@ -164,8 +170,8 @@ Voyager 也是這樣做：環境確認過，skill 才進得了 library。
 4. **驗證與核准。** 拿產生它們的那幾次執行，去檢查合併後的本文。沒過的就不收。
 5. **修剪與建索引。** 依固定規則封存過期的 skill，然後重建 catalog。
 
-離線做這件事，本身就是一條安全邊界。線上 loop 只負責執行和記錄，跑到一半絕不去動 store。
-所以一次剛好成功的執行沒辦法把自己升級，agent 從外面讀進來的文字，也沒辦法在兩個 turn 之間變成永久指令。
+**為什麼一定要離線：**把 curator 放在離線跑，本身就是一條安全邊界。線上 loop 只負責執行和記錄，跑到一半絕不去動 store。
+所以一趟剛好成功的執行沒辦法把自己升級，agent 從外面讀進來的文字，也沒辦法在兩個 turn 之間變成永久指令。
 
 ---
 

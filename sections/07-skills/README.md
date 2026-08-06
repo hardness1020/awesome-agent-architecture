@@ -130,30 +130,36 @@ Keep skill bodies short and point to files for large references.
 None of what follows is in `src/`. It comes from ai-agent-book's account of production agents, plus vendor documentation.
 It is not confirmed behaviour of the two systems in the per-system table.
 
-**What disclosure costs.** Disclosure is cheap, not free. The catalog is still read once at prefill.
-A loaded body still sits in the window until something compacts it. After the first turn the prefix is cached, so the repeat cost is small.
+**What the catalog costs.** Progressive disclosure lowers the cost of a large skill store. It does not make it free.
+The catalog sits in the prefix, so it is read once at prefill and re-sent on every turn after that.
+After the first turn that prefix is cached, so re-sending it is cheap.
+A loaded body costs more, and it stays in the window until something compacts it.
 So the number to watch is how many skills the catalog carries, not how often bodies get read.
 
 **Where the catalog lives.** The listing can sit in the system prompt, which is what `src/` does.
 It can also sit inside the description of one activation tool. The open standard allows both.
-The system prompt version costs prefix tokens in every session. The tool version keeps the prefix smaller.
+The trade-off is where the tokens land. In the system prompt they are part of every session's prefix.
+In a tool description the prefix stays smaller, and the model reaches the listing through that tool instead.
 
-**Deferred tool loading.** Tools can borrow the same trick. The prefix keeps only tool names and one-line descriptions.
-The model asks for a full schema when it needs one, and that schema is appended at the end of the context.
-The cached prefix is untouched, so nothing before it has to be recomputed.
+**Deferred tool loading.** Tools can use the same pattern, for the same reason: a schema is large and most turns do not need it.
+The prefix keeps only tool names and one-line descriptions. The model asks for a full schema when it needs one.
+That schema is appended at the end of the context, so the cached prefix is untouched and nothing before it has to be recomputed.
 Skills were the first place this repo met progressive disclosure. The book reports the same pattern moving into the tool layer (section 2).
 
-**When to write a skill.** The demo here promotes on first success. One workflow finishes, the agent calls `WriteSkill`, and the next scan catalogs it.
+**When to write a skill.** Say a run finishes a long workflow correctly for the first time. Should that become a skill?
+The demo here says yes. The workflow finishes, the agent calls `WriteSkill`, and the next scan catalogs it.
 That is the smallest rule that shows the loop, and it is what the runnable code does.
 
-The book sets a higher bar. It treats one run as too little evidence.
-It asks for the same pattern in at least two runs that did not fail, and for a check that does not come from the run that proposed the skill.
-Voyager works the same way: a skill enters the library after the environment confirms it.
-Before writing, search the store. If something close already exists, patch it instead of adding a duplicate.
-Keep the pitfalls the run hit in the body, not just the path that worked.
+**The book's higher bar.** The book says no, because one run is too little evidence.
+It asks for four things before a skill becomes a formal capability:
 
-Both rules are defensible. First success teaches the mechanism and keeps a demo short.
-A support threshold is what stops a store of hundreds from filling with notes used once.
+- The same pattern in at least two runs that did not fail.
+- A check that does not come from the run that proposed the skill. Voyager works this way: a skill enters the library after the environment confirms it.
+- A search of the store first. If something close already exists, patch it instead of adding a duplicate.
+- The pitfalls the run hit, kept in the body, not just the path that worked.
+
+**Which rule to pick.** Both are defensible, because they answer different questions.
+First success teaches the mechanism and keeps a demo short. A support threshold is what stops a store of hundreds from filling with notes used once.
 A candidate step sits between them. The distilled workflow lands as a candidate, not as a catalog entry.
 It gets drafted, tested, evaluated, and revised before promotion. Anthropic's Skill Creator runs that loop.
 In this section's code it would be a staging folder that `load_skills` skips until a curator promotes it.
@@ -166,8 +172,9 @@ In this section's code it would be a staging folder that `load_skills` skips unt
 4. **Validate and approve.** Check the merged bodies against the runs that produced them. What fails stays out.
 5. **Prune and index.** Archive stale skills by a fixed rule, then rebuild the catalog.
 
-Running this offline is itself a safety boundary. The online loop executes and records. It never edits the store mid-run.
-So one lucky run cannot promote itself, and text the agent read from outside cannot become a permanent instruction between turns.
+**Why offline matters.** Running the curator offline is itself a safety boundary. The online loop executes and records.
+It never edits the store mid-run. So one lucky run cannot promote itself,
+and text the agent read from outside cannot become a permanent instruction between turns.
 
 ---
 
