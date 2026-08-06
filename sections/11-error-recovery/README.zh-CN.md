@@ -6,6 +6,15 @@
 
 一次 agent 执行可能横跨很多次模型调用。任何一次调用都可能因为网络问题、过载、rate limit、输出上限或 context overflow 而失败。
 
+会出错的不只模型调用。有人研究过生产环境的 coding agent，把失败分成四层：
+
+- **API：**timeout、rate limit 和过载。
+- **tool：**命令返回非零，或者 handler 抛出异常。
+- **context：**prompt overflow，或者 API 不收的消息历史。
+- **control flow：**一直重复、却走不到任何地方的步骤。
+
+先弄清楚是哪一层，再开始数次数。顺序反过来，预算就都花在重试根本救不了的错误上。
+
 loop 对不同的失败需要不同的响应：
 
 1. 对暂时性错误重试。
@@ -96,6 +105,50 @@ response = recovery.with_retry(
 - `_reactive_trim` 就地修改 `messages[]`，供一次 overflow 重试使用。
 - 当 recovery 放弃时，错误会被浮现出来，而不是被藏起来。
 
+### 延伸阅读
+
+以下设计 `src/` 都没有实现，出自 ai-agent-book，也未经下面表格的系统证实。
+
+**怎么抓到不会抛出异常的 loop：**假设 agent 跑了一次测试、读到同一个错误，然后又把同一份测试跑一次。
+没有东西会抛出异常，所以重试路径一条也不会启动，任何界限也都碰不到。这是 control flow 层的失败，得自己配一套检测。
+
+检测靠的是 fingerprint：tool 名称加上参数。同一个 fingerprint 又出现，就是 agent 在重做同一次调用。
+步数上限的确会结束这次执行，但那时整份预算都花光了。fingerprint 计数器几步之内就能结束，而且说得出是哪一次调用卡住。
+
+恢复路径也各自需要计数器。每条路各数各的失败次数，一直失败的那条就会自己跳闸，不用等到全局上限。
+
+**连上了却没声音的 stream 怎么收掉：**stream 可能接得上、吐了几个 token，然后就停住。
+那个时候 connect timeout 早就过了，所以什么都不会触发，loop 就一直等下去。
+
+解法是再加一个计时器。在 connect timeout 旁边放一个 idle watchdog，时间窗内没有 token 进来就取消这次调用。
+接着 retry helper 会把这次取消当成一般的暂时性失败来处理。
+
+**消息历史坏掉之后怎么补：**一轮中途 crash，可能留下一个没有对应 `tool_result` 的 `tool_use` block。
+下一次请求会卡在消息格式，而不是卡在工作本身，而且成对关系没修好之前，它会一直卡在那里。
+
+至于「修」是什么意思，得看这份 transcript 是拿来做什么的。答案有两种：
+
+- **产品用的 harness 会修：**塞一个 placeholder 结果，写明这次调用被中断，执行就能继续。
+- **录训练数据的 harness 不修：**编一个结果出来，等于教模型一个根本没发生过的步骤。
+
+**失败要让调用方看到多少：**恢复不是一个决定。要照失败该有多明显来分级：
+
+1. **安静重试：**调用方只看得到最后的结果。
+2. **降级后继续：**返回一份缩水的结果，并说清楚少了什么。
+3. **把失败浮现出来：**列出试过哪些方法，让模型可以换一条路走。
+
+前两级产生的错误需要隔离。先留在 helper 里面，等恢复真的放弃了才放出去。
+太早传到模型面前的错误会被当成最终结果，模型可能因此重做一件其实已经成功的工作。
+
+**别让恢复自己喂自己：**错误路径上可能会触发 hook、摘要或通知。
+那些事情又去调用一次模型，然后又失败一次，这次失败又把同一条路径再触发一次。
+
+有两条规则可以把这串断开。第一，在错误路径上把带副作用的逻辑关掉。第二，带一个递归深度计数器收拾漏网的。
+后台调用则完全不重试：它们不在关键路径上，重试只会把主 loop 需要的额度花掉。
+
+**这些界限是怎么定出来的：**这一节每个界限都是有人挑出来的数字：重试几次、失败几次就停、idle 的时间窗多长。
+每一个都要照实际量到的失败来挑，不是靠直觉。书里「压缩试三次就停」这个界限，就是从生产环境反复恢复失败的数据里得出来的。
+
 ---
 
 ## 各系统做法
@@ -120,6 +173,10 @@ Recovery 包住模型调用。loop 主体维持不变。
 - **overflow 无法缩小：**如果一次 reactive compaction 失败，就停止，而不是永无止境地压缩。
 - **错误消失：**一个被吞掉的错误会让 transcript 少了结果。在恢复用尽之后，把失败浮现出来。
 - **Stop hook 重播 API 错误：**对 API 错误消息略过 stop hook。
+- **卡住了，却没有错误：**一直重复的调用不会抛出任何东西，重试路径一条也不会启动。数重复的 tool 加参数 fingerprint，把这次执行停掉。
+- **stream 静静停住：**stream 可能接上之后就没声音。这时 connect timeout 早就过了，什么都不会触发。加一个 idle watchdog。
+- **修补污染了记录：**塞一个 placeholder `tool_result`，产品环境的执行是活下去了，但也记下了一个根本没跑过的步骤。transcript 要留着当训练数据，就别修。
+- **中间错误外泄：**恢复还没结束就送出去的错误，会被当成最终结果，模型就白做一轮工。先留在 helper 里，等恢复放弃了再放出去。
 
 ---
 
@@ -141,6 +198,12 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
 
 ## 来源
 
-- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：`services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
-- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 与 `max_consecutive_format_errors`。
+- [Claude Code 源码](https://github.com/yasasbanukaofficial/claude-code)：
+  `services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
+- [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：
+  `models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 与 `max_consecutive_format_errors`。
+- [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
+  四层失败分类、用 tool 加参数做 loop fingerprint、idle watchdog、`tool_result` 成对修补以及产品与训练数据两套标准、
+  分级恢复加错误隔离，还有防死亡螺旋的那几招。它的脚注 ch5-3 说这套分类来自对生产环境 agent 的研究（其中包含 Claude Code），
+  也提醒实现变动很快。书里「压缩试三次就停」这个界限，同样是从量到的生产环境失败里定出来的。
 - [learn-claude-code · s11_error_recovery](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
