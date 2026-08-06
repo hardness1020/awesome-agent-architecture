@@ -148,8 +148,7 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 ### 延伸阅读
 
-下面这段讲的是设计，不是代码。它出自 MCP 的 spec，以及 ai-agent-book 对正式环境的 agent 怎么用 MCP 的描述。
-`src/` 一个都没实现。这里写的也不等于下面表格那些系统确认过的行为，真要依赖之前，先看最后的来源。
+以下设计 `src/` 都没有实现，出自 ai-agent-book 和 MCP spec，也未经下面表格的系统证实。
 
 **三种 primitive，只有一种进池子：**一个 server 可以提供三种东西，但只有 tool 会进到上面那个池子。
 

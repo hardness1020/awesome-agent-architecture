@@ -151,8 +151,7 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 ### Further reading
 
-What follows is design, not code. It comes from the MCP specification and from ai-agent-book's account of how production agents run MCP.
-`src/` implements none of it. Nothing here is confirmed behaviour of the systems in the table below, so check the sources at the end before relying on it.
+None of this is in `src/`. It comes from ai-agent-book and the MCP spec, and is not confirmed of the systems in the table.
 
 **Three primitives, one pool.** A server can offer three kinds of thing. Only tools reach the pool above.
 
