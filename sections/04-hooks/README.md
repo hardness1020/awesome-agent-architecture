@@ -75,9 +75,12 @@ The example is lint on write. A write or edit tool returns. The hook then runs t
 It adds the diagnostics to the tool result. The model reads the error on its next turn, next to the write confirmation.
 Without the hook, that error waits for the next build or test run.
 
-The pattern stays cheap for two reasons. The diagnostics go back inside the tool result, so no extra turn is needed.
-The check covers one file, not the whole project, so it takes about as long as the write.
-The rule above still holds: a blocked write never runs, so it produces no diagnostics.
+The pattern stays cheap for two reasons.
+
+- The diagnostics go back inside the tool result, so no extra turn is needed.
+- The check covers one file, not the whole project, so it takes about as long as the write.
+
+The pattern has one limit. A blocked write never runs, so the hook produces no diagnostics.
 
 ---
 
