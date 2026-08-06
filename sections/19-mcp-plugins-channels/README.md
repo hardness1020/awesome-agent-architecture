@@ -31,15 +31,6 @@ Names are namespaced `mcp__<server>__<tool>` so two servers never collide. The l
 - Each tool's MCP annotations (`readOnlyHint`, `destructiveHint`) become the permission hints the gate reads (section 3).
 - Merged into the one `Registry`, the model sees MCP tools and built-ins in the same list.
 
-A server can advertise three kinds of primitive, and only one of them lands in that pool.
-
-- **Tools** are actions the model picks and calls. These are what `tools/list` returns and what the wrapping below turns into a `Tool`.
-- **Resources** are readable data addressed by URI: a file, a table, a wiki page. The client fetches one and puts the content in context. The model does not call it as an action.
-- **Prompts** are named templates the server supplies. They usually surface to the user as a command rather than being picked by the model.
-
-Claude Code reaches resources through two built-in tools of its own, one to list and one to read, instead of advertising each resource separately.
-So a server holding a thousand documents still costs two entries in the tool list.
-
 ### The wire protocol under it
 
 The 2026-07-28 spec revision made the wire stateless. Every request now stands alone, so any server replica can answer it.
@@ -62,22 +53,6 @@ The harness side above (discover, wrap, merge) does not change. What changed on 
 For someone using an agent, nothing changes on screen: old servers keep working, and v1 SDKs stay maintained.
 The gains land underneath: remote servers scale behind a load balancer, the first call skips a round trip, and a cached tool list saves tokens.
 Servers on a deprecated feature get a twelve-month window to migrate. That work falls on the server author, not the user.
-
-### Adopting MCP and exposing schemas are two decisions
-
-Connecting to a server and advertising all of its tools are separate choices. The first one buys interop. The second one spends context.
-
-Every advertised tool costs tokens on every request: its name, its description, and its full input schema, before the model reads a word of the task.
-A handful of servers can add more text than the task itself, and a longer list also makes tool selection worse (section 2).
-
-So the harness picks an exposure level per server, not one setting for all of them:
-
-- **All schemas up front.** Simplest, and right for a server the session uses on almost every turn.
-- **An index first.** Advertise names and one-line summaries, then load a full schema when the model asks for that tool (section 2 covers the discovery side).
-- **One door.** Advertise a single tool that takes a server name and a tool name as arguments, and keep the rest behind it. The agent pays for one schema instead of fifty.
-
-None of this is in the protocol. The spec says how to list and call tools. How many of those reach the prompt is client policy,
-so deferred loading is a setting to check per harness, not something a server can count on.
 
 ### New: wrapping a discovered tool
 
@@ -174,6 +149,35 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 - The tool is read-only, so the gate allows it with no prompt. A destructive tool would ask, or be pre-approved by a rule keyed on the qualified name.
 - The loop does not change. MCP adds tools to the pool; everything downstream is section-2 dispatch and section-3 gating.
 
+### Further reading
+
+What follows is design, not code. It comes from the MCP specification and from ai-agent-book's account of how production agents run MCP.
+`src/` implements none of it. Nothing here is confirmed behaviour of the systems in the table below, so check the sources at the end before relying on it.
+
+**Three primitives, one pool.** A server can offer three kinds of thing. Only tools reach the pool above.
+
+- **Tools** are actions. The model picks one and calls it. `tools/list` returns these, and the code above wraps them.
+- **Resources** are data the client can read, each with a URI: a file, a table, a wiki page. The client fetches one and puts the text in context. The model never calls it.
+- **Prompts** are templates the server hands over. They usually show up as a command the user runs, not as something the model picks.
+
+Claude Code does not advertise resources one by one. It ships two tools, one that lists resources and one that reads them.
+So a server holding a thousand documents still costs two entries in the tool list.
+
+**Connecting and advertising are two decisions.** Connecting to a server buys interop. Advertising its tools spends context.
+You can do the first without doing all of the second.
+
+Each advertised tool costs tokens on every request. Name, description, and the full input schema, all of it sits in front of the task.
+Five servers can add more text than the task itself. A long list also makes the model pick the wrong tool more often (section 2).
+
+So decide per server how much to advertise, not once for all of them:
+
+- **Everything.** Simplest. Right for a server the session uses almost every turn.
+- **An index.** Advertise names and one-line summaries. Load the full schema when the model asks for that tool (section 2 covers the discovery side).
+- **One door.** Advertise one tool that takes a server name and a tool name. The rest stays behind it. The agent pays for one schema, not fifty.
+
+The protocol says nothing about this. It says how to list tools and how to call them. How many of them reach the prompt is up to the client.
+So deferred loading is a setting to check in your own harness. A server cannot assume it is on.
+
 ---
 
 ## Per system
@@ -195,20 +199,20 @@ How the harness reaches outside itself.
 
 - **Name collisions.** Two servers both expose `search`. The `mcp__server__tool` namespace prevents clashes; a server name with `__` still parses wrong, so keep names simple.
 - **Tool-list bloat.** Many servers make a large tool list that costs tokens and confuses selection (section 2).
-  Mitigation: truncate descriptions, and pick an exposure level per server instead of advertising every schema on every request.
+  Mitigation: truncate descriptions, and decide per server how much to advertise instead of sending every schema on every request.
 - **Stale pool after connect.** A server added mid-session is not in the cached tool list, so the model never sees it.
   Mitigation: rebuild pool and prompt on change (section 8); the 2026-07-28 spec adds `toolsListChanged` over `subscriptions/listen` and `ttlMs` hints for this.
 - **Connection churn.** A flaky server times out, resets, or expires its token. Mitigation: reconnect after repeated failures, re-auth on `401`, time out each call (section 11).
   The stateless revision drops stream resumability, so a broken in-flight request is re-issued as a new one, not resumed.
 - **Over-trusted side effects.** A server marks a destructive tool `readOnlyHint: true` to skip the prompt. Mitigation: a rule on the qualified name gates it anyway (section 3).
-- **Description poisoning.** A tool description is untrusted text that reaches the model as instructions. A server can bury a directive in it,
-  for example telling the model to read the user's key file first and pass it along, and the model may follow it while doing something unrelated.
-  Mitigation: read descriptions before installing a server, and treat a changed description as changed code.
-- **Tool shadowing.** All servers share one prompt, so one server's description can talk about another server's tools
-  (the payment tool is broken, use ours instead) and pull calls away from the trusted one.
-  Mitigation: namespacing stops name clashes, not influence. Keep unreviewed servers out of sessions that hold real credentials.
-- **Hijacked updates.** A server that was safe when reviewed ships new code and new descriptions on the next start, and nothing in the protocol re-asks the user.
-  Mitigation: pin a version, re-review on upgrade, and give each server its own least-privilege credential so one compromise cannot reach another server's scope.
+- **Description poisoning.** A tool description is text the server wrote, and the model reads it as instructions.
+  A server can hide an order in there, such as read the user's key file first and send it along. The model may do it.
+  Mitigation: read the descriptions before installing a server. When one changes, review it like changed code.
+- **Tool shadowing.** All servers share one prompt. So one server's description can talk about another server's tools,
+  claim the payment tool is broken, and pull the call to itself.
+  Mitigation: namespacing stops name clashes. It does not stop this. Keep unreviewed servers out of sessions that hold real credentials.
+- **Hijacked updates.** A server passes review, then ships new code and new descriptions on the next start. The protocol never asks the user again.
+  Mitigation: pin a version. Read the descriptions again after an upgrade. Give each server its own least-privilege credential, so one bad server cannot reach another one's scope.
 
 ---
 

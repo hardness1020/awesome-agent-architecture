@@ -30,15 +30,6 @@ MCP 之外，这一章还讲两个搭在它上面的机制：plugin 把 server �
 - 每个工具的 MCP annotation（`readOnlyHint`、`destructiveHint`）成为 gate 读取的权限提示（第 3 章）。
 - 合并进那一个 `Registry` 之后，模型会在同一份清单里看到 MCP 工具与内建工具。
 
-一个 server 可以公告三种 primitive，但只有一种会进到上面那个池子。
-
-- **Tools** 是模型自己挑、自己调用的动作。`tools/list` 返回的就是它们，下面的包装也是把它们变成 `Tool`。
-- **Resources** 是用 URI 定址的可读数据：一个文件、一张表、一页 wiki。client 抓下来把内容放进 context，模型不会把它当动作来调用。
-- **Prompts** 是 server 提供的具名模板。它通常是给用户当命令用的，不是让模型自己挑的。
-
-Claude Code 是用自己的两个内建工具去碰 resource，一个列清单、一个读内容，而不是把每个 resource 都公告成一项工具。
-所以一个放了上千份文档的 server，在工具清单里仍然只占两格。
-
 ### 底层的 wire protocol
 
 2026-07-28 版的 spec 把 protocol 本身改成了 stateless：每个 request 都是独立的，哪台 server 副本都能接。
@@ -61,22 +52,6 @@ Claude Code 是用自己的两个内建工具去碰 resource，一个列清单�
 对用 agent 的人来说，界面上什么都没变：旧 server 照常运作，v1 SDK 也继续维护。
 好处都出现在用户看不到的地方：远程 server 能挂在 load balancer 后面扩展，第一次调用少一趟来回，cache 住的工具清单也省 token。
 用到 deprecated 功能的 server 有十二个月的窗口可以迁移。那是 server 作者要做的事，不是用户的事。
-
-### 接上 MCP 和公告 schema 是两个决定
-
-连上一个 server，跟把它所有工具都公告给模型，是两件事。前者换到的是互通，后者花掉的是 context。
-
-每一个公告出去的工具，每次 request 都要付 token：名称、描述、完整的 input schema，全都排在模型读到任务之前。
-几个 server 加起来，这段文字可能比任务本身还长；清单一长，模型挑工具也挑得更差（第 2 章）。
-
-所以 harness 是一个 server 一个 server 决定要露出多少，而不是全部套同一个配置：
-
-- **全部 schema 都先给。** 最单纯，适合那种几乎每一轮都会用到的 server。
-- **先给一份索引。** 只公告名称和一句话说明，等模型指名要哪个工具，再把完整的 schema 载进来（探索那一侧在第 2 章）。
-- **只开一扇门。** 只公告一个工具，参数是 server 名称和工具名称，其他全部藏在它后面。agent 只要付一份 schema，不是五十份。
-
-这些都不写在 protocol 里。spec 只规定怎么列工具、怎么调用工具。到底有多少工具会进到 prompt，是 client 自己的策略，
-所以延后载入是每个 harness 要自己确认的配置，server 不能假设它一定开着。
 
 ### New: 包装探索到的工具
 
@@ -171,6 +146,35 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 - 这个工具是只读的，所以 gate 不提示就放行。一个具破坏性的工具则会询问，或由一条以完整名称为键的规则预先核准。
 - loop 不变。MCP 只是往池里加工具；下游的一切都是第 2 章的 dispatch 与第 3 章的 gating。
 
+### 延伸阅读
+
+下面这段讲的是设计，不是代码。它出自 MCP 的 spec，以及 ai-agent-book 对正式环境的 agent 怎么用 MCP 的描述。
+`src/` 一个都没实现。这里写的也不等于下面表格那些系统确认过的行为，真要依赖之前，先看最后的来源。
+
+**三种 primitive，只有一种进池子。** 一个 server 可以提供三种东西，但只有 tool 会进到上面那个池子。
+
+- **Tools** 是动作。模型自己挑一个来调用。`tools/list` 返回的就是这些，上面的代码包的也是它们。
+- **Resources** 是可以读的数据，每一条都有一个 URI：一个文件、一张表、一页 wiki。client 把它抓下来，把内容放进 context。模型不会去调用它。
+- **Prompts** 是 server 给的模板。它通常是用户可以下的一个命令，不是模型自己挑的东西。
+
+Claude Code 不会把 resource 一个一个公告出去。它只放两个工具，一个列出 resource，一个把 resource 读出来。
+所以一个放了上千份文档的 server，在工具清单里还是只占两格。
+
+**连上去和公告出去，是两个决定。** 连上一个 server，换到的是互通；把它的工具公告给模型，花掉的是 context。
+前面那件事可以做，后面那件事不一定要做满。
+
+每一个公告出去的工具，每次 request 都在花 token。名称、描述、完整的 input schema，全都排在任务前面。
+五个 server 加起来，这段文字可能比任务本身还长。清单一长，模型也更容易挑错工具（第 2 章）。
+
+所以要一个 server 一个 server 决定公告多少，不是全部一起套：
+
+- **全部都公告。** 最单纯。适合那种几乎每一轮都会用到的 server。
+- **只公告一份索引。** 先给名称和一句话说明。等模型指名要哪个工具，再把完整的 schema 载进来（探索那一侧在第 2 章）。
+- **只开一扇门。** 只公告一个工具，参数是 server 名称和工具名称，其他都放在它后面。agent 只要付一份 schema，不用付五十份。
+
+protocol 完全没管这件事。它只规定工具怎么列、怎么调用。有多少工具会进到 prompt，是 client 自己决定的。
+所以延后载入是你要去自己的 harness 里确认的配置，server 不能假设它一定开着。
+
 ---
 
 ## 各系统做法
@@ -192,20 +196,20 @@ harness 如何伸手触及自身之外。
 
 - **撞名（Name collisions）：**两个 server 都公开 `search`。`mcp__server__tool` 命名空间避免了冲突；但一个名称含 `__` 的 server 仍会被解析错误，所以名称要保持简单。
 - **工具清单膨胀（Tool-list bloat）：**太多 server 会造成庞大的工具清单，既花 token 又干扰选择（第 2 章）。
-  缓解：截断描述，并且一个 server 一个 server 决定要露出多少，而不是每次 request 都把所有 schema 公告一遍。
+  缓解：截断描述，并且一个 server 一个 server 决定公告多少，不要每次 request 都把所有 schema 送一遍。
 - **connect 之后池过时：**一个在 session 中途加入的 server 不在 cache 的工具清单里，于是模型永远看不到它。缓解：变动时重建池并重建 prompt（第 8 章）；
   2026-07-28 版的 spec 为此加了走 `subscriptions/listen` 的 `toolsListChanged` 通知和 `ttlMs` 提示。
 - **连接抖动（Connection churn）：**一个不稳的 server 会超时、重置，或 token 过期。缓解：反复失败后重连、`401` 时重新验证、为每次调用设超时（第 11 章）。
   stateless 版拿掉了 stream 续传，所以中断的 request 要当成一个新 request 重发，不是接着传。
 - **被过度信任的副作用：**一个 server 把具破坏性的工具标成 `readOnlyHint: true` 以跳过提示。缓解：以完整名称设一条规则照样 gate 它（第 3 章）。
-- **描述投毒（Description poisoning）：**工具描述是不可信的文字，却会以指令的形式送到模型面前。server 可以在里面埋一句话，
-  例如叫模型先读用户的密钥文件、再一起传过来，模型很可能在做别的事的时候就顺手照做了。
-  缓解：装一个 server 之前先把描述读过，描述改了就当成代码改了来看。
-- **工具遮蔽（Tool shadowing）：**所有 server 共用同一份 prompt，所以一个 server 的描述可以讲到另一个 server 的工具
-  （付款工具坏了，改用我们的），把调用从可信的那个拉走。
-  缓解：命名空间挡得住撞名，挡不住影响。没审过的 server，就别放进握有真实凭证的 session。
-- **被劫持的更新（Hijacked updates）：**一个当初审过、确认安全的 server，下次启动时换上新的代码和新的描述，而 protocol 不会再问用户一次。
-  缓解：把版本钉住、升级时重审，并且让每个 server 各自持有最小权限的凭证，这样一个被攻破，也伸不到别的 server 的范围。
+- **描述投毒（Description poisoning）：**工具描述是 server 自己写的文字，模型却把它当成指令在读。
+  server 可以在里面塞一句话，例如叫模型先读用户的密钥文件、再一起传过来。模型真的有可能照做。
+  缓解：装一个 server 之前，先把描述读过一遍。描述改了，就当成代码改了那样审。
+- **工具遮蔽（Tool shadowing）：**所有 server 共用同一份 prompt。所以一个 server 的描述可以讲到另一个 server 的工具，
+  说付款工具坏了，再把调用拉到自己身上。
+  缓解：命名空间挡得住撞名，挡不住这个。没审过的 server，别放进握有真实凭证的 session。
+- **被劫持的更新（Hijacked updates）：**一个 server 审过了，下次启动时却换上新的代码和新的描述。protocol 不会再问用户一次。
+  缓解：把版本钉住。升级之后把描述再读一遍。每个 server 各给一份最小权限的凭证，这样一个 server 坏掉，也伸不到别的 server 的范围。
 
 ---
 
