@@ -68,8 +68,7 @@ This section covers lifecycle hooks. React render hooks in a `hooks/` folder are
 
 ### Further reading
 
-The design below comes from ai-agent-book, which describes how production coding agents work. This section's `src/` does not implement it.
-The systems in the table below are not confirmed to work this way either.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 The example is lint on write. A write or edit tool returns. The hook then runs the linter on the file that changed.
 It adds the diagnostics to the tool result. The model reads the error on its next turn, next to the write confirmation.

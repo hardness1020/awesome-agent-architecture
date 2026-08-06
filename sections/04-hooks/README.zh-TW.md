@@ -68,8 +68,7 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 ### 延伸閱讀
 
-底下這個設計出自 ai-agent-book，講的是實際上線的 coding agent 怎麼做。本節的 `src/` 並沒有實作它。
-下面表格裡的那幾個系統，也沒有證據說它們就是這樣做的。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
 
 例子是寫入後跑 lint。write 或 edit 工具一回傳，hook 就對剛改過的那個檔案跑 linter，
 再把診斷訊息加進 tool result。模型下一輪就會看到這個錯誤，位置就在寫入成功的訊息旁邊。
