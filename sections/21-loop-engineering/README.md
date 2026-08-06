@@ -63,6 +63,15 @@ def verified_run(task, worker, checker, budget=2):    # src/verify.py
 - Feedback is data. The failed verdict rides into the retry as part of the prompt, so attempt two knows what attempt one got wrong.
 - `ok: False` is the escalation signal. The record of attempts goes to a human; the loop does not retry forever.
 
+One pass or fail is a thin signal. Split the verdict into three questions, and make each one name its evidence:
+
+- **Outcome.** Did the run leave the right state behind. Evidence: the state itself, checked by code wherever code can check it (section 23).
+- **Process.** Did the run follow its rules: allowed tools, required order, no skipped confirmation. Evidence: the tool calls in the trace.
+- **Quality.** Is the answer good on the parts no code check can express. Evidence: the rubric, with the failing line named.
+
+The runnable grades the third question only. Outcome and process checks need an environment that logs what happened, which is what section 23 builds.
+Splitting them tells you what to fix. Outcome passed and process failed means the run got lucky. Process passed and outcome failed means the rules are wrong.
+
 ### Budgets and stop conditions
 
 Every loop needs a ceiling the model cannot talk its way past: an iteration count, a token budget, a wall-clock limit, or a dry counter (stop after K rounds that find nothing new).
@@ -102,6 +111,68 @@ result = verified_run("What is 27 + 15? Use the add tool.", worker, checker, bud
 
 What is new is the discipline: grade before done, budget before start, report always.
 
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book and published self-improvement research, and is not confirmed of the systems in the table.
+
+**Routing a learned change.** Say a run finds out that the staging database needs a different connection string. Where does that go?
+The hard part of the improvement loop is not finding the lesson. It is picking where the lesson lands. There are four places to put it:
+
+- **A knowledge doc.** One fact a run discovered. Cheap to write and cheap to delete. The agent reads it back when a task needs it (section 9).
+- **A prompt or a skill.** A behavior that should repeat. It costs context on every turn that loads it (section 7).
+- **A program.** A procedure that runs the same way every time. It costs nothing at inference, and you can test it (section 2).
+- **The weights.** Last resort. Slow, expensive, and the hardest to undo. Outside this repo's harness thesis.
+
+The rule is to pick the smallest place that can hold the change. Smallest also means easiest to check and easiest to undo.
+The connection string is a fact, so it goes in a doc. It does not go in the system prompt.
+
+The second place, a prompt or a skill, gets abused most, so it needs gates of its own.
+Write the edit from a failure that happened several times, not from one bad run.
+Say when it applies, so it stays quiet on unrelated runs. Then check it twice: on cases near the edit, and on a holdout set you did not write it from.
+Ship it to part of the traffic first, and keep the rollback ready.
+Karpathy calls this system prompt learning: you edit words instead of weights.
+ACE keeps each edit small by revising numbered context items instead of rewriting the whole prompt.
+
+**From tool user to tool creator.** The third place, a program, is the one earlier sections do not build.
+A skill hands the model instructions that it still has to read and follow (section 7). A compiled workflow hands the harness a program that runs without the model.
+Say the agent has booked the same kind of ticket ten times. Five steps turn that into a program:
+
+1. **Capture.** Record one run that worked: which calls it made, in what order, and the state before and after each one.
+2. **Parameterize.** Turn whatever changed between runs into arguments. What stayed the same becomes the program.
+3. **Validate on reset.** Replay it in a fresh environment (section 23). Every step gets a check before it runs, a check after it runs, and a final state check.
+4. **Replay.** Run the program straight through on the next matching task. No model call, so it is fast, cheap, and the same every time.
+5. **Invalidate.** One failed check retires the program. The task goes back to the model, which can capture a new one.
+
+Making a tool is the same lifecycle from the other end. The agent hits something it cannot do, finds a library,
+wraps it as a tool, and validates it before the registry accepts it (section 2).
+Both moves turn one expensive exploration into a cheap capability you can check.
+Both need step five, because the site or API they were built against will change.
+
+**Editing the harness.** Say the loop wants to change harness code, not just a prompt. Then it needs a contract before it gets a patch.
+The change contract states four things: which traces failed and how often, the root cause, what the change should improve, and how to undo it.
+No contract, no patch. A human reads the contract, and that is what separates a self-editing loop from one nobody can audit.
+The code the loop may edit is declared up front. Permissions, budgets, and gates sit outside that region, so the loop cannot reach them (section 3).
+
+Where the loop searches is a ladder. The bottom rung is one rule in the prompt.
+Above it: how context gets assembled, then the workflow, then harness code, then the code that proposes changes.
+Climb a rung only when the rung below fails. Each rung up widens the search and weakens the check on it.
+You can A/B test a prompt rule in a day. Swap the code that proposes changes, and every later change gets proposed differently.
+
+**Online run, offline learner.** Keep the two apart. The online loop runs the task and records what happened.
+It does not draw lessons, promote skills, or edit the prompt.
+A separate offline loop reads many runs at once, finds the failures that repeat, writes candidate changes, validates them, and releases a version.
+
+The split is what stops one run from rewriting the agent. One lucky path is not a pattern.
+A web page that told the agent what to remember is not evidence.
+Requiring the same signal across several runs, plus a validation gate, keeps both out of a release.
+
+The split also changes what to measure. Read two numbers, not one:
+
+- **Updating.** Is the loop producing good candidates. How many it proposed, how many passed validation, how many got rolled back.
+- **Benefit.** Are the shipped changes helping. Does a change load on the runs it targets, does the agent follow it, does held-out performance move.
+
+Read both. With only the first, a skill that is correct but never loads looks like a failed update, and the loop draws the wrong conclusion about itself.
+
 ---
 
 ## Per system
@@ -131,6 +202,15 @@ How each agent composes its outer loops.
 - **State amnesia.** Each run rediscovers the same work and redoes it. Mitigation: persist findings to memory or task records (sections 9, 12) and read them at run start.
 - **Self-editing harness escapes its gates.** An improvement loop that can modify harness code can modify the code that gates it.
   Mitigation: permissions and budgets live outside anything the loop can edit (section 3).
+- **Proxy goal drift.** On open-ended work the rubric only stands in for the real goal. The loop learns to satisfy the rubric instead:
+  it reuses familiar code, reads noise as a finding, and keeps only the runs that passed. The score climbs and the real goal slips.
+  Mitigation: keep the failed runs in the evidence, refresh the holdout set, and have a human check output against the real goal.
+- **Every lesson becomes a prompt edit.** The prompt is the easiest place to write, so everything ends up there. It grows until its own rules disagree.
+  Mitigation: pick the place by what the lesson is. A fact goes in a doc, a procedure goes in a program, and the prompt is for behavior that must repeat.
+- **A compiled workflow outlives its environment.** The site or the API changed, but the program replays anyway. It writes wrong state faster than a model would.
+  Mitigation: check before and after every step of a replay, and retire the program on the first failed check.
+- **The online run promotes its own lessons.** An agent that draws lessons mid-run can promote a path that just got lucky, or text an untrusted page planted for it to remember.
+  Mitigation: let the online loop record evidence and nothing else. A separate offline pass validates candidates before release.
 
 ---
 
@@ -158,6 +238,16 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
 - [MindStudio · What is loop engineering](https://www.mindstudio.ai/blog/what-is-loop-engineering-autonomous-ai-agent-workflows): goal conditions.
 - [Lilian Weng · Harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/): the improvement loop in depth; gates outside the loop.
+- [ai-agent-book · chapter 8](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter8.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  the three verifier layers, choosing where a learned change lands and the rule for it, the prompt learning gates, the change contract,
+  the meta-optimization ladder, the online and offline split, the evolution metrics split, and the verifiable-loop boundary.
+- [PreAct](https://arxiv.org/abs/2606.17929): compiling a trajectory into a parameterized workflow with pre, post, and pre-save checks, then replaying it without the model.
+  Its first author shares the book author's name, so read its reported replay speedup (roughly 8.5x to 13x) as single-source.
+- [Alita](https://arxiv.org/abs/2505.20286): a capability gap triggers tool creation, validated before the tool enters the library.
+- Karpathy · "system prompt learning" (X, 11 May 2025): editing words instead of weights, named as a third learning paradigm.
+- [ACE](https://arxiv.org/abs/2510.04618): incremental context items with stable ids instead of full prompt rewrites.
+- [Lin et al.](https://arxiv.org/abs/2605.30621): harness updating and harness benefit measured separately, with model swaps used to tell them apart.
+- [AHE](https://arxiv.org/abs/2604.25850) and [Self-Harness](https://arxiv.org/abs/2606.09498): change contracts and bounded candidate spaces for a harness that edits itself.
 - [Claude Code](https://code.claude.com/docs): `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
