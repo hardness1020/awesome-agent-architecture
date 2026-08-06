@@ -98,8 +98,7 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 
 ### Further reading
 
-None of what follows is implemented in this section's `src/`. It comes from ai-agent-book's account of production agents and from two external tracing standards.
-It is also not confirmed behaviour of the systems in the table below.
+None of this is in `src/`. It comes from ai-agent-book and two tracing standards, and is not confirmed of the systems in the table.
 
 **Spans, not flat events.** A span is one piece of work inside a run: a model call, a tool call, a retrieval. A trace is the whole run.
 Every span records:

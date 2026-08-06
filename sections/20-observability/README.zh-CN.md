@@ -97,8 +97,7 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 
 ### 延伸阅读
 
-下面这些，这一章的 `src/` 都没有实现。它们出自 ai-agent-book 对正式环境 agent 的描述，还有两套外部的 tracing 标准。
-它们也不是下面表格那几个系统经过确认的行为。
+以下设计 `src/` 都没有实现，出自 ai-agent-book 和两套 tracing 标准，也未经下面表格的系统证实。
 
 **用 span，不是扁平事件：**一个 span 是一趟 run 里的一件工作：一次模型调用、一次工具调用、一次检索。一条 trace 就是整趟 run。
 每个 span 会记下这些：
