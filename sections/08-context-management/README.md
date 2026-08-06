@@ -14,6 +14,14 @@ When context fills:
 2. Calls become slower and more expensive.
 3. Old, less useful content competes with current task information.
 
+The third item has a name: context rot. The model finds the right fact less often as unrelated text piles up.
+This starts well before the window is full. The agent keeps running. It just decides worse.
+
+So compaction is not only about fit and cost. In-context learning works more like retrieval than like reasoning.
+The model can find a fact that is written down. It is worse at combining facts spread over dozens of turns.
+Writing the conclusion down once is cheaper than making the model derive it again on every call.
+So a good summary improves answers even when the window still has room.
+
 Without this layer, long tasks fail once the prompt no longer fits.
 
 ---
@@ -66,9 +74,36 @@ for _ in range(max_steps):                             # src/loop.py
     ...
 ```
 
-This section changes the loop body itself. Earlier sections added tools or dispatch behavior and left the loop alone. Context reduction must run before every model call, so it has to live in the loop.
+This section changes the loop body itself. Earlier sections added tools or dispatch behavior and left the loop alone.
+Context reduction must run before every model call, so it has to live in the loop.
 
 The loop still keeps the same invariant: it calls the model with a valid `messages[]`, then appends the response and any tool results.
+
+### Further reading
+
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
+
+**A stub must be the same string every time.** The text that replaces a tool result is part of the prefix, so it has to stay byte-identical.
+Pick it at the first replacement and reuse it, including after a session is restored from disk.
+A stub that re-renders with a new timestamp or a new path changes the prefix, and the cache after it is gone.
+
+**Compression and the cache want opposite things.** Compaction rewrites the history. The cache pays off only when the history is left alone.
+Every edit invalidates the cache from the edit point onward, so the next call re-reads the whole prefix.
+Trim a little on every turn and that rebuild happens every turn. Do one larger reduction at a token threshold and it happens once.
+Either way, compaction runs between API calls, never inside one.
+
+**The API can run this pass on the server.** Context editing in the Claude API drops older tool results from the prefix, so the harness ships no code for it.
+It still rebuilds the cache once. That puts it near the overflow end of the order rather than on every turn.
+
+**Write the summary for the current task, not for the whole session.** A recap of everything that happened is not what the next call needs.
+Ask one question instead: what does the next call still need? Keep these, highest priority first:
+
+- Architecture and design decisions already made.
+- Files created or changed, and what changed in them.
+- Pass and fail status of the last checks or tests.
+- Open TODOs and the current step.
+
+Raw tool output goes first when something has to go. The budget pass already wrote the large results to disk, so the agent can read one back when it matters.
 
 ---
 
@@ -94,6 +129,9 @@ How each agent decides to make room and what it removes.
 - **One huge turn overflows anyway.** React to `prompt_too_long` with a bounded last-resort trim.
 - **Wrong pass order loses data.** Persist large results before stubbing old results.
 - **Broken tool pairs.** Do not split a `tool_use` from its matching `tool_result`.
+- **Stub text drifts.** A preview that re-renders with a new timestamp or path changes the prefix and drops the cache. Freeze the string at first use.
+- **Trimming on every turn.** Each edit invalidates the cache after the edit point, so many small reductions cost more than one batched pass. Trigger on a threshold.
+- **The model trusts the summary.** Injected state is read as fact and rarely re-checked. Leave pointers to the persisted originals so a wrong summary can be caught.
 
 ---
 
@@ -119,6 +157,10 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
   `services/compact/autoCompact.ts`, `microCompact.ts`, `timeBasedMCConfig.ts`, `compact.ts`, `utils/toolResultStorage.ts`, `query.ts`, `query/tokenBudget.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the observation template in `config/mini.yaml`, `abort_exceptions` in `models/litellm_model.py`.
 - [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code): section framing.
+- [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
+  context rot, in-context learning as retrieval, the compression and cache interplay, task-aware compression with retention priorities,
+  API-level context editing, the frozen tool-result stub, and the finding that models read an injected summary as fact.
+- [Lost in the Middle](https://arxiv.org/abs/2307.03172) (Liu et al., TACL 2024): retrieval accuracy drops for facts placed in the middle of a long context. Grounds context rot.
 
 Inferred; not fully present in the Claude Code source repo above:
 
