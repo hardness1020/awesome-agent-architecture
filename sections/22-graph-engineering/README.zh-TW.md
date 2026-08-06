@@ -51,9 +51,9 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 每個 node 都在純程式碼和完整 agent 之間選一個位置：
 
-- **Code node**：解析、驗證、固定的 API 呼叫。決定性的，不花 token。
-- **Model node**：一次 LLM 呼叫，例如分類器。有限度的判斷。
-- **Agent node**：一整個第 1 章的 loop，帶著 tool。開放式的判斷，但被固定在一個位置上。
+- **Code node：**解析、驗證、固定的 API 呼叫。決定性的，不花 token。
+- **Model node：**一次 LLM 呼叫，例如分類器。有限度的判斷。
+- **Agent node：**一整個第 1 章的 loop，帶著 tool。開放式的判斷，但被固定在一個位置上。
 
 `agent_node` 把內層 loop 掛成一個 node。每次經過都用 state 組出 prompt，在全新的 `messages[]` 上跑 `run_turn`，
 所以這個 node 只看得到 prompt builder 給它的部分，不是整趟執行。
@@ -64,11 +64,14 @@ def run_graph(nodes, edges, state, start, budget=20):  # src/graph.py
 
 出處裡叫得出名字的 workflow pattern，其實都是圖形：
 
-- **Prompt chaining**：一串 node 排成一條路，中間用程式碼把關。
-- **Routing**：一條條件式 edge，分流到各個專門的 node。
-- **Parallelization**：幾條同時跑的分支在一個 node 會合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
-- **Orchestrator-workers**：一個 node 在執行時決定要派出多少工作，再由一個 node 收攏。edge 是動態的，但形狀仍然是圖。
-- **Evaluator-optimizer**：一個 worker node、一個 checker node，加一條往回的 edge。這就是第 21 章的驗證 loop，放進圖裡變成一個子圖。
+- **Prompt chaining：**一串 node 排成一條路，中間用程式碼把關。
+- **Routing：**一條條件式 edge，分流到各個專門的 node。
+- **Parallelization：**幾條同時跑的分支在一個 node 會合。可以是拆工作（sectioning），也可以是同一件事跑多次投票（voting）。
+- **Orchestrator-workers：**一個 node 在執行時決定要派出多少工作，再由一個 node 收攏。edge 是動態的，但形狀仍然是圖。
+- **Evaluator-optimizer：**一個 worker node、一個 checker node，加一條往回的 edge。這就是第 21 章的驗證 loop，放進圖裡變成一個子圖。
+
+各家的講法還沒統一。同樣的東西，`ai-agent-book` 用的詞是「collaboration topology」和「orchestration」，「graph engineering」它只在術語註記裡提了一句。
+這一章還是用自己的名字，因為它講的就是一張寫在程式碼裡的圖。你去看別的來源時，對照的是機制，不是那個詞。
 
 ### 什麼時候不要畫圖
 
@@ -105,36 +108,71 @@ edges = {
 }
 ```
 
+### 延伸閱讀
+
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
+
+**Phase node：**phase node 把一件工作拆成好幾個階段來跑，而每個階段共用同一份 `messages[]`。
+Explore、implement、review 是同一件工作的三個階段，不是三件工作。
+前一個階段查到什麼，trajectory 就帶到下一個階段，所以沒有哪個階段需要把任務從頭再讀一遍。
+
+**每個 phase 的 tool：**每個 phase 有自己的 system prompt，也有自己的一套 tool，換 phase 的時候 harness 兩樣一起換掉。
+history 原封不動留著，所以沒有東西要打包給下一個 phase。書裡寫的三個 phase 是：
+
+- **Explore：**讀取和搜尋。
+- **Implement：**編輯和執行。
+- **Review：**讀取，再加一個回傳結論的 tool。
+
+**Gate tool：**model 想離開一個 phase，就呼叫一個 gate tool，例如 `finish_exploring`。
+harness 把這個呼叫當成 edge，接著開始下一個 phase。gate 是唯一的出口，所以一個 phase 什麼時候結束，是 harness 說了算，不是 model。
+
+**路線：**先跑 explore，再跑 implement，最後 review。review 沒過就把執行送回 implement，
+implement 接著往下做，review 寫的東西本來就在 trajectory 裡。用這一章的講法，這就是一條路加一條往回的 edge，
+跟前面的 evaluator-optimizer 同一個形狀。
+
+**要掛哪一種：**分支之間沒關係，就用全新的 `messages[]`；幾個 node 是同一件工作的不同階段，就留同一條 trajectory。
+全新的 `messages[]` 讓每個 node 的 window 都很小，分支之間也互不干擾。
+只留一條 trajectory 則是前面查到的東西都還看得到，但路愈長，被吃掉的 window 也愈多。這是 context 怎麼分配的問題（第 8 章）。
+
+**這樣算不算 multi-agent：**書把這個做法算成 multi-agent，理由是每個 phase 的 prompt 和 tool 都換掉了。
+這個 repo 則算成同一個 agent 換了 prompt 和 tool。用哪個名字，機制都是同一個，所以引用這個結果的時候，先講清楚你用的是哪個定義。
+
+**只有一個來源：**這個做法的依據是書裡自己做的實驗，沒有第三方的報告佐證。
+
 ---
 
 ## 各系統做法
 
 各個 agent 怎麼決定下一步跑什麼。
 
-|                        | Claude Code                                                                | Hermes Agent                                       | mini-swe-agent                                                   |
-| ---------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| **Pros**         | Routing 是程式碼：不花 token、不會變來變去。續跑時跑完的 node 從紀錄重放。 | 不用事先畫圖，任務長什麼樣，結構就長什麼樣。       | 整張圖一眼就能看完。                                             |
-| **Cons**         | 圖活在單次執行的 script 裡，不是可以重用的宣告式圖。                       | Routing 花 model 的 token，每次跑可能不一樣。      | 所有任務共用同一個形狀，沒有分支可以特化。                       |
-| **Why**          | 把編排當成程式：script 寫好一次，harness 每次都決定性地執行。              | 假設助理型工作太開放，結構沒辦法預先宣告。         | 一個 baseline：所有選擇都留在 model 裡，harness 只留一個 cycle。 |
-| **How: nodes**   | 一個 node 一個 subagent，回傳通過 schema 驗證的結構化輸出。                | 委派出去的 subagent，深度和並行數都有上限。        | 兩個：一個 model step、一個 environment step。                   |
-| **How: routing** | 階段之間用普通的 script 程式碼：條件、迴圈、pipeline、平行分派。           | model 用 tool call 選路，沒有寫在程式碼裡的 edge。 | 一個固定的 cycle，跑到 model 提交或 budget 用完為止。            |
-| **How: state**   | 階段的回傳值往下傳；journal 記下每個 node 的輸出供續跑。                   | 結果經過 completion queue 回到呼叫端。             | message list 就是全部的 state。                                  |
+| | Claude Code | Hermes Agent | mini-swe-agent |
+| --- | --- | --- | --- |
+| **Pros** | Routing 是程式碼：不花 token、不會變來變去。續跑時跑完的 node 從紀錄重放。 | 不用事先畫圖，任務長什麼樣，結構就長什麼樣。 | 整張圖一眼就能看完。 |
+| **Cons** | 圖活在單次執行的 script 裡，不是可以重用的宣告式圖。 | Routing 花 model 的 token，每次跑可能不一樣。 | 所有任務共用同一個形狀，沒有分支可以特化。 |
+| **Why** | 把編排當成程式：script 寫好一次，harness 每次都決定性地執行。 | 假設助理型工作太開放，結構沒辦法預先宣告。 | 一個 baseline：所有選擇都留在 model 裡，harness 只留一個 cycle。 |
+| **How: nodes** | 一個 node 一個 subagent，回傳通過 schema 驗證的結構化輸出。 | 委派出去的 subagent，深度和並行數都有上限。 | 兩個：一個 model step、一個 environment step。 |
+| **How: routing** | 階段之間用普通的 script 程式碼：條件、迴圈、pipeline、平行分派。 | model 用 tool call 選路，沒有寫在程式碼裡的 edge。 | 一個固定的 cycle，跑到 model 提交或 budget 用完為止。 |
+| **How: state** | 階段的回傳值往下傳；journal 記下每個 node 的輸出供續跑。 | 結果經過 completion queue 回到呼叫端。 | message list 就是全部的 state。 |
 
 ---
 
 ## 哪裡會出錯
 
-- **Model 當 router（Model as router）**：把選路交給 model，燒 token、增加延遲，而且每次跑不一樣。最上游選錯一次，後面全部跟著錯。
+- **Model 當 router（Model as router）：**把選路交給 model，燒 token、增加延遲，而且每次跑不一樣。最上游選錯一次，後面全部跟著錯。
   緩解：轉移用程式碼判斷；model 呼叫留給需要判斷的 node。
-- **過度畫圖（Over-graphing）**：需要探索的任務被固定的圖框住，解法要走的路被擋掉。
+- **過度畫圖（Over-graphing）：**需要探索的任務被固定的圖框住，解法要走的路被擋掉。
   緩解：只把本來就要強制執行的結構寫進圖裡；開放式的工作留給普通的 loop。
-- **沒有失敗的路（No failure edge）**：負責檢查的 node 遇到 FAIL 卻無路可送，爛輸出就一路流到下游。
+- **沒有失敗的路（No failure edge）：**負責檢查的 node 遇到 FAIL 卻無路可送，爛輸出就一路流到下游。
   緩解：每個檢查 node 都給一條帶 budget 的往回 edge（第 21 章）。
-- **沒有上限的 cycle（Unbounded cycle）**：沒有上限的重試 edge 會永遠繞下去。緩解：harness 強制執行的 step budget；budget 用完就交給人。
-- **State 膨脹（State bloat）**：每個 node 都把完整輸出倒進共用的 state，後面的 node 被淹沒。
+- **沒有上限的 cycle（Unbounded cycle）：**沒有上限的重試 edge 會永遠繞下去。緩解：harness 強制執行的 step budget；budget 用完就交給人。
+- **State 膨脹（State bloat）：**每個 node 都把完整輸出倒進共用的 state，後面的 node 被淹沒。
   緩解：嚴格的 state 邊界；node 只讀需要的子集，只回傳自己的更新（第 8 章）。
-- **跑到一半掛掉（Mid-run death）**：一張長圖在第七個 node 掛掉，重來卻從第一個 node 開始。
+- **跑到一半掛掉（Mid-run death）：**一張長圖在第七個 node 掛掉，重來卻從第一個 node 開始。
   緩解：記下每個 node 的輸出；續跑時跑完的 node 從紀錄重放（第 11、12 章）。
+- **Phase 走不完（Phase that never ends）：**model 一直不呼叫 gate tool，這個 phase 就用同一份 prompt、同一套 tool 一直做下去，只有 budget 停得了它。
+  緩解：gate 是唯一的出口；每個 phase 各自有 step budget；budget 用完就往下一個 phase 走，或者交給人。
+- **Trajectory 背著每個 phase（Trajectory that carries every phase）：**只有一條 trajectory，每過一個 phase 就長一截。裡面還留著現在沒掛的 tool 的呼叫紀錄，model 可能會再叫一次。
+  緩解：在 phase 的 prompt 裡寫清楚現在是哪個 phase、有哪些 tool；叫到沒掛的 tool 就回一個清楚的錯誤；跑完的 phase 拿去 compact（第 8 章）。
 
 ---
 
@@ -163,3 +201,6 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Claude Code](https://code.claude.com/docs)：`Workflow` script 的約定（pipeline、平行分派、結構化輸出、續跑）。內容依據 tool schema 和文件記載的行為，不是 source backup。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 與 budget、`run/benchmarks/swebench.py`。
+- [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版為準）：
+  在同一條 trajectory 上做多階段角色轉換：每個 phase 一份 system prompt 和一套 tool，phase 之間用 tool call 當關卡，review 可以繞回實作。
+  這個做法的證據只有書裡自己做的實驗。同一章主要用的詞是「collaboration topology」和「orchestration」。
