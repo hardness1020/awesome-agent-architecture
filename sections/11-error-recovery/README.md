@@ -107,9 +107,7 @@ response = recovery.with_retry(
 
 ### Further reading
 
-The designs below come from ai-agent-book's account of production agents. None of them is implemented in this section's `src/`.
-None of them is confirmed behaviour of the systems in the table either. Read them as designs, not as findings.
-Retry and backoff cover the API layer. These blocks cover the other three.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **Catching a loop that never raises.** Say the agent runs a test file, reads the same error, and runs the same test file again.
 Nothing throws, so no retry path fires and no bound is reached. This is a control-flow failure, and it needs a detector of its own.
