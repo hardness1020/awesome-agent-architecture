@@ -125,8 +125,7 @@ loop 不用改。讀取 skill 就是一次普通的工具呼叫，tool 結果照
 
 ### 延伸閱讀
 
-底下這些做法，`src/` 都沒有實作。它們來自 ai-agent-book 對正式環境 agent 的整理，還有一些廠商文件。
-上面各系統表格裡的那兩套系統，也沒有被證實就是這樣做的。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book 和廠商文件，也未經下面表格的系統證實。
 
 **catalog 要花多少成本：**progressive disclosure 讓一個很大的 skill store 變便宜，但沒有讓它變免費。
 catalog 就在 prefix 裡，prefill 時要被讀一次，之後每個 turn 都要再送一次。

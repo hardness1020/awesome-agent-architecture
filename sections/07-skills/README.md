@@ -127,8 +127,7 @@ Keep skill bodies short and point to files for large references.
 
 ### Further reading
 
-None of what follows is in `src/`. It comes from ai-agent-book's account of production agents, plus vendor documentation.
-It is not confirmed behaviour of the two systems in the per-system table.
+None of this is in `src/`. It comes from ai-agent-book and vendor docs, and is not confirmed of the systems in the table.
 
 **What the catalog costs.** Progressive disclosure lowers the cost of a large skill store. It does not make it free.
 The catalog sits in the prefix, so it is read once at prefill and re-sent on every turn after that.
