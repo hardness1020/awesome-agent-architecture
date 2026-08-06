@@ -110,8 +110,7 @@ edges = {
 
 ### Further reading
 
-What follows is a design from ai-agent-book, which writes up agents running in production.
-This section's runnable does not build it, and the systems in the table below are not confirmed to work this way.
+None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
 
 **Phase node.** A phase node runs one job as a series of stages, and every stage shares one `messages[]`.
 Explore, implement, and review are stages of a single piece of work, not three separate jobs.

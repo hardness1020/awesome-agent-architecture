@@ -110,8 +110,7 @@ edges = {
 
 ### 延伸閱讀
 
-下面這個做法出自 ai-agent-book，那本書寫的是真的跑在產品裡的 agent。
-這一章的可執行程式沒有做這件事，下面表格裡那幾個系統，也沒有證據說它們是這樣做的。
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
 
 **Phase node：**phase node 把一件工作拆成好幾個階段來跑，而每個階段共用同一份 `messages[]`。
 Explore、implement、review 是同一件工作的三個階段，不是三件工作。
