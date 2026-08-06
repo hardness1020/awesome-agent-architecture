@@ -8,11 +8,11 @@ An agent runs unattended, takes side effects, and spends money. A model call is 
 
 Without instrumentation you cannot answer the basic questions. What did it do. How often did a tool fail. What did this session cost.
 
-This section owns the record: one trace per run, spend attributed to the task that caused it, and events clean enough to store and share.
+This section owns the record. It writes down what each step did and what it cost, and it keeps that record clean enough to store.
 
-Whether a change made quality better or worse is a separate job with its own section (section 23). It runs on what this section records.
+Whether a change made quality better or worse is a different job. Section 23 does that job, and it runs on what this section records.
 
-Leave the record out and every cost spike is a surprise, every bug report is unreproducible, and the eval set has nothing real to draw from.
+Leave the record out and every cost spike is a surprise. Every bug report is unreproducible. The eval set has nothing real to draw from.
 
 ---
 
@@ -27,14 +27,12 @@ Telemetry runs inline: each step calls a fire-and-forget logger.
 Events go to sinks, destinations such as the terminal, a file, or a backend like Datadog.
 The logger queues events until a sink attaches, then samples, scrubs sensitive fields, and fans out.
 
-Evaluation runs offline against its own task set (section 23). This section is where those tasks come from.
+Evaluation runs offline against its own task set (section 23). What this section records is what that task set is built from.
 
 - `emit` never blocks and never raises, so a logging fault cannot stall or crash the loop (section 1).
 - Events buffer in a queue until a sink attaches, then drain, so the loop can log before telemetry is ready.
 - Sampling drops events by rate; scrubbing keeps only allowlisted fields, so code and paths never leak.
-- A parent link on each event turns the flat stream into one tree per run, which is what makes a finished run readable.
-- Cost accumulates per model into one USD total, and per task, so a single runaway run is visible instead of averaged away.
-- Scrubbed traces of failed and expensive runs become eval tasks, so the offline suite tracks what production actually sees.
+- Cost accumulates per model into one USD total, surfaced live and on exit.
 
 ### New: fire-and-forget event logging
 
@@ -62,21 +60,6 @@ def _deliver(self, name, meta):
 - `scrub` keeps only `SAFE_FIELDS`, so a value not known safe (code, a file path, a prompt) never reaches a backend.
 - A sink that throws is swallowed, so one broken backend cannot stall or crash the loop.
 
-### Spans, not flat events
-
-A flat stream says a call happened. It does not say which step it belonged to. One request fans out into model calls, tool calls, and retrievals,
-some nested, some in parallel, and putting that back together by timestamp is guesswork.
-
-A trace is one run. A span is one unit of work inside it. Each span carries a start time, a duration, a status, and the id of its parent,
-so the spans of a run form a tree. Reading the tree top down shows which step failed, which one was slow, and what each subtree cost.
-
-Two conventions carry it. OpenTelemetry defines the span itself: trace id, parent link, timings, status, attributes.
-OpenInference names the LLM-specific attributes on top of it: prompt, completion, model, token counts, tool call.
-Instrument once against those names and the backend becomes a deployment choice, not a rewrite.
-
-Export stays off the hot path for the same reason `emit` does. Spans queue and flush in batches from a background worker, so a slow collector costs the run nothing.
-This section's `emit` is the flat version of all this. Adding a trace id and a parent span id to the same events is the whole upgrade.
-
 ### New: per-model cost and offline eval
 
 Cost accumulates per model into one running USD total:
@@ -91,27 +74,10 @@ def add(self, model, input_tokens, output_tokens):    # src/telemetry.py
 ```
 
 - `add` looks up per-token pricing and rolls the spend into `cost_usd`, the number surfaced live and on exit.
-- That total is the coarsest useful number. It says what the session cost, never which task spent it.
+- That total covers the session. It never says which task spent the money.
 
-Agent cost does not grow with the step count. Every turn resends the whole conversation, so a tool result returned on turn two is billed again on turns three, four, and five.
-Each addition to the context is paid for by every turn after it, so total spend climbs closer to the square of the turn count than to the count itself.
-Prompt caching (section 10) and compaction (section 8) each cut part of that, and the savings do not add up: compaction removes the tokens caching would have discounted.
-
-So attribute cost per task, not only per session, and cap it per task. The cap stops a run the way the step limit stops a loop that will not finish (section 1).
-The book chapter this comes from carries no external citation for it, so treat the shape as the author's field account, not a measured curve.
-
-`run_eval` in this section's source is the smallest possible eval: replay a fixed task set against a candidate build, count the passes, return a rate.
-Section 23 puts an environment, a simulated user, and repeat runs under that entry point, and shows why a small drop in the rate is often noise rather than a regression.
-
-### Traces feed the eval set
-
-The two pipelines meet in one direction: production traces become eval tasks.
-
-- **Filter.** Keep the runs worth learning from: errors, runs the user retried or corrected, and runs that cost far above the median. A clean run teaches the suite nothing.
-- **Scrub.** The allowlist that keeps code and paths out of a backend keeps them out of the task file too. A task set carrying a customer's paths cannot be shared.
-- **Replay.** The trace holds the starting state and every tool call, so it rebuilds into a task: this state, this request, this outcome that should have happened.
-
-Run it continuously and the eval set follows the live distribution instead of the one someone guessed at the start. Section 23 grades what lands here.
+`run_eval` here is the smallest eval there is. It replays a fixed task set against a candidate build, counts the passes, and returns a rate.
+Section 23 puts an environment, a simulated user, and repeat runs under the same entry point. It also explains why a small drop in that rate is usually noise.
 
 ### How it integrates
 
@@ -130,6 +96,44 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 - The sink prints each event; the session cost prints at the end; then an offline `run_eval` grades a fixed task set.
 - Everything upstream is unchanged. Observability is a side-observer, not a new step in the loop.
 
+### Further reading
+
+None of what follows is implemented in this section's `src/`. It comes from ai-agent-book's account of production agents and from two external tracing standards.
+It is also not confirmed behaviour of the systems in the table below.
+
+**Spans, not flat events.** A flat event stream says a call happened. It does not say which step the call belonged to.
+One user request can turn into many model calls, tool calls, and retrievals. Some nest inside others. Some run at the same time.
+Sorting that out by timestamp is guesswork.
+
+A trace is one run. A span is one piece of work inside that run. Each span records when it started, how long it took, whether it failed, and which span is its parent.
+The spans of a run therefore form a tree. Read the tree from the top and you see which step failed, which step was slow, and what each branch cost.
+
+Two standards cover this. OpenTelemetry defines the span: a trace id, a parent id, timings, a status, and free-form attributes.
+OpenInference adds the names for LLM work: the prompt, the completion, the model, token counts, the tool call.
+Write the instrumentation once against those names. Switching backend then becomes a config change, not a rewrite.
+
+Export has to stay off the hot path, for the same reason `emit` does. Spans go into a queue and a background worker sends them in batches.
+A slow collector then costs the run nothing. This section's `emit` is the flat version. Add a trace id and a parent id to the same events and you have the tree.
+
+**Nonlinear cost and per-task caps.** Cost does not track step count. Every turn resends the whole conversation.
+A tool result that came back on turn two is paid for again on turns three, four, and five.
+Anything added to the context is paid for by every turn after it, so the total climbs faster than the number of turns.
+
+Prompt caching (section 10) and compaction (section 8) each cut part of the bill, and the two savings do not add up.
+Compaction removes the same tokens caching would have discounted.
+
+One session total hides all of this. So track cost per task, and give each task a ceiling.
+The ceiling stops a run the way the step limit stops a loop that will not finish (section 1).
+The book is the only source here and cites nothing external for it, so read this cost model as one author's field account.
+
+**Traces feed the eval set.** The two pipelines meet in one direction. Production traces become eval tasks.
+
+Pick the runs worth keeping: the ones that errored, the ones a user retried or corrected, and the ones that cost far more than the rest. A run that went fine adds nothing.
+Scrub them first. The allowlist that keeps code and paths out of a backend keeps them out of the task file too.
+Then rebuild each one into a task. A trace holds the starting state and every tool call, so it supplies both the setup and the result the run should have reached.
+
+Do this continuously and the eval set follows what users actually do. Section 23 grades whatever lands there.
+
 ---
 
 ## Per system
@@ -139,7 +143,7 @@ How each agent emits telemetry, tracks spend, and feeds the eval set.
 | | Claude Code | mini-swe-agent |
 | --- | --- | --- |
 | **Pros** | Rich production visibility, cheap and safe. A bad sink never stalls the loop. | Even a crashed run leaves a file. Files double as audit log and eval corpus. |
-| **Cons** | Says what happened, not whether it was good. Flat events, so a run is reassembled by hand. | Almost no production telemetry. No live event stream to watch. |
+| **Cons** | Only says what happened, not if the answer was good. Sampling and scrubbing drop part of the record. | Almost no production telemetry. No live event stream to watch. |
 | **Why** | Production must be watched for crashes and cost spikes, without touching the loop. | Quality is graded offline by benchmark, so the full run record matters most. |
 | **How: telemetry** | Events queue until a sink attaches, then sample, scrub, and fan out. | One trajectory file per run: messages, config, cost, exit status, saved each step. |
 | **How: cost tracking** | Per-model tokens priced into one session USD total, shown on exit. | litellm prices each call into run and global totals; unknown models raise errors. |
@@ -149,11 +153,11 @@ How each agent emits telemetry, tracks spend, and feeds the eval set.
 
 ## Failure modes
 
-- **Telemetry on the hot path.** A logging call that blocks or throws stalls the loop (section 1), and so does a span exporter that waits on the network.
+- **Telemetry on the hot path.** A logging call that blocks or throws stalls the loop (section 1). A span exporter that waits on the network does the same.
   Mitigation: fire-and-forget with a pre-sink queue, a per-sink killswitch, and batched export from a background worker.
-- **Sensitive data leaks into logs.** Code, file paths, or prompts land in a general-access backend, or in a task file built from a trace.
+- **Sensitive data leaks into logs.** Code, file paths, or prompts reach a general-access backend, or a task file built from a trace.
   Mitigation: allowlist loggable fields and scrub the rest before fan-out or storage.
-- **A flat stream with no parent link.** Nothing says which model call belonged to which step, so a failed run has to be reassembled by timestamp.
+- **A flat stream with no parent link.** Nothing says which model call belonged to which step, so a failed run has to be pieced together by timestamp.
   Mitigation: a trace id and a parent span id on every event, under naming conventions the backend already understands.
 - **Cost drift goes unnoticed.** A model swap or a runaway loop multiplies spend, and one session total hides the single task that burned it.
   Mitigation: per-model and per-task totals surfaced live and on exit, a per-task cap, and the loop's step ceiling (section 1).
