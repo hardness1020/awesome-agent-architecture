@@ -10,6 +10,16 @@
 
 一次錯誤的工具呼叫可能刪除檔案、洩漏機密，或推送錯誤的程式碼。信任模型不是一道安全邊界。程式必須在執行前檢查請求。
 
+原因很單純：模型讀進去的文字，很多不是你寫的。一個網頁、一則 issue 留言、repo 裡的一個檔案，都可能夾帶對 agent 下的指令。
+這些指令能造成多大的傷害，看三種能力：agent 讀得到私密資料、agent 會讀進不可信的內容、agent 送得出資料。
+三樣只湊到兩樣還撐得住。三樣同時到齊，被注入的那段文字就能叫 agent 打開機密，再把它送到外面去。這個組合叫做 lethal trifecta。
+
+持久化的 memory 會讓情況更糟。被注入的指令一旦寫進 memory 檔案（第 9 章），下一次 session 就會把它讀回來。
+一次注入因此在原本那段對話早就結束之後，還繼續有效。
+
+這三種能力，gate 拿不掉。什麼都不能讀、什麼都連不到的 agent 也做不了事。所以 gate 改做另外兩件事：
+一是在會湊齊這三樣的呼叫前面擺一道決策，二是在放行的呼叫後面擺一個沙箱。
+
 permission 層必須做到：
 
 1. 在每個工具呼叫執行前先檢視它。
@@ -79,6 +89,47 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 真實系統會加上規則優先序、記住的核准，以及沙箱化的執行。這些都是同一個 gate 的延伸。
 
+### 延伸閱讀
+
+以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
+
+**先看懂指令，不要比對字串：**agent 要求跑一條 shell 指令。`decide()` 只看得到一個工具名稱，所以真正要判斷的是那串指令。
+一般的做法是拉一份字串 deny 清單，而這招會失敗。`rm -rf /` 很好抓，下面這幾條會過：
+
+- `find . -exec rm {} \;` 把刪除塞在 flag 裡面。
+- `$(echo rm) -rf /` 是 shell 跑的時候才把 `rm` 這個字拼出來。
+- `curl -o /etc/crontab` 寫了一個檔案，卻沒用到任何一個寫入指令。
+
+解法是換一個解析器，讓它讀結構而不是讀字面。它先把指令拆成程式和參數，也知道哪些 flag 後面要吃掉一個值，所以分得出參數和 flag。
+接著它問每個程式會做什麼。`-exec` 自己帶一條指令，那條指令也要一起檢查。`-o` 指的是要寫入的檔案，那個路徑就當成一次寫入來檢查。
+
+代價是解析器得為每個程式準備一套規則。它不認識的程式就讀不懂，所以沙箱還是要擋在它後面。
+
+**結果對了，過程也可能要擋：**一張壞掉的資料表有兩種修法，最後都會得到一張好的資料表：一種是做 migration，
+另一種是把它砍掉整個重建。結果檢查（第 21 章）兩種都會放行，因為它只看終態。
+
+解法是連路線一起管，不是只管終點。就算重建出來的資料表是對的，砍掉重建這個動作照樣要擋。
+代價是真的該重建的時候，也得找人來核准。
+
+**沙箱擋掉哪些東西：**gate 也會判斷錯。沙箱的作用，就是讓判斷錯的那次 `allow` 不要付出太大代價。有三個限制做掉大部分的工。
+
+- **Egress：**網路預設擋掉，放行的流量走一個握有 host 允許清單的 proxy。
+  三隻腳裡，這一隻砍起來最便宜。agent 照樣讀程式碼、照樣寫檔案，只是哪裡都送不出去。
+- **Mount：**原始碼用唯讀掛載。憑證檔案一個都不要掛。只給一個可寫的工作目錄，其他都不給。
+  agent 打不開的檔案，就外洩不出去。
+- **Quota：**CPU、記憶體、磁碟、wall clock 時間都設上限。踩到上限的時候，回一個錯誤當 tool result，
+  不要無聲把 process 殺掉。模型讀得到 timeout，就知道換一條短一點的指令。無聲殺掉，它什麼都讀不到。
+
+**要問使用者，但不要讓他等兩次：**gate 回傳 `ask`，使用者現在就在等。如果檢查本身也慢，那在提示框出現以前，他已經先等過一次了。
+推測式檢查把前面那一次等待拿掉。順序是這樣：
+
+- harness 把 permission 檢查丟到背景跑。
+- 畫面上馬上先顯示一行進度。那行進度不會改動系統上的任何東西。
+- 如果那行還在顯示的時候檢查就回了 `allow`，工具直接執行，提示框不會出現。
+- 如果檢查還沒定案，那行進度就換成確認提示。
+
+這樣為什麼還是安全的：提早跑的只有檢查，工具本身還是要等檢查給答案。
+
 ---
 
 ## 各系統做法
@@ -99,11 +150,15 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 ## 哪裡會出錯
 
-- **Pattern-match bypass：**字串式的 deny 清單會漏掉 shell 的各種變體。優先採用行為檢查與沙箱化，而不是原始的子字串比對。
+- **Pattern-match bypass：**字串式的 deny 清單會漏掉 shell 的各種變體。先把指令解析出來，看它實際會做什麼，再讓沙箱擋在解析器後面。
 - **Mode 開得太寬：**一條範圍過大的 allow 規則或 bypass mode，可能讓後續的高風險呼叫悄悄執行。限縮 bypass 的範圍，並讓目前的 mode 顯示出來。
 - **核准疲勞：**每次呼叫都詢問，會訓練使用者不看內容就核准。預先核准低風險的類別，但讓破壞性動作維持明確詢問。
 - **subagent 內的無聲拒絕：**子 agent 可能沒有終端機可以詢問。應把提示往上轉給父 agent 代問，而不是無聲失敗。
 - **沙箱被停用：**若一個被允許的指令在沙箱外執行，permission 提示就是最後一道檢查。任何未沙箱化的路徑都要用政策擋在後面。
+- **被核准的呼叫照樣外洩：**每一次呼叫單獨看都過得了 gate，整個 session 合起來卻還是讀到機密又把它送出去。
+  網路預設就擋掉，第三種能力根本沒得用。
+- **驗得過但很破壞：**砍掉重建也能通過結果檢查，因為終態是對的。要檢查的是動作，不是只有終態。
+- **memory 被下毒：**注入到 memory 檔案裡的指令，之後每一次 session 都會被讀回來。把存下來的 memory 當成不可信的內容，絕不當成操作者的規則。
 
 ---
 
@@ -126,4 +181,9 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`hooks/useCanUseTool.tsx`、`types/permissions.ts`、`utils/permissions/PermissionUpdate.ts`。
 - [Claude Code 沙箱與 web gate](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/shouldUseSandbox.ts`、`tools/WebFetchTool/preapproved.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/interactive.py`、`environments/docker.py`、`environments/extra/bubblewrap.py`。
+- [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
+  memory 把攻擊放大的那個維度、沙箱的 egress 與 mount、quota 政策、語意式的指令解析、推測式 permission 檢查，
+  以及管路徑而不是只管結果。這幾項設計只有這一個來源。
+- [The lethal trifecta for AI agents](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)（Simon Willison）：
+  私密資料、不可信內容、對外通訊，這三種能力不能湊在一起。
 - [learn-claude-code · s03_permission](https://github.com/shareAI-lab/learn-claude-code)：section framing。
