@@ -30,8 +30,8 @@ Memory is a file store plus an index plus on-demand recall.
 
 The loop does not read the whole store. It reads a cheap index, then loads only the few memory files that match the current query.
 
-So the question becomes how a file gets found. A memory file reaches a turn through its index line, or through a link from a file already loaded.
-Nothing scans the bodies, so a file with neither entry point is written but never read.
+So the question becomes how a file gets found. Recall ranks one index line per file. It opens a body only after a file is picked.
+The index line is the only way in.
 
 There are four operations:
 
@@ -158,6 +158,12 @@ if response.stop_reason != "tool_use":
 - `memory=None` keeps the section-8 loop behavior.
 - Recalled text enters `messages[]`, so context management can later compact it.
 
+### Further reading
+
+`src/` keeps one flat directory and globs it, so every file lands in the index for free. Larger stores give that up.
+They maintain a written index file, and they let memory files link to each other. Recall can then follow a link out of a file it already loaded.
+OpenViking builds a knowledge store this way: files with URIs, layered summaries, and wiki-style cross-links. None of it is in `src/`.
+
 ---
 
 ## Per system
@@ -184,8 +190,8 @@ How each agent stores, recalls, extracts, and consolidates memory.
 - **Store gets noisy.** Consolidate duplicates and contradictions.
 - **Saving derivable facts.** Do not store facts that grep, git, or source files can answer better.
 - **Extraction misses details.** Compaction may have removed nuance before extraction. Extract near run end and keep important facts in files.
-- **Unlinked memory files.** A file the index does not list, and no other file links to, never reaches recall. It costs disk and answers nothing.
-  Write the index line in the same step that writes the file. Cross-link related files both ways, the way file-system knowledge stores such as OpenViking do.
+- **Unlinked memory files.** The index does not list the file, and no other file links to it. Recall never finds it, so the write was wasted.
+  Write the index line in the same step that writes the file. Link related files to each other.
 
 ---
 
