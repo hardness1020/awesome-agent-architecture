@@ -101,36 +101,54 @@ run_turn([...goal...], lambda m, r, s: model(m, r, SYSTEM), reg, Session(mode=DE
 None of what follows is implemented in this section's `src/`. It comes from ai-agent-book's account of production agents and from two external tracing standards.
 It is also not confirmed behaviour of the systems in the table below.
 
-**Spans, not flat events.** A flat event stream says a call happened. It does not say which step the call belonged to.
-One user request can turn into many model calls, tool calls, and retrievals. Some nest inside others. Some run at the same time.
+**Spans, not flat events.** A span is one piece of work inside a run: a model call, a tool call, a retrieval. A trace is the whole run.
+Every span records:
+
+- when it started and how long it took,
+- whether it succeeded,
+- which span is its parent,
+- free-form attributes describing the work.
+
+The parent link is the one that matters. It turns the spans of a run into a tree, so reading the tree from the top shows which step failed,
+which step was slow, and what each branch cost.
+
+Flat events cannot do that. An event says a call happened, not which step the call belonged to.
+One user request can turn into many model calls, tool calls, and retrievals, some nested inside others, some running at the same time.
 Sorting that out by timestamp is guesswork.
 
-A trace is one run. A span is one piece of work inside that run. Each span records when it started, how long it took, whether it failed, and which span is its parent.
-The spans of a run therefore form a tree. Read the tree from the top and you see which step failed, which step was slow, and what each branch cost.
+Two standards fix the shape of a span, so the backend never has to be guessed at:
 
-Two standards cover this. OpenTelemetry defines the span: a trace id, a parent id, timings, a status, and free-form attributes.
-OpenInference adds the names for LLM work: the prompt, the completion, the model, token counts, the tool call.
-Write the instrumentation once against those names. Switching backend then becomes a config change, not a rewrite.
+- OpenTelemetry defines the span itself: trace id, parent id, timings, status, attributes.
+- OpenInference names the LLM work on top of it: prompt, completion, model, token counts, tool call.
 
-Export has to stay off the hot path, for the same reason `emit` does. Spans go into a queue and a background worker sends them in batches.
-A slow collector then costs the run nothing. This section's `emit` is the flat version. Add a trace id and a parent id to the same events and you have the tree.
+Write the instrumentation once against those names, and switching backend becomes a config change, not a rewrite.
 
-**Nonlinear cost and per-task caps.** Cost does not track step count. Every turn resends the whole conversation.
-A tool result that came back on turn two is paid for again on turns three, four, and five.
-Anything added to the context is paid for by every turn after it, so the total climbs faster than the number of turns.
+Export follows the same rule as `emit`: it stays off the hot path. Spans go into a queue and a background worker sends them in batches,
+so a slow collector costs the run nothing. This section's `emit` is the flat version of all this.
+Add a trace id and a parent id to the same events and the tree is there.
 
-Prompt caching (section 10) and compaction (section 8) each cut part of the bill, and the two savings do not add up.
-Compaction removes the same tokens caching would have discounted.
+**Nonlinear cost and per-task caps.** Cost tracks how many tokens the model reads, and every turn resends the whole conversation.
+So a tool result that came back on turn two is paid for again on turns three, four, and five.
+Anything added to the context is paid for by every turn after it, and the total climbs faster than the number of turns.
+Step count alone does not predict it.
 
-One session total hides all of this. So track cost per task, and give each task a ceiling.
-The ceiling stops a run the way the step limit stops a loop that will not finish (section 1).
+Two harness features cut part of the bill, and their savings do not add up:
+
+- Prompt caching (section 10) discounts the prefix that stayed the same.
+- Compaction (section 8) drops older turns out of the context.
+
+They overlap: compaction removes the same tokens caching would have discounted.
+
+One session total hides all of this, because it never says which task spent the money.
+So track cost per task, and give each task a ceiling. The ceiling stops a run the way the step limit stops a loop that will not finish (section 1).
 The book is the only source here and cites nothing external for it, so read this cost model as one author's field account.
 
-**Traces feed the eval set.** The two pipelines meet in one direction. Production traces become eval tasks.
+**Traces feed the eval set.** The two pipelines meet in one direction: a production trace becomes an eval task. Three steps turn one into the other.
 
-Pick the runs worth keeping: the ones that errored, the ones a user retried or corrected, and the ones that cost far more than the rest. A run that went fine adds nothing.
-Scrub them first. The allowlist that keeps code and paths out of a backend keeps them out of the task file too.
-Then rebuild each one into a task. A trace holds the starting state and every tool call, so it supplies both the setup and the result the run should have reached.
+- **Pick.** Keep the runs worth learning from: the ones that errored, the ones a user retried or corrected, and the ones that cost far more than the rest.
+  A run that went fine adds nothing.
+- **Scrub.** The allowlist that keeps code and paths out of a backend keeps them out of the task file too.
+- **Rebuild.** A trace holds the starting state and every tool call, so it supplies both the setup for the task and the result the run should have reached.
 
 Do this continuously and the eval set follows what users actually do. Section 23 grades whatever lands there.
 
