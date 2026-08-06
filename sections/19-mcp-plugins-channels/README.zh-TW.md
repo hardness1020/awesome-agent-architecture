@@ -151,28 +151,28 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 底下這段講的是設計，不是程式碼。它出自 MCP 的 spec，以及 ai-agent-book 對正式環境的 agent 怎麼用 MCP 的描述。
 `src/` 一個都沒實作。這裡寫的也不等於下面表格那些系統確認過的行為，真要依賴之前，先看最後的出處。
 
-**三種 primitive，只有一種進池子。** 一個 server 可以提供三種東西，但只有 tool 會進到上面那個池子。
+**三種 primitive，只有一種進池子：**一個 server 可以提供三種東西，但只有 tool 會進到上面那個池子。
 
 - **Tools** 是動作。模型自己挑一個來呼叫。`tools/list` 回傳的就是這些，上面的程式碼包的也是它們。
 - **Resources** 是可以讀的資料，每一筆都有一個 URI：一個檔案、一張表、一頁 wiki。client 把它抓下來，把內容放進 context。模型不會去呼叫它。
 - **Prompts** 是 server 給的範本。它通常是使用者可以下的一個指令，不是模型自己挑的東西。
 
-Claude Code 不會把 resource 一個一個公告出去。它只放兩個工具，一個列出 resource，一個把 resource 讀出來。
+**resource 不會出現在工具清單上：**Claude Code 不會把它們一個一個公告出去，它只放兩個工具，一個列出 resource，一個把 resource 讀出來。
 所以一個放了上千份文件的 server，在工具清單裡還是只佔兩格。
 
-**連上去和公告出去，是兩個決定。** 連上一個 server，換到的是互通；把它的工具公告給模型，花掉的是 context。
+**連上去和公告出去，是兩個決定：**連上一個 server，換到的是互通；把它的工具公告給模型，花掉的是 context。
 前面那件事可以做，後面那件事不一定要做滿。
 
-每一個公告出去的工具，每次 request 都在花 token。名稱、描述、完整的 input schema，全都排在任務前面。
+**公告出去要付什麼代價：**每一個公告出去的工具，每次 request 都在花 token。名稱、描述、完整的 input schema，全都排在任務前面。
 五個 server 加起來，這段文字可能比任務本身還長。清單一長，模型也更容易挑錯工具（第 2 章）。
 
-所以要一個 server 一個 server 決定公告多少，不是全部一起套：
+**公告的程度有三種可以挑：**一個 server 一個 server 決定公告多少，不是全部一起套。
 
 - **全部都公告。** 最單純。適合那種幾乎每一輪都會用到的 server。
 - **只公告一份索引。** 先給名稱和一句話說明。等模型指名要哪個工具，再把完整的 schema 載進來（探索那一側在第 2 章）。
 - **只開一扇門。** 只公告一個工具，參數是 server 名稱和工具名稱，其他都放在它後面。agent 只要付一份 schema，不用付五十份。
 
-protocol 完全沒管這件事。它只規定工具怎麼列、怎麼呼叫。有多少工具會進到 prompt，是 client 自己決定的。
+**protocol 完全沒管這件事：**它只規定工具怎麼列、怎麼呼叫。有多少工具會進到 prompt，是 client 自己決定的。
 所以延後載入是你要去自己的 harness 裡確認的設定，server 不能假設它一定開著。
 
 ---

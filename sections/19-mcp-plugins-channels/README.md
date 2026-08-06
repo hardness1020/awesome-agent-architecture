@@ -160,22 +160,22 @@ What follows is design, not code. It comes from the MCP specification and from a
 - **Resources** are data the client can read, each with a URI: a file, a table, a wiki page. The client fetches one and puts the text in context. The model never calls it.
 - **Prompts** are templates the server hands over. They usually show up as a command the user runs, not as something the model picks.
 
-Claude Code does not advertise resources one by one. It ships two tools, one that lists resources and one that reads them.
+**Resources stay off the tool list.** Claude Code does not advertise them one by one. It ships two tools, one that lists resources and one that reads them.
 So a server holding a thousand documents still costs two entries in the tool list.
 
 **Connecting and advertising are two decisions.** Connecting to a server buys interop. Advertising its tools spends context.
 You can do the first without doing all of the second.
 
-Each advertised tool costs tokens on every request. Name, description, and the full input schema, all of it sits in front of the task.
+**What advertising costs.** Each advertised tool costs tokens on every request. Name, description, and the full input schema, all of it sits in front of the task.
 Five servers can add more text than the task itself. A long list also makes the model pick the wrong tool more often (section 2).
 
-So decide per server how much to advertise, not once for all of them:
+**Three levels to pick from.** Decide per server how much to advertise, not once for all of them:
 
 - **Everything.** Simplest. Right for a server the session uses almost every turn.
 - **An index.** Advertise names and one-line summaries. Load the full schema when the model asks for that tool (section 2 covers the discovery side).
 - **One door.** Advertise one tool that takes a server name and a tool name. The rest stays behind it. The agent pays for one schema, not fifty.
 
-The protocol says nothing about this. It says how to list tools and how to call them. How many of them reach the prompt is up to the client.
+**None of this is in the protocol.** The spec says how to list tools and how to call them. How many of them reach the prompt is up to the client.
 So deferred loading is a setting to check in your own harness. A server cannot assume it is on.
 
 ---
