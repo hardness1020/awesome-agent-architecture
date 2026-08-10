@@ -196,6 +196,12 @@ How each agent composes its outer loops.
 - **Self-grading.** The worker passes its own output, so the verification loop verifies nothing. Mitigation: a separate checker agent and a rubric fixed outside the loop.
 - **Rubber-stamp rubric.** A grader that always passes is worse than none, because it labels bad output as verified.
   Mitigation: adversarial verify (prompt the checker to refute) and periodic human spot checks.
+- **The checker shares the worker's vendor.** A second agent is not a second opinion when both sit behind the same provider.
+  Mitigation: resolve the checker's vendor from the executor backend, drop same vendor voters when an alternative is configured,
+  and record the residual status (`independent`, `unverified`, `same_vendor`) on the run instead of assuming independence.
+- **The hidden rubric leaks through the failure output.** Hiding the grading command from the worker holds only while the string stays hidden.
+  The harness prints its own assertion into the failure tail that feeds the retry, and verbatim redaction misses any transformed copy:
+  a line wrap, a diff prefix, an ANSI color code inside the string. Mitigation: normalize before matching, and fail closed on the tail.
 - **Unattended too early.** A loop gets L3 write access before its L1 reports were ever checked.
   Mitigation: climb the maturity ladder one level at a time, gated by section 3 permissions.
 - **Silent drift.** An unattended loop degrades and nobody reads its output. Mitigation: heartbeats, always-delivered reports, and section 20 metrics on pass rate and cost.
@@ -249,6 +255,10 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Lin et al.](https://arxiv.org/abs/2605.30621): harness updating and harness benefit measured separately, with model swaps used to tell them apart.
 - [AHE](https://arxiv.org/abs/2604.25850) and [Self-Harness](https://arxiv.org/abs/2606.09498): change contracts and bounded candidate spaces for a harness that edits itself.
 - [Claude Code](https://code.claude.com/docs): `/loop`, `ScheduleWakeup`, `Workflow` schema. From tool schemas and documented behavior, not the source backup.
+- [Ouroboros source](https://github.com/Q00/ouroboros): the two failure modes above, read off `orchestrator/contract_redaction.py`
+  (the five encodings a hidden assertion is redacted in), `orchestrator/retry_hints.py` (the deterministic retry hint),
+  `orchestrator/parallel_executor.py` (the `verify_command` gate and its 2000 character output tail),
+  and `evaluation/reviewer_independence.py` (vendor level checker independence and its four statuses).
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `agent/iteration_budget.py`, `cron/scheduler.py`, `tools/skill_manager_tool.py`, `hermes_cli/curator.py`, `agent/trajectory.py`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `AgentConfig` and `query()` in `agents/default.py`, `agents/interactive.py`, `run/benchmarks/swebench.py`.
