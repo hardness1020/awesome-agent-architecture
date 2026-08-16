@@ -182,6 +182,10 @@ benchmark 報告只拿來做一個決定：下一步要改什麼。
 Feature flag 負責分 AB 測試的組別，出事時也是斷路開關。
 每個 commit 都存一份完整展開後的 system prompt，改 prompt 就跟改程式碼一樣，要跑一次評估。
 
+面向產品的測試 agent 能把同一條 loop 落到實處。Agent QA 會在成功 run 後整理 product、suite 與 test observation，
+再把相關 memory 注入後續的測試步驟。這裡改善的是測試 harness 中一個邊界清楚的 feedback loop，
+不代表受測應用自己變好了。
+
 做 AB 測試時，要把你直接動到的機制指標（計畫長度、prompt 大小）和你真正在乎的目標指標（任務成功率、單次會話成本）分開。
 另外留一組護欄指標：就算目標指標變好，護欄一破也要停下實驗。
 
@@ -275,5 +279,7 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [BIG-bench](https://github.com/google/BIG-bench)：每個任務檔案都帶 canary 字串，避免題目被爬進訓練資料。
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746)（Scale AI）：清單式的 rubric，寫明要提到哪些事實、
   要有哪些推理步驟，以及哪些常見錯誤必須扣分。
+- [Agent QA](https://github.com/vostride/agent-qa)：在成功 run 後整理 memory，並把它注入後續的測試步驟；
+  這裡拿它當面向產品的 feedback loop 例子。
 - [Claude Code](https://code.claude.com/docs)：workflow 約定裡的 reviewer 與 judge 階段。
   內容依據 tool schema 和文件記載的行為，不是 source backup。評估套件不在原始碼裡，那幾格都標成重建。

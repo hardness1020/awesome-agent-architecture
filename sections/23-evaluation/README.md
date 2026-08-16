@@ -181,6 +181,10 @@ Inside a product this becomes standing infrastructure. A master switch disables 
 Feature flags carry the AB test arms and double as a kill switch.
 A snapshot of the fully rendered system prompt per commit lets a prompt edit run the eval suite like any other code change.
 
+Product-facing test agents make the same loop concrete. Agent QA curates product, suite, and test observations after successful runs,
+then injects relevant memory into later test steps. This is a scoped feedback loop over the test harness,
+not proof that the application under test improved itself.
+
 For the AB tests, separate the mechanism metric you moved (plan length, prompt size) from the goal metric you care about (task success, session cost).
 Keep guardrail metrics that stop the experiment even when the goal metric improves.
 
@@ -273,5 +277,7 @@ uv run python sections/23-evaluation/src/demo.py  # live demo, needs a key
 - [GAIA](https://arxiv.org/abs/2311.12983): 466 questions with answers withheld for 300 of them, so the leaderboard cannot be scraped.
 - [BIG-bench](https://github.com/google/BIG-bench): the canary string carried in every task file to keep benchmark tasks out of web-scraped training data.
 - [Rubrics as Rewards](https://arxiv.org/abs/2507.17746) (Scale AI): checklist rubrics that name required facts, required reasoning steps, and the pitfalls that must be penalized.
+- [Agent QA](https://github.com/vostride/agent-qa): memory curation after successful runs and runtime injection into later test steps,
+  used as the product-facing feedback-loop example.
 - [Claude Code](https://code.claude.com/docs): the reviewer and judge stages in the workflow contract, from tool schemas and documented behavior, not the source backup.
   Evaluation suites are not present in the source, so those cells are marked as reconstruction.
