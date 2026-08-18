@@ -136,15 +136,15 @@ def _dispatch(block, registry, mode, allow_rules, approver):   # src/loop.py
 
 各個 agent 如何管制副作用、切換 mode，以及記住決策。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | mode、有序規則與沙箱化提供精確的控制。 | 幾分鐘就能稽核完。拒絕會落回對話，模型讀得到原因，loop 繼續跑。 |
-| **Cons** | 要推敲的狀態很多。每條 bypass 或預先核准的路徑都必須保持可見且範圍狹窄。 | 對每條指令一視同仁，而且什麼都不記。 |
-| **Why** | 每次呼叫都問會造成核准疲勞，所以系統會把核准記下來。 | 損害交給環境去限制，一個確認提示加一份 regex 清單就夠了。 |
-| **How: gate point** | 每個工具執行前。Web、MCP 與遠端執行各有核准路徑。 | 每一步的指令執行前。按 Enter 就核准，留言就是拒絕。 |
-| **How: permission modes** | Default、edit-approved、plan、deny 與 bypass，另有內部 mode。 | `human`、`confirm` 與 `yolo`，執行期可用斜線指令切換。 |
-| **How: sandbox** | Bash 可以在沙箱內執行。 | 環境 class 就是沙箱，每次執行挑：主機本身、用完即丟的容器，或在共用主機上包住執行。 |
-| **How: rule persistence** | 規則依優先序從多個來源合併，可存到 session 或 settings。 | 白名單 regex 只寫在 config，符合的指令跳過確認。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | mode、有序規則與沙箱化提供精確的控制。 | 幾分鐘就能稽核完。拒絕會落回對話，模型讀得到原因。 | 拒絕只會收緊，沙箱判定 fail closed。 |
+| **Cons** | 要推敲的狀態很多。bypass 和預先核准的路徑都必須保持狹窄。 | 對每條指令一視同仁，而且什麼都不記。 | 政策分散在 guard、approval、沙箱和 preset 之間。 |
+| **Why** | 每次呼叫都問會造成核准疲勞，所以系統會把核准記下來。 | 損害交給環境去限制，一個確認提示加一份 regex 清單就夠了。 | 每個關注點都是自己獨立的 fail-closed 服務。 |
+| **How: gate point** | 每個工具執行前。Web、MCP 與遠端執行各有核准路徑。 | 每一步的指令執行前。按 Enter 就核准，留言就是拒絕。 | 先跑 pre-execute 事件，再跑只會拒絕的 guard。 |
+| **How: permission modes** | Default、edit-approved、plan、deny 與 bypass。 | `human`、`confirm` 與 `yolo`，執行期可以切換。 | 沙箱 mode 加上 ask 或 never，打包成 preset。 |
+| **How: sandbox** | Bash 可以在沙箱內執行。 | 環境 class 就是沙箱：主機本身、容器，或包住執行。 | provider 逐次把 argv 包起來，拒絕會分類好讀回來。 |
+| **How: rule persistence** | 規則依優先序合併，可存到 session 或 settings。 | 白名單 regex 只寫在 config，符合的指令跳過確認。 | 旋鈕變動是 log 事件，重放折疊出政策。 |
 
 ---
 
@@ -181,6 +181,9 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`hooks/useCanUseTool.tsx`、`types/permissions.ts`、`utils/permissions/PermissionUpdate.ts`。
 - [Claude Code 沙箱與 web gate](https://github.com/yasasbanukaofficial/claude-code)：`tools/BashTool/shouldUseSandbox.ts`、`tools/WebFetchTool/preapproved.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/interactive.py`、`environments/docker.py`、`environments/extra/bubblewrap.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/tools.md`、`docs/subsystems/approval.md`、`docs/subsystems/sandbox.md`、`docs/subsystems/permission-presets.md`、
+  `packages/sandbox/sandbox-local/README.md`、`packages/shell/bash-sandbox/README.md`。
 - [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
   memory 把攻擊放大的那個維度、沙箱的 egress 與 mount、quota 政策、語意式的指令解析、推測式 permission 檢查，
   以及管路徑而不是只管結果。這幾項設計只有這一個來源。

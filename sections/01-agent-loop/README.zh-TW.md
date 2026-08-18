@@ -83,15 +83,15 @@ for user_text in turns:                              # the outer loop: one itera
 
 各個 agent 如何擁有這個 loop，以及如何決定何時停止。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 能串流進度、把關副作用，還能平行執行工具。 | loop 很小，容易閱讀與稽核。 |
-| **Cons** | loop 包在一個更大的 runtime 裡，不能單獨拿出來用。 | 無法把關副作用、串流進度，或平行執行工具。 |
-| **Why** | 核心分支保持不變，功能都加在外圍。 | 小 loop 本身就是目的。偵測任務是否完成的是環境，不是模型。 |
-| **How: loop driver** | 一個 async generator。每個工具透過同一份契約接進 dispatch。 | 一個 while loop。每一步跟模型要一道指令，再執行。 |
-| **How: stop signal** | `stop_reason: end_turn`。 | 附加一則 `role: "exit"` 訊息。由環境偵測提交標記。沒帶指令的回應只算格式錯誤。 |
-| **How: parallel tools** | 有。同一次模型輪次中的工具呼叫可以平行執行。 | 沒有，action 依序執行。 |
-| **How: streaming** | 有。模型 token、工具呼叫與工具結果發生的當下就逐一送出。 | 沒有。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 能串流進度、把關副作用，還能平行執行工具。 | loop 很小，容易閱讀與稽核。 | loop 可以整個換掉，每個階段都能攔截，log 可以重放。 |
+| **Cons** | loop 包在一個更大的 runtime 裡，不能單獨拿出來用。 | 無法把關副作用、串流進度，或平行執行工具。 | 活動零件最多。得先懂 turn、step、inbox 這套詞彙。 |
+| **Why** | 核心分支保持不變，功能都加在外圍。 | 小 loop 本身就是目的。偵測任務是否完成的是環境，不是模型。 | loop 就是眾多 plugin 裡的一個。 |
+| **How: loop driver** | 一個 async generator。每個工具透過同一份契約接進 dispatch。 | 一個 while loop。每一步跟模型要一道指令，再執行。 | 一個可換掉的 plugin，跑在一份 durable 事件 log 上。 |
+| **How: stop signal** | `stop_reason: end_turn`。 | 由環境偵測提交標記，附加一則 `role: "exit"` 訊息。 | 模型沒欠任何事、檢查點沒反對，或 tool result 帶 `concludesTurn`。 |
+| **How: parallel tools** | 有。同一次模型輪次中的工具呼叫可以平行執行。 | 沒有，action 依序執行。 | 有。exclusive 呼叫形成 barrier，安全呼叫共用一個有上限的池。 |
+| **How: streaming** | 有。模型 token、工具呼叫與工具結果發生的當下就逐一送出。 | 沒有。 | 有。串流 chunk 以 durable 事件寫進 session log。 |
 
 ---
 
@@ -125,4 +125,6 @@ uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`query/`、`Tool.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py`、`exceptions.py`、`environments/local.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/architecture.md`、`docs/agent-lifecycle.md`、`docs/subsystems/core.md`、`packages/core/agent-loop/src/agent.ts`、`packages/core/agent/src/types.ts`。
 - [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

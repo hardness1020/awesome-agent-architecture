@@ -66,6 +66,7 @@
 | **Claude Code**    | 目前最强的 coding agent：改文件、跑命令，直接在真实 repo 里完成改动。 | 完整 harness 架构，从这里读起         | 0 到 23（全部）           | v2.1.88   |
 | **Hermes Agent**   | 长期助理：记得你、学会你的工作流程，还能跨平台跑任务。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22  | v2026.7.1 |
 | **mini-swe-agent** | 研究基准：一个 bash 工具，约 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 23 | v2.4.5    |
+| **deepseek-harness** | Plugin 优先的 harness：每个部件（连 loop 在内）都是可替换的 plugin。 | Plugin 接缝、durable session log、ACP | 1 到 8、10 到 14、16 到 21 | dsh-v0.1.0-rc.7 |
 | *(更多陆续加入)*       |                                                                       |                                       |                           |           |
 
 > 之后可以再加入更多系统，例如 OpenClaw 和 aider。
@@ -187,6 +188,7 @@ uv run python sections/01-agent-loop/src/demo.py  # 实时
 - [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code 源码备份，用来对照机制名称与实现路径。
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): 开源 agent harness（MIT），作为第二个研究系统。
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): 极简 SWE agent（MIT），作为第三个研究系统。
+- [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): 基于 plugin 的 agent harness（MIT），作为第四个研究系统。
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): 以代码为主的 harness 重建与章节架构。
 - [Anthropic Agent Skills 最佳实践](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): skills 的渐进式披露层级。
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache 断点、TTL、计价与 token 下限。

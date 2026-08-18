@@ -66,6 +66,7 @@ Each system is a worked example for the sections below.
 | **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 23 (all)        | v2.1.88         |
 | **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
 | **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20 to 23 | v2.4.5 |
+| **deepseek-harness** | Plugin-first harness: every part, including the loop, is a replaceable plugin. | Plugin seams, durable session log, ACP | 1 to 8, 10 to 14, 16 to 21 | dsh-v0.1.0-rc.7 |
 | *(more soon)*        |                                                                                 |                                    |                      |                 |
 
 > More systems can be added later, including OpenClaw and aider.
@@ -187,6 +188,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full PR checklist.
 - [claude-code](https://github.com/yasasbanukaofficial/claude-code): Claude Code source backup used for mechanism names and implementation paths.
 - [hermes-agent](https://github.com/NousResearch/hermes-agent): Open-source agent harness (MIT) used as the second system under study.
 - [mini-swe-agent](https://github.com/swe-agent/mini-swe-agent): Minimal SWE agent (MIT) used as the third system under study.
+- [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness): Plugin-based agent harness (MIT) used as the fourth system under study.
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code): Code-first harness reconstruction and section framing.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): Progressive disclosure levels for skills.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): Cache breakpoints, TTLs, pricing, and token minimums.

@@ -187,15 +187,15 @@ MCP-Zero 让 agent 说出自己缺哪一种能力，系统先找到对应的 ser
 
 各个 agent 如何定义工具、路由调用、处理并行，以及公开一份庞大目录。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 每个工具各自带验证、权限、安全并行和延迟探索。 | 单一 `bash` 工具小得多，也没有目录要维护。 |
-| **Cons** | 每个工具都得背一份契约。 | 验证和权限做不到 per-tool。跑命令前的确认（第 3 章）看到的只有一条命令字符串。 |
-| **Why** | 新增一项能力，应该就只是注册一个工具，loop 维持不变。 | 假设每个行动都能写成一条 shell 命令，所以一个工具就够了。 |
-| **How: tool definition** | schema、handler 与判定式。 | 一份写死的 `bash` schema 就是整份目录，只有一个命令字段，别的名称一律报错。 |
-| **How: dispatch** | 依名称查表，含别名。工具池依权限筛选，并合并 MCP 工具。 | 没有 registry，每次调用都是一条 shell 命令。 |
-| **How: parallel calls** | 安全调用批量执行，不安全的单独执行。安全标记默认关闭。 | 没有。旧版文本模式每次响应只允许一个 action。 |
-| **How: discovery** | 先给名称。完整 schema 依精确名称或关键字按需加载。 | 只有一个工具，不需要。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 每个工具各自带验证、权限、安全并行和延迟探索。 | 单一 `bash` 工具小得多，也没有目录要维护。 | 每个 agent 有自己的工具集，每次调用都走同一条可审计的 pipeline。 |
+| **Cons** | 每个工具都得背一份契约。 | 验证和权限做不到 per-tool。gate 看到的只有一条命令字符串。 | 再简单的工具也得声明 output 契约。 |
+| **Why** | 新增一项能力，应该就只是注册一个工具，loop 维持不变。 | 假设每个行动都能写成一条 shell 命令，所以一个工具就够了。 | 同一个 scope 的可见性解析，同时喂给查表、dispatch 和呈现。 |
+| **How: tool definition** | schema、handler 与判定式。 | 一份 `bash` schema，只有一个命令字段，别的名称一律报错。 | schema、类型化的 output 契约、执行本体，加上纯函数的呈现器。 |
+| **How: dispatch** | 依名称查表，含别名。工具池依权限筛选，并合并 MCP 工具。 | 没有 registry，每次调用都是一条 shell 命令。 | 先做 scope 感知的查表，再走五阶段的守卫 pipeline。 |
+| **How: parallel calls** | 安全调用批量执行，不安全的单独执行。安全标记默认关闭。 | 没有。文本模式每次响应只允许一个 action。 | 每次调用都先分类，不确定就 fail closed 当 exclusive。 |
+| **How: discovery** | 先给名称。完整 schema 依精确名称或关键字按需加载。 | 只有一个工具，不需要。 | 没有延迟加载。限制和 preset 决定每个 scope 看到什么。 |
 
 ---
 
@@ -234,6 +234,8 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：
   `Tool.ts`、`tools.ts`、`services/tools/toolOrchestration.ts`、`services/tools/toolExecution.ts`、`tools/ToolSearchTool/ToolSearchTool.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`models/utils/actions_toolcall.py`、`models/utils/actions_text.py`、`environments/__init__.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/tools.md`、`docs/tool-execution-pipeline.md`、`packages/core/tools/src/index.ts`、`packages/core/tools/src/schema.ts`。
 - [learn-claude-code · s02_tool_use](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`、`book/chapter5.md`（《深入理解 AI Agent》，李博杰；以中文原版为准）：
   五类工具的分法、粒度、description 的写法、参数保真、感知工具的接口规则、主动发现、对 cache 友好的加载、
