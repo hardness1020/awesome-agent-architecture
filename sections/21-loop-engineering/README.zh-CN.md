@@ -195,6 +195,12 @@ loop 能搜的范围是一道阶梯。最底下那阶是 prompt 里的一条规�
 - **自己评自己（Self-grading）：**worker 给自己的输出打分，验证 loop 等于什么都没验。缓解：独立的 checker agent，加上定在 loop 之外的 rubric。
 - **评什么都过（Rubber-stamp rubric）：**永远给过的评分者比没有还糟，因为它给烂输出盖上“已验证”的章。
   缓解：对抗式验证（要求 checker 想办法推翻），加上定期的人工抽查。
+- **checker 和 worker 同厂商（Same-vendor checker）：**换一个 agent 不等于换一个意见，两边在同一个 provider 后面就还是同一套判断。
+  缓解：从执行方的 backend 推出厂商，有替代品的时候把同厂商的投票模型踢出去，
+  并把剩下的状态（`independent`、`unverified`、`same_vendor`）记在这趟 run 上，而不是默认它独立。
+- **藏起来的 rubric 从失败输出漏回去（Rubric leak）：**把评分命令对 worker 藏起来，只在那个字符串真的没露出来的时候才成立。
+  harness 自己会把断言打进喂给重试的失败尾巴里，而逐字脱敏抓不到任何变形过的副本：
+  折行、diff 的行前缀、字符串中间插进来的 ANSI 色码。缓解：先归一化再匹配，尾巴这一段 fail closed。
 - **太早放手（Unattended too early）：**L1 的报告从来没人核对过，loop 就拿到了 L3 的写入权限。
   缓解：成熟度阶梯一次只升一级，由第 3 章的权限把关。
 - **无声劣化（Silent drift）：**无人看管的 loop 越跑越差，却没有人读它的输出。缓解：heartbeat、一律投递的报告，以及第 20 章对通过率和成本的度量。
@@ -248,6 +254,10 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 - [Lin et al.](https://arxiv.org/abs/2605.30621)：harness 更新和 harness 收益分开量，用换 model 的方式把两者分辨开来。
 - [AHE](https://arxiv.org/abs/2604.25850) 与 [Self-Harness](https://arxiv.org/abs/2606.09498)：harness 自我修改时的变更契约与受限候选空间。
 - [Claude Code](https://code.claude.com/docs)：`/loop` skill、`ScheduleWakeup`、`Workflow` schema。依据 tool schema 与文档记载的行为描述，非 source backup。
+- [Ouroboros 源码](https://github.com/Q00/ouroboros)：上面两条失败模式的出处，`orchestrator/contract_redaction.py`
+  （隐藏断言被脱敏的五种编码）、`orchestrator/retry_hints.py`（确定性的重试 hint）、
+  `orchestrator/parallel_executor.py`（`verify_command` 门和它 2000 字符的输出尾巴）、
+  `evaluation/reviewer_independence.py`（厂商级的 checker 独立性和它的四种状态）。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：
   `agent/iteration_budget.py`、`cron/scheduler.py`、`tools/skill_manager_tool.py`、`hermes_cli/curator.py`、`agent/trajectory.py`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 `AgentConfig` 与 `query()`、`agents/interactive.py`、`run/benchmarks/swebench.py`。
