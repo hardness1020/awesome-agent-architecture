@@ -86,15 +86,15 @@ This bare loop has no permission gate. Section 3 adds that gate before tool exec
 
 How each agent owns the loop and decides when to stop.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Streams progress, gates side effects, and runs tools in parallel. | A tiny loop that is easy to read and audit. |
-| **Cons** | The loop sits inside a larger runtime. | No side-effect gate, no streaming, no parallel tools. |
-| **Why** | Keep the same core branch and add features around it. | A minimal loop is the point. The environment, not the model, detects when the task is done. |
-| **How: loop driver** | An async generator. Each tool plugs into dispatch through one contract. | A while loop. Each step asks the model for a command, then runs it. |
-| **How: stop signal** | `stop_reason: end_turn`. | An appended`role: "exit"` message. The environment detects the submit marker. A reply with no command is a format error. |
-| **How: parallel tools** | Yes. Tool calls in one model turn can run in parallel. | No. Actions run in order. |
-| **How: streaming** | Yes. Yields model tokens, tool calls, and tool results as they happen. | No. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Streams progress, gates side effects, runs tools in parallel. | A tiny loop, easy to read and audit. | Swappable loop, interceptable phases, a log that replays. |
+| **Cons** | The loop sits inside a larger runtime. | No side-effect gate, no streaming, no parallel tools. | The most moving parts. Needs turn, step, and inbox vocabulary. |
+| **Why** | Keep one core branch, add features around it. | A minimal loop is the point. The environment, not the model, detects completion. | The loop is one plugin among peers. |
+| **How: loop driver** | An async generator. Tools plug in via one contract. | A while loop. Ask the model for a command, run it. | A swappable plugin over a durable event log. |
+| **How: stop signal** | `stop_reason: end_turn`. | The environment sees a submit marker and appends `role: "exit"`. | Nothing owed, no checkpoint objection, or `concludesTurn`. |
+| **How: parallel tools** | Yes. Calls in one model turn can run in parallel. | No. Actions run in order. | Yes. Exclusive calls form barriers; safe calls share a bounded pool. |
+| **How: streaming** | Yes. Yields model tokens, tool calls, and tool results as they happen. | No. | Yes. Stream chunks land in the session log as durable events. |
 
 ---
 
@@ -128,4 +128,6 @@ uv run python sections/01-agent-loop/src/demo.py  # live demo, needs a key
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `exceptions.py`, `environments/local.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/architecture.md`, `docs/agent-lifecycle.md`, `docs/subsystems/core.md`, `packages/core/agent-loop/src/agent.ts`, `packages/core/agent/src/types.ts`.
 - [learn-claude-code · s01 Agent Loop](https://github.com/shareAI-lab/learn-claude-code): section framing.

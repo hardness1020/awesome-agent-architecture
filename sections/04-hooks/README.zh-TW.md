@@ -66,6 +66,24 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 本章談的是生命週期 hook。放在 `hooks/` 資料夾中的 React render hook，是不相干的 UI 程式碼，只是共用同一個字。
 
+### 對照：waterfall hooks
+
+Claude Code 的 hook 是一條外部指令：harness 開一個子行程去跑它，再讀它的 exit code 和輸出。
+deepseek-harness 的 hook 則是一個普通函式，直接在 harness 行程裡跑。
+它掛在一個具名事件上，例如工具呼叫前會觸發的那個事件。
+它回傳的也不是 exit code，而是型別化決策：deny、ask、allow 這種普通的值。
+
+同一個事件可以掛好幾個 hook。它們排成一條鏈，事件觸發時只會跑第一個。
+每個 hook 拿到事件資料和一個 `next()` callback，然後二選一：
+
+- 不呼叫 `next()`，直接回傳決策。鏈就停在這裡，排在後面的 hook 都不會跑。
+- 呼叫 `next()`，讓鏈的其餘部分先決定，這個 hook 再把那個結果回傳，可以原樣回傳，也可以先改一下。
+
+dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook 也還能用：一個 bridge 幫忙執行它們，
+把輸出轉成同樣的型別化決策。好幾個 shell hook 同時回答時，bridge 取最嚴格的那個：deny 蓋過 ask，ask 蓋過 allow。
+
+[`src/waterfall.py`](src/waterfall.py) 就是這套機制的 strip-down。它是對照用的 demo，沒有接進 `_dispatch`，後面的章節照樣沿用原本的 loop。
+
 ### 延伸閱讀
 
 以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
@@ -87,14 +105,14 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 各個 agent 如何在 loop 周圍提供攔截點。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 |
-| **Cons** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 |
-| **Why** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 |
-| **How: hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 |
-| **How: fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 |
-| **How: can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
+| **Cons** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
+| **Why** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充用的介面，就是 harness 自己在跑的那套事件系統。 |
+| **How: hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
+| **How: fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，位在只會拒絕的 guard 之前。 |
+| **How: can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
 
 ---
 
@@ -115,7 +133,8 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 - [`hooks.py`](src/hooks.py)：帶有 `fire_pre` 與 `fire_post` 的 `Hooks` 物件。
 - [`loop.py`](src/loop.py)：`_dispatch` 在 gate 之前觸發 `PreToolUse`，在執行之後觸發 `PostToolUse`。
-- [`test.py`](src/test.py)：一個 pre-hook 即使在 `bypassPermissions` 之下也擋下 `rm -rf`。
+- [`waterfall.py`](src/waterfall.py)：deepseek-harness 的對照：一條 hook 鏈，用 `next()` 往下傳，多個結果取最嚴格的（deny > ask > allow）。
+- [`test.py`](src/test.py)：一個 pre-hook 即使在 `bypassPermissions` 之下也擋下 `rm -rf`；waterfall 檢查涵蓋直接決定、交給下游，和取最嚴格。
 
 ```bash
 python sections/04-hooks/src/test.py         # offline checks, no key
@@ -128,6 +147,9 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `types/hooks.ts`、`entrypoints/sdk/coreTypes.ts`、`services/tools/toolHooks.ts`、`query/stopHooks.ts`、`services/tools/toolExecution.ts`、`setup.ts`。
+- [deepseek-harness 原始碼](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/hooks/README.md`、`packages/hooks/hooks-claude-code/README.md`、`packages/hooks/hook-protocol/README.md`、
+  `docs/cordis-primer.md`、`docs/subsystems/core.md`。
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code)：section framing。
 - [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
   寫入後跑 lint：工具層在寫入之後跑 linter，把診斷訊息加進 tool result。

@@ -139,15 +139,15 @@ Why this is still safe: the only thing running early is the check. The tool itse
 
 How each agent gates side effects, changes modes, and remembers decisions.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Modes, ordered rules, and sandboxing give precise control. | Auditable in minutes. A rejection feeds back to the model, so the loop keeps running. |
-| **Cons** | Many states to reason about. Each bypass or preapproval path must stay visible and narrow. | Treats every command the same and remembers nothing. |
-| **Why** | Asking on every call breeds approval fatigue, so approvals can be remembered. | One prompt plus a regex list is enough when the environment limits the damage. |
-| **How: gate point** | Before each tool runs. Web, MCP, and remote runs have their own gates. | Before a step's commands execute. Enter approves, a typed comment rejects. |
-| **How: permission modes** | Default, edit-approved, plan, deny, and bypass, plus internal modes. | `human`, `confirm`, and `yolo`. Slash commands switch them at runtime. |
-| **How: sandbox** | Bash can run inside a sandbox. | The environment class is the sandbox, picked per run: host, throwaway container, or wrappers on shared hosts. |
-| **How: rule persistence** | Rules merge by priority from many sources, saved to the session or settings. | Whitelist regexes in config only. Matches skip the confirm prompt. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Modes, ordered rules, and sandboxing give fine control. | Auditable in minutes. Rejections feed back to the model. | Denials never loosen; sandboxing fails closed. |
+| **Cons** | Many states. Bypass and preapproval paths must stay narrow. | Treats every command the same, remembers nothing. | Policy spans guards, approval, sandbox, presets. |
+| **Why** | Asking every time breeds fatigue, so approvals persist. | A prompt plus regexes; the environment limits the damage. | Each concern is its own fail-closed service. |
+| **How: gate point** | Before each tool; web, MCP, remote gate separately. | Before a step runs. Enter approves, a comment rejects. | A pre-execute event, then deny-only guards. |
+| **How: permission modes** | Default, edit-approved, plan, deny, bypass. | `human`, `confirm`, `yolo`, switched at runtime. | Sandbox mode plus ask or never, bundled as presets. |
+| **How: sandbox** | Bash can run inside a sandbox. | The environment class is the sandbox: host, container, wrappers. | Providers wrap each argv; denials come back classified. |
+| **How: rule persistence** | Rules merge by priority into session or settings. | Config regexes; matches skip the prompt. | Knob changes are log events; replay folds policy. |
 
 ---
 
@@ -185,6 +185,9 @@ uv run python sections/03-permission-sandbox/src/demo.py  # live demo, needs a k
   `QueryEngine.ts`, `hooks/useCanUseTool.tsx`, `types/permissions.ts`, `utils/permissions/PermissionUpdate.ts`.
 - [Claude Code sandbox and web gates](https://github.com/yasasbanukaofficial/claude-code): `tools/BashTool/shouldUseSandbox.ts`, `tools/WebFetchTool/preapproved.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/interactive.py`, `environments/docker.py`, `environments/extra/bubblewrap.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/subsystems/tools.md`, `docs/subsystems/approval.md`, `docs/subsystems/sandbox.md`, `docs/subsystems/permission-presets.md`,
+  `packages/sandbox/sandbox-local/README.md`, `packages/shell/bash-sandbox/README.md`.
 - [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   the memory amplification axis, sandbox egress, mount and quota policy, semantic command parsing, speculative permission checks,
   and constraining the path instead of only the result. Single source for those designs.

@@ -191,15 +191,15 @@ Appending leaves the prefix alone, and the schema turns into ordinary history on
 
 How each agent defines tools, routes calls, handles parallelism, and exposes a large catalog.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Per-tool validation, permissions, safe parallelism, and lazy discovery. | One `bash` tool keeps the runtime small. No catalog to manage. |
-| **Cons** | Every tool has to carry a contract. | No per-tool validation or permissions. The confirm gate (section 3) sees only a command string. |
-| **Why** | Adding a capability should mean registering a tool, with the loop unchanged. | Assumes every action can be a shell command, so one tool is enough. |
-| **How: tool definition** | Schema, handler, and predicates. | One hardcoded `bash` schema is the whole catalog: one command field. Any other name is an error. |
-| **How: dispatch** | Name lookup with aliases, over a permission-filtered pool with MCP tools. | No registry. Every call is a shell command. |
-| **How: parallel calls** | Safe calls batch. Unsafe calls run alone. Safety flags default to off. | No. The legacy text mode requires exactly one action per response. |
-| **How: discovery** | Names ship first. Full schemas load on request, by exact name or keyword. | Not needed with one tool. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Per-tool validation, permissions, parallelism, lazy discovery. | One `bash` tool, a small runtime, no catalog. | Per-agent tool sets; one audited pipeline per call. |
+| **Cons** | Every tool has to carry a contract. | No per-tool validation or permissions. The gate sees one command string. | Even simple tools must declare an output contract. |
+| **Why** | One new tool per capability; the loop stays put. | Every action is a shell command, so one tool is enough. | One per-scope resolver feeds lookup, dispatch, display. |
+| **How: tool definition** | Schema, handler, and predicates. | One `bash` schema, one command field; other names error. | Schema, typed output contract, body, pure presenters. |
+| **How: dispatch** | Alias lookup over a permission-filtered pool with MCP. | No registry. Every call is a shell command. | Scoped lookup, then a five-stage guarded pipeline. |
+| **How: parallel calls** | Safe calls batch; unsafe run alone; flags default off. | No. Text mode takes one action per response. | Classified per call, fail closed to exclusive. |
+| **How: discovery** | Names first; full schemas load on request by name or keyword. | Not needed with one tool. | No lazy loading. Restrictions and presets shape each scope. |
 
 ---
 
@@ -238,6 +238,8 @@ uv run python sections/02-tool-runtime/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `Tool.ts`, `tools.ts`, `services/tools/toolOrchestration.ts`, `services/tools/toolExecution.ts`, `tools/ToolSearchTool/ToolSearchTool.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `models/utils/actions_toolcall.py`, `models/utils/actions_text.py`, `environments/__init__.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/subsystems/tools.md`, `docs/tool-execution-pipeline.md`, `packages/core/tools/src/index.ts`, `packages/core/tools/src/schema.ts`.
 - [learn-claude-code · s02_tool_use](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, `book/chapter5.md` (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   the five-tool grouping, granularity, description craft, parameter fidelity, perception interface rules, proactive discovery, cache-safe loading, streaming tool start

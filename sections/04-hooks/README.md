@@ -66,6 +66,25 @@ The demo uses a `PreToolUse` hook to block `rm -rf` even under `bypassPermission
 
 This section covers lifecycle hooks. React render hooks in a `hooks/` folder are unrelated UI code that share the same word.
 
+### Contrast: waterfall hooks
+
+In Claude Code, a hook is an external command. The harness runs it as a subprocess and reads its exit code and output.
+In deepseek-harness, a hook is a plain function that runs inside the harness process.
+It registers on a named event, such as the one that fires before a tool call.
+And instead of an exit code, it returns a typed decision: a plain value like deny, ask, or allow.
+
+Several hooks can register on one event. They form a chain, and the event fires only the first one.
+Each hook receives the event data plus a `next()` callback, then picks one of two moves:
+
+- Return a decision without calling `next()`. The chain stops here. Hooks further down never run.
+- Call `next()`. The rest of the chain decides, and this hook returns that result, as is or adjusted.
+
+dsh calls this dispatch style a waterfall. Existing Claude Code shell hooks still work: a bridge runs them
+and turns their output into the same typed decisions. When several shell hooks answer at once,
+the bridge keeps the strictest answer: deny beats ask, ask beats allow.
+
+[`src/waterfall.py`](src/waterfall.py) is a strip-down of this. It is a contrast demo, not wired into `_dispatch`, so later sections carry the same loop forward.
+
 ### Further reading
 
 None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
@@ -87,14 +106,14 @@ The pattern has one limit. A blocked write never runs, so the hook produces no d
 
 How each agent exposes interception points around the loop.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | Users extend behavior without editing the loop. Good for logging, validation, notifications, and policy checks. |
-| **Cons** | The fixed event list is also the limit. A hook can only intercept where the system exposes an event. |
-| **Why** | Keeps the loop small. New behavior attaches to fixed events instead of editing or forking the loop. |
-| **How: hook events** | A fixed list of 27 lifecycle events, covering tool, prompt, session, stop, subagent, compact, and setup. |
-| **How: fire point** | Loaded from settings and frozen at startup. `PreToolUse` fires before the permission gate. |
-| **How: can block or modify?** | Yes. Deny, ask, update input, add context, or stop. Hook output is reconciled with rule-based permissions. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | Users extend behavior without editing the loop: logging, validation, notifications, policy checks. | Hooks are in-process plugins; existing shell hooks still run. |
+| **Cons** | The fixed event list is the limit. A hook only intercepts where an event exists. | Two hook styles to learn; the bridge covers a subset and cannot rewrite input. |
+| **Why** | Keeps the loop small. New behavior attaches to fixed events, not forks. | The extension surface is the event system the harness itself runs on. |
+| **How: hook events** | 27 lifecycle events across tool, prompt, session, stop, subagent, compact, setup. | Waterfall and serial events per phase; bridges adapt shell hooks on. |
+| **How: fire point** | Loaded from settings and frozen at startup. `PreToolUse` fires before the permission gate. | In the pre-execute waterfall, before deny-only guards. |
+| **How: can block or modify?** | Yes. Deny, ask, update input, add context, or stop; reconciled with rules. | Yes, via typed decisions; shell hooks fold deny > ask > allow. |
 
 ---
 
@@ -115,7 +134,8 @@ How each agent exposes interception points around the loop.
 
 - [`hooks.py`](src/hooks.py): the `Hooks` object with `fire_pre` and `fire_post`.
 - [`loop.py`](src/loop.py): `_dispatch` fires `PreToolUse` before the gate and `PostToolUse` after a run.
-- [`test.py`](src/test.py): a pre-hook blocks `rm -rf` even under `bypassPermissions`.
+- [`waterfall.py`](src/waterfall.py): the deepseek-harness contrast: a hook chain with `next()` delegation, plus the strictest-wins merge (deny > ask > allow).
+- [`test.py`](src/test.py): a pre-hook blocks `rm -rf` even under `bypassPermissions`; waterfall checks cover deciding, delegating, and the merge.
 
 ```bash
 python sections/04-hooks/src/test.py         # offline checks, no key
@@ -128,6 +148,9 @@ uv run python sections/04-hooks/src/demo.py  # live demo, needs a key
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `types/hooks.ts`, `entrypoints/sdk/coreTypes.ts`, `services/tools/toolHooks.ts`, `query/stopHooks.ts`, `services/tools/toolExecution.ts`, `setup.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/hooks/README.md`, `packages/hooks/hooks-claude-code/README.md`, `packages/hooks/hook-protocol/README.md`,
+  `docs/cordis-primer.md`, `docs/subsystems/core.md`.
 - [learn-claude-code · s04_hooks](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   lint on write: the tool layer runs a linter after a write and adds the diagnostics to the tool result.
