@@ -243,15 +243,15 @@ The cost is that only one agent holds control, so nothing runs at the same time.
 
 How one design spawns cooperating agents and spreads work across them.
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | Peers talk directly. File inboxes are durable and cross processes or machines. | Children can be paused, checked, and interrupted from any connected surface. |
-| **Cons** | File inboxes add polling and lock cost. In-memory inboxes die with the process. | No peer inboxes, so children cannot collaborate. A clarify blocks its thread. |
-| **Why** | Teammates are peers that need inboxes to talk and a route to a human approver. | Coordination stays parent to child. A human on chat answers escalations. |
-| **How: teammates** | In-process or remote. Each runs its own loop, folding messages between turns. | Delegated children on threads. A pause flag stops new spawns mid-run. |
-| **How: channel** | SendMessage writes to memory or locked file inboxes and can broadcast. | Completion queue plus gateway RPCs. The parent folds results in when idle. |
-| **How: shared memory** | Team task list and a team memory directory. | Shared session DB. Lineage markers record who spawned whom, for cascade cleanup. |
-| **How: permission bubbling** | Remote requests become local approval prompts. | Clarify requests route to the user's chat. Children get auto-deny or auto-approve, logged. |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Peers talk directly. File inboxes cross processes. | Children pause and interrupt from any surface. | A script fans out many children under hard caps. |
+| **Cons** | Polling and lock cost. Memory inboxes die with the process. | No peer inboxes, so children cannot collaborate. | Children cannot talk to each other. |
+| **Why** | Peers need inboxes, plus a route to a human approver. | Coordination stays parent to child. | Coordination is ownership. Each child has one parent. |
+| **How: teammates** | In-process or remote, each running its own loop. | Delegated children on threads, with a pause flag. | A written script spawns them; some stay resident. |
+| **How: channel** | SendMessage writes to inboxes and can broadcast. | Completion queue plus gateway calls. | Parent to child only. The child answers with a report tool. |
+| **How: shared memory** | Team task list and a team memory directory. | Shared session DB, plus lineage markers. | The parent's directory. A fork also copies its finished turns. |
+| **How: permission bubbling** | Remote requests become local approval prompts. | Clarify goes to chat; children auto-deny or approve. | A request walks up the parent chain. |
 
 ---
 
@@ -299,6 +299,9 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 - [Claude Code teammates](https://github.com/yasasbanukaofficial/claude-code):
   `tasks/InProcessTeammateTask/`, `tasks/RemoteAgentTask/`, `remote/remotePermissionBridge.ts`, `memdir/teamMemPaths.ts`.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent): `tools/delegate_tool.py`, `tools/async_delegation.py`, `tools/clarify_gateway.py`, `tools/interrupt.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/subsystems/workflow.md`, `docs/subsystems/subagent.md`, `docs/subsystems/core.md`,
+  `packages/workflow/workflow-worker-thread/README.md`, `packages/subagent/tool-subagent-report/README.md`.
 - [learn-claude-code · s15_agent_teams](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter10.md` (多 Agent 协作), Chinese original canonical.
   Context sharing, topology taxonomy, filesystem regions, handoff packets. The role-transfer demo is the author's own experiment.

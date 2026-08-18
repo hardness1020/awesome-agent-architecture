@@ -240,15 +240,15 @@ sender 的原始历史不放进去。那东西很长、里面都是走不通的�
 
 一种设计如何 spawn 出协作的 agent 并把工作分散给它们。
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | 队友之间能直接交谈。文件 inbox 具耐久性，能跨越 process 或机器边界。 | 子代可以从任何已连接的界面暂停、查看、中断。 |
-| **Cons** | 文件 inbox 增加 poll 与 lock 成本。in-memory inbox 会随 process 一起死掉。 | 没有对等的 inbox，子代之间无法协作。clarify 会 block 住自己的 thread。 |
-| **Why** | 队友彼此对等：需要 inbox 来交谈，也需要一条把权限请求送回用户的路。 | 协调维持 parent 对 child。升级的问题由聊天上的人回答，不是 lead agent。 |
-| **How: teammates** | in-process 或 remote；各自跑自己的 loop，在 turn 之间把消息并入。 | thread 上的委派子代。全局暂停标志可以在运行中途停止新的 spawn。 |
-| **How: channel** | SendMessage 写入 in-memory 或带 lock 的文件 inbox，也能 broadcast。 | completion queue 加 gateway RPC。parent 空闲时把结果并入新的 turn。 |
-| **How: shared memory** | team task list 与团队 memory 目录。 | 共享的 session DB。lineage 标记记录谁 spawn 了谁，供连锁清理使用。 |
-| **How: permission bubbling** | remote 权限请求转成本地的审核提示。 | clarify 请求导向用户的聊天平台。子代拿到自动 deny 或自动 approve，留下审计记录。 |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 队友能直接交谈，文件 inbox 还能跨 process 或机器。 | 子代可以从任何已连接的界面暂停、中断。 | 一支脚本就能在硬性上限之下开出大量子代。 |
+| **Cons** | 文件 inbox 有 poll 和 lock 成本，内存 inbox 随 process 死。 | 没有对等 inbox，子代之间无法协作。 | 子代彼此不能讲话。发消息也不会有回复。 |
+| **Why** | 队友彼此对等，需要 inbox 交谈，也需要一条送回人的路。 | 协调维持 parent 对 child。 | 协调就是归属关系，每个子代只有一个 parent。 |
+| **How: teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暂停标志。 | 由模型写的脚本开出子代，长命的那种会常驻。 |
+| **How: channel** | SendMessage 写进 inbox，也能 broadcast。 | completion queue 加 gateway RPC。 | 只有 parent 对 child。子代用 report 工具回话。 |
+| **How: shared memory** | team task list 与团队 memory 目录。 | 共享的 session DB，外加 lineage 标记。 | parent 的工作目录。fork 还会复制它跑完的 turn。 |
+| **How: permission bubbling** | remote 权限请求转成本地的审核提示。 | clarify 导向聊天平台，子代自动 deny 或 approve。 | 权限请求沿着 parent 这条线往上问。 |
 
 ---
 
@@ -295,6 +295,9 @@ uv run python sections/16-coordination/src/demo.py  # live demo, needs a key
 - [Claude Code 队友](https://github.com/yasasbanukaofficial/claude-code)：
   `tasks/InProcessTeammateTask/`、`tasks/RemoteAgentTask/`、`remote/remotePermissionBridge.ts`、`memdir/teamMemPaths.ts`。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`tools/clarify_gateway.py`、`tools/interrupt.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/workflow.md`、`docs/subsystems/subagent.md`、`docs/subsystems/core.md`、
+  `packages/workflow/workflow-worker-thread/README.md`、`packages/subagent/tool-subagent-report/README.md`。
 - [learn-claude-code · s15_agent_teams](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter10.md`（多 Agent 协作），以中文原文为准。
   context 共不共享、拓扑分类、文件系统分区、handoff 包裹。角色互转那个演示是作者自己的实验。

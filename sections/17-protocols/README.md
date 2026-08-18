@@ -187,14 +187,14 @@ A caller across a boundary keeps both. The request states say whether this one m
 
 How one design shapes requests, gates plans, and stops agents cleanly.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | Every stop is confirmed and every risky plan is gated. In flight work and task records survive a stop. |
-| **Cons** | Each handshake costs round trips and protocol state. A fire and forget kill is faster. |
-| **Why** | A kill mid edit leaves a half written file and an open task record. A risky plan should be approved before work starts. |
-| **How: message shape** | One typed union on a `type` field. A `request_id` ties each reply to its request. |
-| **How: plan approval** | The teammate requests and waits. The lead's reply carries the verdict, optional feedback, and the permission mode the work runs under. |
-| **How: shutdown** | The lead requests, the teammate confirms, then the kill runs. The task is marked notified and a terminated event goes out. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | Every stop is confirmed and every risky plan is gated. | Any client or server speaking the public protocol interoperates. |
+| **Cons** | Each handshake costs round trips and protocol state. | Output lands only when committed, so live progress stays hidden. |
+| **Why** | A kill mid edit leaves a half written file and an open task record. | The other side is a process you may not own, so use a public contract. |
+| **How: message shape** | One typed union on a `type` field, with a `request_id` per reply. | JSON-RPC methods keyed by session id. One prompt in flight per session. |
+| **How: plan approval** | The teammate waits. The lead's reply carries verdict, feedback, and mode. | The plan goes to a human. A rejection returns as a failed call. |
+| **How: shutdown** | The lead requests, the teammate confirms, then the kill runs. | Cancel, end the input, signal, then kill. Every tier is time-bounded. |
 
 ---
 
@@ -236,6 +236,9 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 - [Claude Code protocol shape](https://github.com/yasasbanukaofficial/claude-code): `tools/SendMessageTool/SendMessageTool.ts`, `utils/teammateMailbox.ts`.
 - [Claude Code plan and stop](https://github.com/yasasbanukaofficial/claude-code):
   `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`, `tasks/stopTask.ts`, `coordinator/coordinatorMode.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/acp/acp/README.md`, `packages/subagent/subagent-acp/README.md`, `docs/subsystems/session.md`,
+  `docs/subsystems/plan.md`, `docs/subsystems/approval.md`.
 - [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter10.md` (多 Agent 协作), Chinese original canonical.
   A stop that cleans up and acks, a kill as the fallback tier, and stopping a whole fan out on first success with a lock so the race settles once.
