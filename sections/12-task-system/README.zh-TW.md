@@ -78,15 +78,15 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 
 持久的 task 圖如何塑形，又如何推進。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 以檔案為後盾的 task 能在當機後存活，也支援多個 worker。 |
-| **Cons** | 代價是檔案系統的讀、寫和鎖。記錄也要驗證，避免相依關係指到不存在的 task，或互相等待。 |
-| **Why** | 放在記憶體裡的 todo list 會跟著 process 一起消失。計畫必須撐過 session 和當機，順序也要用資料來表示。 |
-| **How: task record** | 每個 task 一個 JSON 檔。欄位涵蓋 id、subject、status、owner，以及相依關係的邊。 |
-| **How: dependencies** | `blockedBy` 和 `blocks` 兩種邊。可以直接建立被阻擋的 task。阻擋條件全部完成前，認領會被拒絕。 |
-| **How: persistence** | 每個 task 一個檔，外加一個 high-water mark 記錄已發出的最大 id。一個開關決定要不要用持久 task 取代 in-memory todo。 |
-| **How: lifecycle** | `pending -> in_progress -> completed`。一把 file lock 讓認領動作序列化。teammate 離開時會清掉 ownership。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 以檔案為後盾的 task 能在當機後存活，也支援多個 worker。 | task 狀態就寫在 session log 裡，重放、fork、續跑全都免費附送。 |
+| **Cons** | 代價是檔案系統的讀、寫和鎖，記錄還要驗證。 | 沒有相依關係的邊，也沒有認領機制。一個 session 只有一個 goal。 |
+| **Why** | 放在記憶體裡的清單會跟著 process 消失，計畫得活得比它久。 | session log 是唯一的事實來源，所以 task 狀態就是一連串事件。 |
+| **How: task record** | 每個 task 一個 JSON 檔：id、subject、status、owner 和邊。 | 一份整份清單的快照，加上一個 goal，帶 phase 和輪數上限。 |
+| **How: dependencies** | `blockedBy` 和 `blocks` 兩種邊。阻擋條件全部完成前不能認領。 | 沒有。順序就只看清單本身的排列。 |
+| **How: persistence** | 每個 task 一個檔，外加一個記號記住已發出的最大 id。 | session 事件，載入時重放。自動續跑的開關從不寫進硬碟。 |
+| **How: lifecycle** | `pending -> in_progress -> completed`，認領動作靠一把鎖序列化。 | goal 的 phase：active、paused、blocked、complete。要改得由人出手。 |
 
 ---
 
@@ -118,4 +118,7 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 ## 出處
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code)：`utils/tasks.ts`、`Task.ts`，以及 `Task*Tool/` 目錄。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/goal/goal/src/index.ts`、`packages/goal/goal-round-driver/README.md`、`packages/todo/tool-todo/README.md`、
+  `docs/subsystems/goal.md`、`docs/persistence-catalog.md`。
 - [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

@@ -121,14 +121,14 @@ ai-agent-book 的做法是當場補：對同一個 id 補一則佔位用的 `too
 
 各個 agent 如何把工作移出 loop，又如何回報完成。
 
-|                                   | Claude Code                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Pros**                    | 吞吐量提升，也不再有閒置的等待。連單純的等待都是非阻塞的，不會佔住一個 shell process。           |
-| **Cons**                    | 結果可能較晚抵達，順序也可能顛倒。runtime 需要 task 狀態、notification 和清理機制。              |
-| **Why**                     | 一個跑很久的指令不該凍結整個 agent。這種工作可以趁 agent 做別的事時繼續跑。                      |
-| **How: off-loop primitive** | 背景 shell task 和背景 agent task，連記憶整併都用這種方式跑。subprocess 會繼續執行，輸出被轉導。 |
-| **How: notification**       | 一則`<task_notification>` 訊息。完成訊息走同一個共享 queue，runtime 會追蹤每個 task 的狀態。   |
-| **How: re-entry**           | notification 在 turn 之間從 queue 收進對話，分`now`、`next`、`later` 三種優先級。                 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 吞吐量提升，也不再有閒置的等待。單純的等待不會卡住任何東西。 | 同一個登記處管 shell、終端機和 child agent，收結果和喊停都走同一條路。 |
+| **Cons** | 結果可能較晚抵達，順序也可能顛倒。runtime 要顧狀態和清理。 | 叫醒閒著的 agent 會花掉模型輪次，所以得給它一個額度。 |
+| **Why** | 一個跑很久的指令不該凍結整個 agent。 | 工作跑完要讓模型知道，而不是叫模型自己一直去問。 |
+| **How: off-loop primitive** | 背景 shell task 和背景 agent task，subprocess 繼續跑，輸出被轉導。 | 任何工具都能帶一個「丟到背景跑」的旗標，回傳一個 job id。 |
+| **How: notification** | 一則 `<task_notification>` 訊息，完成訊息走同一個共享 queue。 | 每個 job 一則通知。誰先結束誰算數，重複的會被壓下來。 |
+| **How: re-entry** | notification 在 turn 之間收進對話，分 `now`、`next`、`later` 三種優先級。 | agent 忙的話下一步就收到；閒著就叫醒它，次數有上限。 |
 
 ---
 
@@ -165,6 +165,9 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/jobs/jobs/src/index.ts`、`packages/jobs/jobs-local/src/index.ts`、`packages/jobs/tool-jobs/README.md`、
+  `docs/subsystems/jobs.md`、`docs/tool-catalog.md`。
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版為準。
   冪等性與取消語義、啟動與完成分開命名、在安全點做 event 分類、打斷佔位、批次 event 的注意力稀釋。

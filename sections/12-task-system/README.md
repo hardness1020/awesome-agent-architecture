@@ -78,15 +78,15 @@ The loop does not change. The model calls `TaskCreate`, `TaskUpdate`, `TaskGet`,
 
 How the durable task graph is shaped and advanced.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | File-backed tasks survive crashes and support multiple workers. |
-| **Cons** | Costs filesystem reads, writes, and locks. Records need validation to catch missing or circular dependencies. |
-| **Why** | An in-memory todo list dies with the process. The plan must survive sessions and crashes, with ordering stored as data. |
-| **How: task record** | A JSON file per task. Fields cover id, subject, status, owner, and the dependency edges. |
-| **How: dependencies** | `blockedBy` and `blocks` edges. A task can be created already blocked. A claim is refused until every blocker completes. |
-| **How: persistence** | One file per task, plus a high-water mark for the largest issued id. A switch decides whether durable tasks replace in-memory todos. |
-| **How: lifecycle** | `pending -> in_progress -> completed`. A file lock serializes claims. Ownership is cleared when a teammate exits. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | File-backed tasks survive crashes and support many workers. | Task state rides the session log, so replay, fork, and resume come free. |
+| **Cons** | Costs reads, writes, and locks. Records need validation. | No dependency edges and no claim gate. One goal per session. |
+| **Why** | An in-memory list dies with the process, so the plan must outlive it. | The session log is the only source of truth, so task state is events. |
+| **How: task record** | A JSON file per task: id, subject, status, owner, edges. | A whole-list snapshot, plus one goal with a phase and a round cap. |
+| **How: dependencies** | `blockedBy` and `blocks` edges. A claim waits for every blocker. | None. List order is the only ordering. |
+| **How: persistence** | One file per task, plus a mark for the largest issued id. | Session events, replayed on load. Self-continuation is never stored. |
+| **How: lifecycle** | `pending -> in_progress -> completed`, with a lock on claims. | Goal phases: active, paused, blocked, complete. Edits need a human. |
 
 ---
 
@@ -118,4 +118,7 @@ uv run python sections/12-task-system/src/demo.py  # live demo, needs a key
 ## Sources
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `utils/tasks.ts`, `Task.ts`, and the `Task*Tool/` directories.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/goal/goal/src/index.ts`, `packages/goal/goal-round-driver/README.md`, `packages/todo/tool-todo/README.md`,
+  `docs/subsystems/goal.md`, `docs/persistence-catalog.md`.
 - [learn-claude-code · s12_task_system](https://github.com/shareAI-lab/learn-claude-code): section framing.

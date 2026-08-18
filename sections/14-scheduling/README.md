@@ -134,14 +134,14 @@ Section 19 covers the inbound push side.
 
 How each agent decides when to run scheduled work.
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | Simple and private. Durable schedules survive restart. | Fires unattended, no hosted service. Heartbeat files tell a dead ticker from a failing one. |
-| **Cons** | Only ticks while a session runs. Remote triggers need a hosted service and auth. | Needs a running gateway. The shared job store needs locks against double fire. |
-| **Why** | Assumes a local session is running. A hosted trigger covers firing with no local process. | The gateway is a server process, so schedules fire unattended. |
-| **How: trigger** | Cron, sleep, and remote triggers. A ticker checks entries on an interval. | Cron expressions on a gateway tick, in the user's configured timezone. |
-| **How: durability** | Session, or durable in a JSON file with a lock across open sessions. | A JSON job store shared by CLI and gateway, with locks and an atomic claim. |
-| **How: wakeup** | Fired prompts queue at low priority and run between turns. | Due jobs spawn parallel runs with a restricted toolset. Output delivers to chat unless silent. |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Simple and private. Durable schedules survive restart. | Fires unattended, no hosted service. | Reminders replay with the session. Missed fires collapse to one turn. |
+| **Cons** | Only ticks while a session runs. | Needs a gateway, and locks against double fire. | Fixed rates only, no cron. Nothing fires while the session is closed. |
+| **Why** | Assumes a local session is running. | The gateway is a server, so schedules fire unattended. | A reminder is conversation state, so the session log owns it. |
+| **How: trigger** | Cron, sleep, and remote triggers on a ticker. | Cron expressions on a gateway tick. | After a delay, at a time, or a fixed rate with a five-minute floor. |
+| **How: durability** | Session state, or a JSON file with a lock. | A shared JSON job store with an atomic claim. | Session-log events. A fork keeps history, drops reminders. |
+| **How: wakeup** | Fired prompts queue and run between turns. | Due jobs run in parallel and deliver to chat. | Due work waits for idle, then queues one turn. At-least-once. |
 
 ---
 
@@ -180,6 +180,9 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
   `tools/ScheduleCronTool/`, `tools/RemoteTriggerTool/`, `tools/SleepTool/`, `utils/cronScheduler.ts`, `hooks/useScheduledTasks.ts`, `utils/queueProcessor.ts`.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `cron/scheduler.py` (`tick`, `_resolve_cron_disabled_toolsets`), `cron/jobs.py` (`_jobs_lock`, `claim_dispatch`), `hermes_time.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/schedule/schedule/src/runtime.ts`, `packages/schedule/schedule/src/persistence.ts`, `packages/schedule/schedule/src/tools.ts`,
+  `docs/subsystems/schedule.md`, `docs/tool-catalog.md`.
 - [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical.
   Heartbeat wakeups with judgment, alert fatigue, and the limits of time-driven triggers.

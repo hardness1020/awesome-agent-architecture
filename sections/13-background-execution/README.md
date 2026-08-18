@@ -121,14 +121,14 @@ The placeholder is the book author's own design. No other source describes it.
 
 How each agent moves work off the loop and reports completion.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | Throughput improves and idle waits go away. Even a plain wait is non-blocking and holds no shell process. |
-| **Cons** | Results can arrive later and out of order. The runtime needs task state, notifications, and cleanup. |
-| **Why** | One slow command must not freeze the whole agent. Slow work can run while the agent does something else. |
-| **How: off-loop primitive** | Background shell tasks and background agent tasks, memory consolidation included. The subprocess keeps running with output redirected. |
-| **How: notification** | A `<task_notification>` message. Completions go through one shared queue, and the runtime tracks each task's state. |
-| **How: re-entry** | The queue drains notifications between turns, with `now`, `next`, and `later` priorities. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | Throughput improves and idle waits go away. A plain wait blocks nothing. | One registry serves shell, terminal, and child agents alike. |
+| **Cons** | Results arrive late and out of order. The runtime tracks state and cleanup. | Waking an idle agent spends model turns, so it needs a budget. |
+| **Why** | One slow command must not freeze the whole agent. | A finished job must reach the model without the model polling. |
+| **How: off-loop primitive** | Background shell and agent tasks. The subprocess runs on, output redirected. | Any tool takes a run-in-background flag and returns a job id. |
+| **How: notification** | A `<task_notification>` message through one shared queue. | One notice per job. First finish wins, and duplicates are suppressed. |
+| **How: re-entry** | The queue drains between turns, at `now`, `next`, and `later` priorities. | A busy agent gets it next step. An idle one is woken, within a cap. |
 
 ---
 
@@ -165,6 +165,9 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code): `tasks/LocalShellTask/`, `tasks/DreamTask/`.
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code):
   `tools/BashTool/BashTool.tsx`, `tools/SleepTool/prompt.ts`, `utils/task/framework.ts`, `utils/messageQueueManager.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/jobs/jobs/src/index.ts`, `packages/jobs/jobs-local/src/index.ts`, `packages/jobs/tool-jobs/README.md`,
+  `docs/subsystems/jobs.md`, `docs/tool-catalog.md`.
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter4.md`, Chinese original canonical.
   Idempotency and cancel semantics, initiate-and-complete naming, event triage at safe points, interrupt placeholders, batched-event attention.
