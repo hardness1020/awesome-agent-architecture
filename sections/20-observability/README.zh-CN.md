@@ -152,14 +152,14 @@ context 里多出来的任何东西，后面每一轮都得再付一遍，总额
 
 每个 agent 如何发出 telemetry、追踪花费，以及怎么喂养 eval 集。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 低成本又安全地换来丰富的正式环境可见度。坏掉的 sink 卡不住也弄不垮 loop。 | crash 掉的 run 也留得下可重建的文件。轨迹文件既是审计记录，也是 eval 语料。 |
-| **Cons** | 只告诉你发生了什么，答案好不好看不出来。采样和 scrub 会丢掉记录的一部分。 | 正式环境 telemetry 几乎没有，run 进行中没有 event 流可看。 |
-| **Why** | 正式环境得盯住崩溃和成本暴涨，而且 telemetry 不能碰 loop 的控制流。 | 质量靠离线 benchmark 评分，所以每趟 run 的完整记录比实时 event 更重要。 |
-| **How: telemetry** | event 先排队，等 sink 接上再采样、scrub，送给每个 sink。 | 每趟 run 一个轨迹文件：完整消息历史加 config、成本、exit status，每一步都存。 |
-| **How: cost tracking** | 每模型 token 按定价滚进一个 session USD 总额，退出时打印。 | litellm 逐次计价，汇总成 run 与全局总额；没定价的模型默认直接报错。 |
-| **How: eval feed** | 源码中没有；为重建。一般做法：trace 脱敏后变成 regression 案例。 | 存下来的轨迹就是语料；repo 内置的 benchmark runner 为一整组 task 评分。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 低成本又安全地换来丰富的正式环境可见度。 | crash 掉的 run 也留得下文件。 | 不用另外埋点：模型看得到的，log 里就有。 |
+| **Cons** | 只说发生了什么，答案好不好看不出来。 | 正式环境 telemetry 几乎没有。 | 没附任何脱敏规则。发出去可能会漏，也可能重复。 |
+| **Why** | 正式环境得盯住崩溃和成本，又不能碰 loop。 | 质量靠离线 benchmark 评分，完整记录最重要。 | session log 本来就是记录，直接把它发出去就好。 |
+| **How: telemetry** | event 先排队，等 sink 接上再采样、scrub。 | 每趟 run 一个轨迹文件，每一步都存。 | 每一条 session 事件都经过脱敏那一关再镜像出去。 |
+| **How: cost tracking** | 每模型 token 按定价滚成一个 session 总额。 | 逐次计价，汇总成 run 与全局总额。 | 重放整份 log 算出 token 数，从不换算成钱。 |
+| **How: eval feed** | 源码中没有；trace 脱敏后变成 regression 案例。 | 存下来的轨迹喂给 benchmark runner。 | 录下来的 run 不用密钥就能重放，当成固定样本。 |
 
 ---
 
@@ -201,6 +201,8 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
   `services/analytics/index.ts`（queue + `logEvent`）、`sink.ts`、`datadog.ts`、`firstPartyEventLogger.ts`、`sinkKillswitch.ts`、`shouldSampleEvent`。
 - [Claude Code cost and diagnostics](https://github.com/yasasbanukaofficial/claude-code)：
   `cost-tracker.ts`、`utils/modelCost.ts`、`costHook.ts`（`formatTotalCost`）、`diagnosticTracking.ts`、`upstreamproxy/relay.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/telemetry.md`、`docs/subsystems/token-meter.md`、`packages/llm/llm-replay/README.md`、`docs/subsystems/invariants.md`。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter6.md`，以中文原书为准。
   span 树、非线性的 agent 成本与每任务上限，还有正式环境 trace 回流成 eval 集。
   书里的成本分析没有引用外部来源，属于单一来源。

@@ -48,6 +48,10 @@ Each layer covers something the current model cannot do alone. That gives every 
 So harness engineering is not only adding. When the model changes, re-evaluate each layer: keep what still helps, delete what the new model covers.
 Sections 20 and 21 build the measurements for this. mini-swe-agent is the extreme case: almost no harness, so almost nothing to re-evaluate.
 
+deepseek-harness answers the same problem from the other end. Every part is a plugin, the loop included, and no core is privileged over the rest.
+Each capability is published at a named seam, and one plugin claims it: tools at one seam, permissions at another, context handling at a third.
+So re-evaluating a layer is a config change, not a fork. Deleting a layer means not loading that plugin.
+
 ### Further reading
 
 Two framings from ai-agent-book. Claims to test, not this repo's own findings.
@@ -106,5 +110,7 @@ What the model decides versus what the surrounding code builds.
 - [Claude Code source (`cc-src/src`)](https://github.com/yasasbanukaofficial/claude-code): `QueryEngine.ts`, `query/`, `Tool.ts`, `tools/`, `hooks/`, `types/permissions.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): `agents/default.py`, `environments/local.py`, protocols in `__init__.py`.
 - [mini-swe-agent README](https://github.com/swe-agent/mini-swe-agent): the case for a minimal harness as models improve.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/architecture.md`, `docs/capability-seams.md`, `docs/cordis-primer.md`, `docs/subsystems/core.md`.
 - [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter5.md`, Chinese original canonical. Boundary framing and the task quadrant, both single-source.

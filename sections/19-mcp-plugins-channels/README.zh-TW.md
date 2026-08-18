@@ -180,14 +180,14 @@ run_turn([...goal...], model, reg, Session(mode=DEFAULT))   # the one agent call
 
 harness 如何伸手觸及自身之外。
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | 任何服務、任何語言都接得上，不用改 harness。loop 與 gate 都不變。 | 其他 client 能把它當 MCP server 來用。每則從平台進來的訊息都先過 gate。 |
-| **Cons** | 每個連上的 server 都是新的攻擊面，annotation 又是自我陳報的。工具清單會膨脹。 | channel 的訊息誰都能發：垃圾訊息、想操縱 agent 的指令也會進來。 |
-| **Why** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server，聊天平台就是它的雙向介面。 |
-| **How: transports** | 六種，從 stdio 到 http/sse/ws。本地與遠端 server 各連各的池。 | MCP 雙向，加上聊天平台 adapter。語音走同樣的 channel。 |
-| **How: plugin format** | 一個 plugin 打包 server、hook、skill。設定按優先序分層合併。 | 一份 manifest 加一個註冊進入點。要覆蓋內建工具，操作者得明確同意。 |
-| **How: tool pool assembly** | 每個 server 工具被複製、加命名空間，並與內建工具合併。annotation 成為 gate 的權限提示。 | plugin 與 MCP 工具加入同一個 import 時建立的 registry。 |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 任何服務、任何語言都接得上，不用改 harness。 | 其他 client 能把它當 MCP server 來用。 | server 就是一份設定，不重啟也能換掉一台。 |
+| **Cons** | 每個 server 都是新的攻擊面，工具清單也會膨脹。 | channel 誰都能發訊息，垃圾訊息也一樣。 | 只接工具，也沒有聊天 channel 能把訊息推進來。 |
+| **Why** | 少了 MCP，能力就停在安裝當下內建的那一套。 | agent 同時是 MCP client 和 MCP server。 | 每樣東西都是 plugin，MCP server 也只是其中一個。 |
+| **How: transports** | 六種，從本地 stdio 到遠端 http，各連各的池。 | MCP 雙向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一個 plugin。 |
+| **How: plugin format** | 一個 plugin 打包 server、hook、skill，按優先序合併。 | 一份 manifest 加一個註冊進入點。 | 一列一列的設定。patch 用 id 整列換掉。 |
+| **How: tool pool assembly** | 每個 server 工具被複製、加命名空間，再與內建工具合併。 | plugin 與 MCP 工具進同一個 registry。 | 一台 server 的工具整批換上，出錯就整批回滾。 |
 
 ---
 
@@ -235,6 +235,8 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
   `services/mcp/types.ts`（`TransportSchema`）、`client.ts`（`MCPTool` cloning、`buildMcpToolName`）、`normalization.ts`（`normalizeNameForMCP`）。
 - [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code)：
   `config.ts`（precedence）、`channelNotification.ts`（`CHANNEL_TAG`），加上 `McpAuthTool`、`ListMcpResourcesTool`、`ReadMcpResourceTool`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/architecture.md`、`docs/cordis-primer.md`、`packages/acp/acp/README.md`、`packages/extensions/tool-cordis/README.md`。
 - [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code)：`plugins/builtinPlugins.ts`、`plugins/bundled/`、`types/plugin.ts`，加上 `remote/` 與 `bridge/`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
   `mcp_serve.py`、`hermes_cli/plugins.py`（`PluginManager`、`VALID_HOOKS`）、`gateway/platforms/`、`gateway/platform_registry.py`、`plugins/platforms/`。

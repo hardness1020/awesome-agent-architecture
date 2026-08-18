@@ -200,6 +200,9 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Google · Why we built ADK 2.0](https://developers.googleblog.com/en/why-we-built-adk-20/)：用程式碼選路、node 之間的 context 隔離、在 workflow 的 node 上掛 agent。
 - [Claude Code](https://code.claude.com/docs)：`Workflow` script 的約定（pipeline、平行分派、結構化輸出、續跑）。內容依據 tool schema 和文件記載的行為，不是 source backup。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`。每次執行都由模型現寫一段腳本，
+  每個呼叫開一個 child，沒有任何東西以圖的形式留下來，所以它對這一章的回答跟 Claude Code 那一欄一樣。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 與 budget、`run/benchmarks/swebench.py`。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版為準）：
   在同一條 trajectory 上做多階段角色轉換：每個 phase 一份 system prompt 和一套 tool，phase 之間用 tool call 當關卡，review 可以繞回實作。

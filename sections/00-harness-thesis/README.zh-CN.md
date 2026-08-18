@@ -48,6 +48,10 @@ harness 必须：
 所以 harness engineering 不是只有加，也包含删。模型换代时，重新评估每一层：还有帮助的留下，新模型自己就做得到的就删掉。
 怎么量测，见第 20、21 章。mini-swe-agent 就是最极端的例子：几乎没有 harness，也就几乎没有东西需要重新评估。
 
+deepseek-harness 是从另一端回答同一个问题。它每个部分都是 plugin，连 loop 也是，没有哪一块算是特权内核。
+每种能力都挂在一个有名字的接缝上，由一个 plugin 认领：工具一个接缝、权限一个接缝、context 处理又一个。
+所以重新评估某一层只是改配置，不用 fork。要删掉一层，就是不要加载那个 plugin。
+
 ### 延伸阅读
 
 以下两个框架出自 ai-agent-book，是可以拿去验的说法，不是本项目的结论。
@@ -106,5 +110,7 @@ harness 必须：
 - [Claude Code source (`cc-src/src`)](https://github.com/yasasbanukaofficial/claude-code)：`QueryEngine.ts`、`query/`、`Tool.ts`、`tools/`、`hooks/`、`types/permissions.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py`、`environments/local.py`、`__init__.py` 里的 protocol。
 - [mini-swe-agent README](https://github.com/swe-agent/mini-swe-agent)：模型变强之后，harness 可以更小的理由。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/architecture.md`、`docs/capability-seams.md`、`docs/cordis-primer.md`、`docs/subsystems/core.md`。
 - [learn-claude-code · s20_comprehensive](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter5.md`，以中文原版为准。界线框架与任务象限，两者都只有单一来源。

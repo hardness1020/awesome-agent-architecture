@@ -179,14 +179,14 @@ Read both. With only the first, a skill that is correct but never loads looks li
 
 How each agent composes its outer loops.
 
-| | Claude Code | Hermes Agent | mini-swe-agent |
-| --- | --- | --- | --- |
-| **Pros** | Both halves: scripted verify and hard budgets. | Budgets plus an improvement loop with rollback. | Every run has a hard bill. A budget stop can be a checkpoint. |
-| **Cons** | No closed improvement loop in source. | No built-in grade-and-retry loop. | Only the budget half. Grading waits for offline eval. |
-| **Why** | The outer loop is a program you script and cap. | Goal: an improvement loop that reaches the model itself. | Assumes one run is one benchmark task, graded offline. |
-| **How: verification** | Scripted verify stages: adversarial verify, judge panel. | Maker and checker via delegation, plus offline tests. | None. SWE-bench grades offline. |
-| **How: event loop** | Cron, self-paced wakeups, remote triggers. | Cron with restricted toolsets, plus watch patterns. | None. The batch runner schedules instances, not time. |
-| **How: improvement loop** | Resumable runs: finished steps replay from cache. | A curator prunes skills; runs become training data. | None. Budgets are the only outer control. |
+| | Claude Code | Hermes Agent | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- | --- |
+| **Pros** | Scripted verify plus hard budgets. | Budgets, and rollback on improvement. | Every run has a hard bill. | Outer loops attach as plugins on published events. |
+| **Cons** | No closed improvement loop in source. | No grade-and-retry loop. | Only the budget half. | Nothing checks the work. Rounds are the only budget. |
+| **Why** | The outer loop is a program you script. | Improvement should reach the model. | One run is one graded task. | The loop is itself a plugin, so control attaches to it. |
+| **How: verification** | Scripted stages, judge panels. | Maker and checker, plus offline tests. | None. SWE-bench grades offline. | None built in; completion is self-declared. |
+| **How: event loop** | Cron, self-paced wakeups, remote triggers. | Cron with restricted toolsets. | None. The runner schedules tasks. | Reminders replay from the log as a turn. |
+| **How: improvement loop** | Resumable runs replay from cache. | A curator prunes skills. | None. Budgets only. | None shipped; the attach points exist. |
 
 ---
 
@@ -233,6 +233,8 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 
 ## Sources
 
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/subsystems/core.md`, `packages/workflow/tool-ralph/README.md`, `packages/schedule/schedule/README.md`, `docs/subsystems/goal.md`.
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering): building blocks and readiness levels.
 - [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering): the four stacked loops.
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/): the composed building blocks.
