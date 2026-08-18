@@ -2,6 +2,7 @@
 
     python sections/10-system-prompt/src/test.py
 """
+import registry
 from prompt import DEMO_SECTIONS, assemble
 
 SEC = DEMO_SECTIONS
@@ -29,6 +30,25 @@ def test():
     # only the state-driven tail moves; the static head and the tools section stay put
     assert p1 != p2 != p3
     assert "Ping" in p1 and "Ping" in p3
+
+    # registry: order bands decide the layout, not the order sections were registered
+    reg = registry.PromptRegistry()
+    reg.section("tools", "Tools: {{tools}}", order=registry.TOOLS)
+    reg.section("identity", "You are a tiny agent.", order=registry.HARNESS)
+    reg.variable("tools", "Read, Ping")
+    assert reg.assemble() == "You are a tiny agent.\n\nTools: Read, Ping"
+
+    # registry: an agent-scoped section shadows the global one of the same name
+    reg.section("identity", "You are a reviewer.", order=registry.HARNESS, scope="reviewer")
+    assert "reviewer" in reg.assemble("reviewer") and "reviewer" not in reg.assemble()
+
+    # registry: an unknown variable fails loud instead of rendering a hole
+    reg.section("broken", "Model: {{model}}")
+    try:
+        reg.assemble()
+        raise AssertionError("unknown variable should raise")
+    except KeyError:
+        pass
 
     print("10 prompt: ok")
 
