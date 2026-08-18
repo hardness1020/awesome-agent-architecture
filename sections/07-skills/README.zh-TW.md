@@ -178,14 +178,14 @@ skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書�
 
 各 agent 如何描述、觸發並找到 skill。
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | catalog 建立時有預算上限。skill 可以 fork 成 subagent，還能限制可用的 tool。 | curator 會整併新 skill、封存過期的。hub 安裝會經過檢查。 |
-| **Cons** | 描述太含糊，模型就不會去載入。forked skill 拿不到即時情境。 | 描述含糊在這裡一樣會埋沒 skill。自動改動需要釘選和暫存核准來把關。 |
-| **Why** | skill 還要 fork、還要限制 tool，單純讀檔不夠用。 | 載入只是一半，store 本身還要能成長、能汰舊。 |
-| **How: skill format** | 帶有 frontmatter 和本文的 `SKILL.md` 資料夾。frontmatter 還能限制 tool、指定模型。 | 同樣的形式，依分類資料夾整理。 |
-| **How: load trigger** | invoke `Skill` tool，本文注入對話。動到符合條件的檔案也會觸發。 | `skill_view` 回傳本文、列出關聯檔案，並累計使用次數。 |
-| **How: discovery** | built-in、user、project、plugin 和 MCP 來源。舊的 slash command 走同一套機制。 | bundled、optional、user、plugin 和 GitHub hub 來源。 |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | catalog 有預算上限。skill 能 fork，還能限制 tool。 | curator 會整併新 skill、封存過期的。 | catalog 就放在對話歷史裡，session 續跑後照樣知道有哪些 skill。 |
+| **Cons** | 描述太含糊，模型就不會去載入。 | 自動改動需要釘選和暫存核准來把關。 | 每次換掉 catalog 都會往歷史裡多塞訊息。 |
+| **Why** | skill 還要 fork、還要限制 tool，單純讀檔不夠用。 | 載入只是一半，store 本身還要能成長、能汰舊。 | session 跑到一半，skill 就可能變了。 |
+| **How: skill format** | 帶 frontmatter 和本文的 `SKILL.md` 資料夾。 | 同樣的形式，依分類資料夾整理。 | 一個資料夾或一個扁平檔案。誰能呼叫寫在 frontmatter。 |
+| **How: load trigger** | invoke `Skill` tool，本文注入對話。 | `skill_view` 回傳本文，並累計使用次數。 | 一個 tool 現讀本文。catalog 一有變動就換新的。 |
+| **How: discovery** | built-in、user、project、plugin、MCP 來源。 | bundled、optional、user、plugin、hub 來源。 | 註冊的 provider 疊在分層的 scope 上，根目錄有排名。 |
 
 ---
 
@@ -228,6 +228,9 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
   `skills/loadSkillsDir.ts`、`skills/bundledSkills.ts`、`skills/mcpSkillBuilders.ts`、`tools/SkillTool/SkillTool.ts`、`tools/SkillTool/prompt.ts`。
 - [Hermes Agent 原始碼](https://github.com/NousResearch/hermes-agent)：
   `tools/skills_tool.py`（`skills_list`、`skill_view`）、`tools/skill_usage.py`、`hermes_cli/curator.py`、`tools/skills_hub.py`、`tools/skills_ast_audit.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/skill/skill/src/index.ts`、`packages/skill/skill-filesystem/src/index.ts`、`packages/skill/tool-skill/src/index.ts`、
+  `docs/subsystems/skills.md`、`docs/tool-catalog.md`。
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)：progressive disclosure 的層級。
 - [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter2.md`、`book/chapter8.md`，以中文原版為準。

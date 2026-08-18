@@ -56,15 +56,15 @@ Three properties matter:
 
 How each agent isolates a subproblem and returns the result.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | A child context keeps the parent focused. Side investigations stay out of the main transcript. |
-| **Cons** | The parent loses the details of how the child reached its answer. If the summary is thin, it must ask again or read files the child wrote. |
-| **Why** | The parent usually needs the conclusion, not every file read or command result from the child. |
-| **How: spawn primitive** | The `Agent` tool. `Task` is the legacy wire name. A subagent type picks a built-in persona, such as general-purpose, explore, or plan. |
-| **How: context isolation** | Fresh child messages. The child starts without the parent transcript. A fork child cannot spawn another fork. |
-| **How: result return** | The text of the child's last message goes back to the parent. The child transcript is discarded. |
-| **How: resume** | Most agents can resume. The parent sends a follow-up message to continue the child. Background subagents become tracked tasks. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | A child context keeps the parent focused and the main transcript clean. | One seam spans in-process children, outside runtimes, and product CLIs. |
+| **Cons** | The parent loses how the child got there. A thin summary means asking again. | Six backends and a resume manager, where one tool would do. |
+| **Why** | The parent needs the conclusion, not every file the child read. | Delegation is a transport choice, so each backend registers under a name. |
+| **How: spawn primitive** | The `Agent` tool. A subagent type picks a built-in persona. | One tool per registered backend: fresh child, fork, outside runtime, or CLI. |
+| **How: context isolation** | Fresh child messages. The child starts without the parent transcript. | A fresh child starts empty. A fork copies the parent's finished turns only. |
+| **How: result return** | The text of the child's last message goes back. The transcript is dropped. | The last assistant message, plus optional output checked against a schema. |
+| **How: resume** | Most agents resume. The parent sends a follow-up message. | Durable children queue follow-ups and reload from the log after a restart. |
 
 ---
 
@@ -98,4 +98,7 @@ uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `tools/AgentTool/AgentTool.tsx`, `runAgent.ts`, `resumeAgent.ts`, `forkSubagent.ts`, `builtInAgents.ts`, `tasks/LocalAgentTask/`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/subagent/subagent/src/index.ts`, `src/continuation.ts`, `packages/subagent/subagent-fork-in-process/README.md`,
+  `packages/subagent/subagent-acp/README.md`, `docs/subsystems/subagent.md`, `docs/tool-catalog.md`.
 - [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code): section framing.

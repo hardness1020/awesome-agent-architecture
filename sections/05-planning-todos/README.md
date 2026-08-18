@@ -72,14 +72,14 @@ The status is `pending`, `in_progress`, or `completed`. The model writes the who
 
 How each agent tracks a plan and gates execution.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | Simple and cheap. An in-memory todo list needs no dependencies, persistence, or locking. |
-| **Cons** | The list is session state only. Work that must survive a turn or process needs a disk-backed task graph, which adds more tools and on-disk state (section 12). |
-| **Why** | The model loses track of a plan kept only in the prompt, so the checklist is stored as session state. The agent should not edit files before the plan is approved. |
-| **How: plan artifact** | Todo list plus a plan file. `TodoWrite` overwrites the in-memory list and is always allowed because it has no external side effect. |
-| **How: plan mode** | Yes. Entering flips the permission mode to plan, and the session stays read-only until exit. |
-| **How: execution gate** | `ExitPlanMode` reads the plan and asks for approval. The call is rejected unless the current mode is plan. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | Simple and cheap. An in-memory todo list needs no dependencies or locking. | Plan and todo state survive restart, fork, and compaction. |
+| **Cons** | Session state only. Work that outlives a turn needs a task graph (section 12). | Plan mode blocks nothing. Only the sandbox or approval policy stops an edit. |
+| **Why** | A plan kept only in the prompt gets lost, so the checklist is session state. | The session log is the source of truth, so plan state is one more event. |
+| **How: plan artifact** | A todo list and a plan file. `TodoWrite` overwrites the list, never gated. | `todo_write` appends the whole list as an event. A projection replays it. |
+| **How: plan mode** | Yes. Entering flips the permission mode to plan. The session stays read-only. | A logged flag plus guidance text in the prompt. No permission change. |
+| **How: execution gate** | `ExitPlanMode` asks for approval. The call is rejected outside plan mode. | None while planning. A rejected plan comes back as tool feedback. |
 
 ---
 
@@ -113,4 +113,6 @@ uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `tools/TodoWriteTool/TodoWriteTool.ts`, `tools/EnterPlanModeTool/EnterPlanModeTool.ts`, `tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`.
 - [Claude Code planning helpers](https://github.com/yasasbanukaofficial/claude-code): `utils/plans.ts`, `utils/todo/types.ts`, `types/permissions.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/todo/tool-todo/src/index.ts`, `packages/plan/plan-mode/src/index.ts`, `docs/subsystems/plan.md`, `docs/tool-catalog.md`.
 - [learn-claude-code · s05_todo_write](https://github.com/shareAI-lab/learn-claude-code): section framing.

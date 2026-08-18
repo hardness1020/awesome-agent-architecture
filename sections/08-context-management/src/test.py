@@ -1,8 +1,11 @@
-"""Section 8 offline checks: the three reduction passes in isolation. No key, no network.
+"""Section 8 offline checks: the three reduction passes, plus the spill contrast. No key, no network.
 
     python sections/08-context-management/src/test.py
 """
+from pathlib import Path
+
 import context
+import spill
 
 
 def _tool_result(s):
@@ -27,6 +30,20 @@ def test():
     out = context.manage(msgs, summarizer=lambda ms: "did 12 steps")
     assert any(isinstance(m["content"], str) and "summary of" in m["content"] for m in out)
     assert len(out) < len(big) + 1
+
+    # spill: the full result lands on disk, and the preview says where to read it
+    full = "A" * 500 + "B" * 500
+    msgs = [_tool_result(full)]
+    spill.spill_results(msgs, spill.SpillStore())
+    kept = msgs[0]["content"][0]["content"]
+    assert len(kept) < len(full) and "chars spilled" in kept
+    path = kept.split('path="')[1].split('"')[0]
+    assert Path(path).read_text() == full            # nothing was lost, unlike _budget
+
+    # spill: a small result is left alone
+    msgs = [_tool_result("short")]
+    spill.spill_results(msgs, spill.SpillStore())
+    assert msgs[0]["content"][0]["content"] == "short"
 
     print("08 context: ok")
 

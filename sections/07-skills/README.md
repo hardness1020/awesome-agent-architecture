@@ -181,14 +181,14 @@ and text the agent read from outside cannot become a permanent instruction betwe
 
 How each agent describes, triggers, and finds skills.
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | The catalog fits a budget. A skill can fork into a subagent and scope its tools. | A curator merges new skills and archives stale ones. Hub installs are checked. |
-| **Cons** | Vague descriptions hide skills. Forked skills lose live context. | Vague descriptions hide skills too. Automatic changes need pins and staged approvals. |
-| **Why** | Skills also fork and scope tools, so a plain file read is not enough. | Loading is half the job. The store itself must grow and decay. |
-| **How: skill format** | `SKILL.md` folder with frontmatter and body. Frontmatter can limit tools or pick a model. | Same shape, sorted into category folders. |
-| **How: load trigger** | A `Skill` tool call injects the body. Matching files can also fire it. | `skill_view` returns the body plus linked files and bumps use counts. |
-| **How: discovery** | Built-in, user, project, plugin, and MCP sources. Legacy slash commands use the same machinery. | Bundled, optional, user, plugin, and GitHub hub sources. |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Fits a budget. A skill can fork and scope tools. | A curator merges new skills, archives stale ones. | The catalog rides in history, so a resumed session keeps it. |
+| **Cons** | Vague descriptions hide skills. | Automatic changes need pins and staged approvals. | Catalog rewrites add messages to history. |
+| **Why** | Skills fork and scope tools, so a file read is not enough. | Loading is half the job; the store must grow and decay. | Skills change while a session runs. |
+| **How: skill format** | `SKILL.md` folder with frontmatter and body. | Same shape, sorted into category folders. | Bundles or flat files. Frontmatter sets who may invoke. |
+| **How: load trigger** | A `Skill` tool call injects the body. | `skill_view` returns the body and bumps use counts. | A tool rereads a body. The catalog refreshes on change. |
+| **How: discovery** | Built-in, user, project, plugin, MCP sources. | Bundled, optional, user, plugin, and hub sources. | Providers merge over layered scopes and ranked roots. |
 
 ---
 
@@ -233,6 +233,9 @@ uv run python sections/07-skills/src/demo.py  # live demo, needs a key
   `skills/loadSkillsDir.ts`, `skills/bundledSkills.ts`, `skills/mcpSkillBuilders.ts`, `tools/SkillTool/SkillTool.ts`, `tools/SkillTool/prompt.ts`.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `tools/skills_tool.py` (`skills_list`, `skill_view`), `tools/skill_usage.py`, `hermes_cli/curator.py`, `tools/skills_hub.py`, `tools/skills_ast_audit.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/skill/skill/src/index.ts`, `packages/skill/skill-filesystem/src/index.ts`, `packages/skill/tool-skill/src/index.ts`,
+  `docs/subsystems/skills.md`, `docs/tool-catalog.md`.
 - [Anthropic Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices): progressive disclosure levels.
 - [learn-claude-code · s07_skill_loading](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter2.md`, `book/chapter8.md`, Chinese original canonical.
