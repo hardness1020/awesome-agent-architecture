@@ -126,11 +126,11 @@ How each agent decides to make room and what it removes.
 
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | Long sessions survive. Most reductions are cheap. | Nothing to schedule or tune. Easy to audit. | History is never destroyed. Every cut replays. |
+| **Pros** | Long sessions survive. Reductions are cheap and outputs re-readable. | Nothing to schedule or tune. Easy to audit. | History is never destroyed. |
 | **Cons** | Passes need ordering rules. A summary can drop detail. | History only grows. A long run dies on overflow. | The log grows on disk, and needs locks and folds. |
 | **Why** | Interactive sessions are open ended, so the window fills. | Assumes a budget ends the run first (section 21). | The log is the truth, so only the view shrinks. |
 | **How: trigger** | Token threshold, plus a fallback on `prompt_too_long`. | Every observation, at render time. | Measured pressure each step, plus confirmed overflow. |
-| **How: strategy** | Cheap reducers first (persist, stub), summary last. | Truncate long output to a head and a tail. | Spill, prune, then a summary event replaces the span. |
+| **How: strategy** | Cheap reducers first (persist, stub), summary last. | Truncate long output to a head and a tail. No compaction. | Spill, prune, then a summary event. |
 | **How: budget** | Reserve output and safety buffers. | 10k characters per observation. | Ratios per routed model: compact at 0.8, keep 0.16. |
 
 ---

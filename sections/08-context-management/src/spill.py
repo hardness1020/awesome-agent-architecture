@@ -38,8 +38,10 @@ def spill_results(messages, store: SpillStore) -> None:
         if m.get("role") != "user" or not isinstance(content, list):
             continue
         for block in content:
-            body = block.get("content") if isinstance(block, dict) else None
-            if block.get("type") == "tool_result" and isinstance(body, str) and len(body) > MAX_INLINE_CHARS:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue                      # an SDK block object, or not a tool result
+            body = block.get("content")
+            if isinstance(body, str) and len(body) > MAX_INLINE_CHARS:
                 block["content"] = _preview(body, store.save_text(body))
 
 

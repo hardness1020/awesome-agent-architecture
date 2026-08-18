@@ -61,7 +61,7 @@ loop 不会改变。subagent 只是另一个调用 loop 的 tool handler。
 | **Cons** | parent 不知道 child 是怎么得出答案的，摘要太薄就得再问一次。 | 一个工具能解决的事，这里有六种后端加一套续跑管理。 |
 | **Why** | parent 只需要结论，不需要 child 读过的每个文件。 | 委派只是传输方式的选择，所以每种后端都挂在一个名字下。 |
 | **How: spawn primitive** | `Agent` tool。用 subagent type 选一个内置 persona。 | 每个注册的后端各有一个工具：全新 child、fork、外部 runtime 或 CLI。 |
-| **How: context isolation** | child 的 messages 是全新的，不带 parent 的 transcript。 | 全新 child 从空的开始。fork 只复制 parent 已经跑完的 turn。 |
+| **How: context isolation** | child 的 messages 是全新的。fork 出来的 child 不能再 fork。 | 全新 child 从空的开始。fork 只复制 parent 已经跑完的 turn。 |
 | **How: result return** | child 最后一则消息的文本返回给 parent，transcript 丢弃。 | 最后一则 assistant 消息，外加可选的结构化输出，会按 schema 检查。 |
 | **How: resume** | 多数 agent 可以续跑，parent 再发一条消息就行。 | durable 的 child 会把后续消息排进队列，重启后也能从 log 重新载回。 |
 

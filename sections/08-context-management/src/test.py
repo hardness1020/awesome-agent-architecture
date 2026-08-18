@@ -37,6 +37,7 @@ def test():
     spill.spill_results(msgs, spill.SpillStore())
     kept = msgs[0]["content"][0]["content"]
     assert len(kept) < len(full) and "chars spilled" in kept
+    assert kept.startswith("A" * 20) and "B" * 20 in kept   # a head and a tail stay readable
     path = kept.split('path="')[1].split('"')[0]
     assert Path(path).read_text() == full            # nothing was lost, unlike _budget
 
@@ -44,6 +45,10 @@ def test():
     msgs = [_tool_result("short")]
     spill.spill_results(msgs, spill.SpillStore())
     assert msgs[0]["content"][0]["content"] == "short"
+
+    # spill: an SDK block object in the content list is skipped, not crashed on
+    msgs = [{"role": "user", "content": ["an SDK text block"]}]
+    spill.spill_results(msgs, spill.SpillStore())
 
     print("08 context: ok")
 

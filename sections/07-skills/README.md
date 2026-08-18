@@ -183,11 +183,11 @@ How each agent describes, triggers, and finds skills.
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | Fits a budget. A skill can fork and scope tools. | A curator merges new skills, archives stale ones. | The catalog rides in history, so a resumed session keeps it. |
+| **Pros** | Fits a budget. A skill can fork and scope tools. | A curator merges new skills, archives stale ones. | The catalog rides in history and refreshes when it changes. |
 | **Cons** | Vague descriptions hide skills. | Automatic changes need pins and staged approvals. | Catalog rewrites add messages to history. |
 | **Why** | Skills fork and scope tools, so a file read is not enough. | Loading is half the job; the store must grow and decay. | Skills change while a session runs. |
-| **How: skill format** | `SKILL.md` folder with frontmatter and body. | Same shape, sorted into category folders. | Bundles or flat files. Frontmatter sets who may invoke. |
-| **How: load trigger** | A `Skill` tool call injects the body. | `skill_view` returns the body and bumps use counts. | A tool rereads a body. The catalog refreshes on change. |
+| **How: skill format** | `SKILL.md` folder; frontmatter can limit tools. | Same shape, sorted into category folders. | Bundles or flat files. Frontmatter sets who may invoke. |
+| **How: load trigger** | A `Skill` call injects the body; file matches also fire it. | `skill_view` returns the body, bumping use counts. | A tool rereads the body on request. |
 | **How: discovery** | Built-in, user, project, plugin, MCP sources. | Bundled, optional, user, plugin, and hub sources. | Providers merge over layered scopes and ranked roots. |
 
 ---

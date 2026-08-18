@@ -76,8 +76,8 @@ How each agent tracks a plan and gates execution.
 | --- | --- | --- |
 | **Pros** | Simple and cheap. An in-memory todo list needs no dependencies or locking. | Plan and todo state survive restart, fork, and compaction. |
 | **Cons** | Session state only. Work that outlives a turn needs a task graph (section 12). | Plan mode blocks nothing. Only the sandbox or approval policy stops an edit. |
-| **Why** | A plan kept only in the prompt gets lost, so the checklist is session state. | The session log is the source of truth, so plan state is one more event. |
-| **How: plan artifact** | A todo list and a plan file. `TodoWrite` overwrites the list, never gated. | `todo_write` appends the whole list as an event. A projection replays it. |
+| **Why** | A plan kept only in the prompt gets lost. No edits before the plan is approved. | The session log is the truth, so plan state is one more event. |
+| **How: plan artifact** | A todo list and a plan file. `TodoWrite` overwrites the list, never gated. | `todo_write` appends the whole list as an event. Replay rebuilds it. |
 | **How: plan mode** | Yes. Entering flips the permission mode to plan. The session stays read-only. | A logged flag plus guidance text in the prompt. No permission change. |
 | **How: execution gate** | `ExitPlanMode` asks for approval. The call is rejected outside plan mode. | None while planning. A rejected plan comes back as tool feedback. |
 

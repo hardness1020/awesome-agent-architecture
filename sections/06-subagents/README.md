@@ -62,7 +62,7 @@ How each agent isolates a subproblem and returns the result.
 | **Cons** | The parent loses how the child got there. A thin summary means asking again. | Six backends and a resume manager, where one tool would do. |
 | **Why** | The parent needs the conclusion, not every file the child read. | Delegation is a transport choice, so each backend registers under a name. |
 | **How: spawn primitive** | The `Agent` tool. A subagent type picks a built-in persona. | One tool per registered backend: fresh child, fork, outside runtime, or CLI. |
-| **How: context isolation** | Fresh child messages. The child starts without the parent transcript. | A fresh child starts empty. A fork copies the parent's finished turns only. |
+| **How: context isolation** | Fresh child messages. A fork child cannot fork again. | A fresh child starts empty. A fork copies the parent's finished turns only. |
 | **How: result return** | The text of the child's last message goes back. The transcript is dropped. | The last assistant message, plus optional output checked against a schema. |
 | **How: resume** | Most agents resume. The parent sends a follow-up message. | Durable children queue follow-ups and reload from the log after a restart. |
 

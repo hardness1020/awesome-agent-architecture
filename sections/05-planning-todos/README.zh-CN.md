@@ -75,8 +75,8 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都会写入�
 | --- | --- | --- |
 | **Pros** | 简单又便宜。memory 中的 todo list 没有依赖，也没有锁。 | 计划与 todo 状态扛得过重启、fork 与 compaction。 |
 | **Cons** | 只是 session 状态。要跨 turn 存活的工作得交给 task graph（见第 12 章）。 | plan mode 自己拦不住任何东西，要 sandbox 或 approval policy 出手才拦得下编辑。 |
-| **Why** | 计划只留在 prompt 里会走丢，所以清单存成 session 状态。 | session log 才是唯一的事实来源，所以计划状态也只是一则事件。 |
-| **How: plan artifact** | 一份 todo list 加一个 plan 文件。`TodoWrite` 覆写清单，从不被管制。 | `todo_write` 把整份清单当成一则事件追加上去，projection 再重放出来。 |
+| **Why** | 计划只留在 prompt 里会走丢，而且计划获批前不该动文件。 | session log 才是唯一的事实来源，所以计划状态也只是一则事件。 |
+| **How: plan artifact** | 一份 todo list 加一个 plan 文件。`TodoWrite` 覆写清单，从不被管制。 | `todo_write` 把整份清单当成一则事件追加上去，重放事件就能还原清单。 |
 | **How: plan mode** | 有。进入时把 permission mode 切成 plan，session 保持只读。 | 一个写进 log 的标志，加上 prompt 里的一段指引文字，不动 permission。 |
 | **How: execution gate** | `ExitPlanMode` 请求批准。不在 plan mode 时，这个调用会被拒绝。 | 规划期间完全不管制。计划被打回来时，以 tool feedback 返回。 |
 

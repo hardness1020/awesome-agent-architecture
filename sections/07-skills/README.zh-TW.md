@@ -180,11 +180,11 @@ skill 是這個 repo 第一次碰到 progressive disclosure 的地方；照書�
 
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
-| **Pros** | catalog 有預算上限。skill 能 fork，還能限制 tool。 | curator 會整併新 skill、封存過期的。 | catalog 就放在對話歷史裡，session 續跑後照樣知道有哪些 skill。 |
+| **Pros** | catalog 有預算上限。skill 能 fork，還能限制 tool。 | curator 會整併新 skill、封存過期的。 | catalog 放在對話歷史裡，session 續跑後照樣在，內容一變就換新的。 |
 | **Cons** | 描述太含糊，模型就不會去載入。 | 自動改動需要釘選和暫存核准來把關。 | 每次換掉 catalog 都會往歷史裡多塞訊息。 |
 | **Why** | skill 還要 fork、還要限制 tool，單純讀檔不夠用。 | 載入只是一半，store 本身還要能成長、能汰舊。 | session 跑到一半，skill 就可能變了。 |
-| **How: skill format** | 帶 frontmatter 和本文的 `SKILL.md` 資料夾。 | 同樣的形式，依分類資料夾整理。 | 一個資料夾或一個扁平檔案。誰能呼叫寫在 frontmatter。 |
-| **How: load trigger** | invoke `Skill` tool，本文注入對話。 | `skill_view` 回傳本文，並累計使用次數。 | 一個 tool 現讀本文。catalog 一有變動就換新的。 |
+| **How: skill format** | `SKILL.md` 資料夾，frontmatter 還能限制可用的 tool。 | 同樣的形式，依分類資料夾整理。 | 一個資料夾或一個扁平檔案。誰能呼叫寫在 frontmatter。 |
+| **How: load trigger** | invoke `Skill` tool 注入本文；動到符合的檔案也會觸發。 | `skill_view` 回傳本文，並累計使用次數。 | 要用到的時候，一個 tool 才去現讀本文。 |
 | **How: discovery** | built-in、user、project、plugin、MCP 來源。 | bundled、optional、user、plugin、hub 來源。 | 註冊的 provider 疊在分層的 scope 上，根目錄有排名。 |
 
 ---
