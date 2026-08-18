@@ -170,7 +170,7 @@ How the prompt is composed each turn.
 | **Pros** | No stale instructions. Guidance matches the live tools. | One render from config. Nothing to invalidate. | Every prompt fact has one owner. Bad references fail loud. |
 | **Cons** | Needs a section registry, cache rules, and ordering discipline. | The prompt cannot change mid-run. | A registry, scopes, and order bands are a lot of machinery. |
 | **Why** | Tools, memory, and modes vary by session. | Assumes the tool set never changes mid-run. | Plugins own their facts, so the prompt is assembled, never edited. |
-| **How: assembly point** | A prompt builder returning one string per section. | Jinja2 templates in config. | A registry, plus an assembly event each scope can adjust. |
+| **How: assembly point** | A prompt builder, one string per section. | Jinja2 templates; a missing variable fails loudly. | A registry, plus an event each scope can adjust. |
 | **How: sections** | Static and dynamic sections; project context rides in messages. | Two templates, system and instance. | Named sections in numeric bands, shadowed by scope. |
 | **How: when built** | Per turn from live state, with dynamic parts memoized. | Once, at run start. | Once per step. Changing facts append as snapshots instead. |
 

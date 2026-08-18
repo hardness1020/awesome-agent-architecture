@@ -170,7 +170,7 @@ prompt 层降低发生概率，执行层限制损害范围。
 | **Pros** | 不会留着过时的指令，工具指引对得上启用中的工具集。 | 只从 config render 一次，没有东西要失效。 | 每一项 prompt 事实都有一个负责人，引用错了会直接报错。 |
 | **Cons** | 多了段落 registry、cache 失效规则和排序纪律。 | prompt 在 run 中途改不了。 | registry、scope 和排序区段，全都是要维护的机制。 |
 | **Why** | 工具、记忆和模式会因 session 而异。 | 假设工具集在 run 中途不会变。 | plugin 各自拥有自己的事实，所以 prompt 是组出来的，不是改字符串。 |
-| **How: assembly point** | 一个 prompt 组装器，每个段落各返回一个字符串。 | config 里的 Jinja2 template。 | 一个 registry，加上每个 scope 都能调整的组装事件。 |
+| **How: assembly point** | 一个 prompt 组装器，每个段落各返回一个字符串。 | config 里的 Jinja2 template，变量缺了会直接报错。 | 一个 registry，加上每个 scope 都能调整的组装事件。 |
 | **How: sections** | 静态与动态段落，项目上下文走 context 消息。 | 两份 template：system 与 instance。 | 有名字的段落排在数字区段里，scope 可以用同名盖掉。 |
 | **How: when built** | 每一轮从实时状态组出，动态段落会被 memoize。 | 只在 run 开始时组一次。 | 每一步组一次。会变的事实改以快照追加。 |
 

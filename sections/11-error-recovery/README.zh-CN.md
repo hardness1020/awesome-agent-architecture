@@ -158,10 +158,10 @@ Recovery 包住模型调用。loop 主体维持不变。
 | | Claude Code | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | 针对性的恢复路径，救回的 run 比一概重试更多。 | 只有三条路径要维护，crash 也留得下完整轨迹。 | 每次重试都写进 log，session 续跑后也知道自己重试过什么。 |
-| **Cons** | 要维护的分支与界限更多。 | 救回的 run 较少，overflow 直接中止。 | 没有 fallback 模型。有一种模式会无上限地一直重试。 |
+| **Cons** | 要维护的分支与界限更多。 | 救回的 run 较少。overflow 会中止，连续三次格式错误也会。 | 没有 fallback 模型。always 模式会无上限地一直重试。 |
 | **Why** | 一次暂时的 API 失败不该终结长任务。 | 重试、把格式错误还给模型，其余具名退出。 | log 才是事实，所以恢复是重开一个 turn 重放。 |
 | **How: retry** | 带退避重试 429、408、409 和 5xx，`retry-after` 优先。 | tenacity 退避 4 到 60 秒，最多 10 次。 | 失败的 turn 收掉后发一则错误事件，接着开新的 turn。 |
-| **How: token handling** | 提高输出上限、续写，或在 `prompt_too_long` 时压缩。 | 没有，overflow 直接中止 run。 | 一个统一的 overflow 代码，先修剪再摘要。 |
+| **How: token handling** | 提高输出上限、在 `max_tokens` 停止后续写，或压缩。 | 没有，overflow 直接中止 run。 | 一个统一的 overflow 代码，先修剪再摘要。 |
 | **How: model fallback** | 反复过载（529）后改用 fallback 模型。 | 没有。 | 没有。重试的 turn 会重建同一个请求。 |
 
 ---
