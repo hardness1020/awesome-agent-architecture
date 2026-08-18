@@ -68,14 +68,21 @@ demo 用一個 `PreToolUse` hook，即使在 `bypassPermissions` 之下也擋下
 
 ### 對照：waterfall hooks
 
-deepseek-harness 用的是另一種 hook 表面。hook 是掛在型別化事件上的 in-process listener，不是 shell 子行程。
+Claude Code 的 hook 是一條外部指令：harness 開一個子行程去跑它，再讀它的 exit code 和輸出。
+deepseek-harness 的 hook 則是一個普通函式，直接在 harness 行程裡跑。
+它掛在一個具名事件上，例如工具呼叫前會觸發的那個事件。
+它回傳的也不是 exit code，而是型別化決策：deny、ask、allow 這種普通的值。
 
-- listener 排成一條鏈，每個都拿到 payload 和一個 `next()` callback。
-- listener 不呼叫 `next()` 就直接回傳，等於自己接手這個決策。
-- listener 呼叫 `next()` 就是把決策交給下游，還可以把下游的結果包一層再回傳。
-- 外部的 shell hook 靠 bridge 接上來，輸出以最嚴格者為準折疊：deny > ask > allow。
+同一個事件可以掛好幾個 hook。它們排成一條鏈，事件觸發時只會跑第一個。
+每個 hook 拿到事件資料和一個 `next()` callback，然後二選一：
 
-[`src/waterfall.py`](src/waterfall.py) 是這個表面的 strip-down。它是對照用的 demo，沒有接進 `_dispatch`，後面的章節照樣沿用原本的 loop。
+- 不呼叫 `next()`，直接回傳決策。鏈就停在這裡，排在後面的 hook 都不會跑。
+- 呼叫 `next()`，讓鏈的其餘部分先決定，這個 hook 再把那個結果回傳，可以原樣回傳，也可以先改一下。
+
+dsh 把這種派發方式叫做 waterfall。原本 Claude Code 的 shell hook 也還能用：一個 bridge 幫忙執行它們，
+把輸出轉成同樣的型別化決策。好幾個 shell hook 同時回答時，bridge 取最嚴格的那個：deny 蓋過 ask，ask 蓋過 allow。
+
+[`src/waterfall.py`](src/waterfall.py) 就是這套機制的 strip-down。它是對照用的 demo，沒有接進 `_dispatch`，後面的章節照樣沿用原本的 loop。
 
 ### 延伸閱讀
 
@@ -100,12 +107,12 @@ deepseek-harness 用的是另一種 hook 表面。hook 是掛在型別化事件�
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是型別化的 plugin，既有的 shell hook 照樣能跑。 |
-| **Cons** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 要學兩套表面。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
-| **Why** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充表面就是 harness 自己在跑的那套事件系統。 |
-| **How: hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，bridge 把 shell 方言對映上來。 |
+| **Pros** | 使用者不必改動 loop 就能擴充行為。適合做記錄、驗證、通知和政策檢查。 | hook 是行程內的 plugin，既有的 shell hook 照樣能跑。 |
+| **Cons** | 固定的事件清單同時也是它的界限。hook 只能在系統對外提供事件的地方進行攔截。 | 兩套 hook 做法都要學。bridge 只涵蓋一部分事件，也不能改寫工具輸入。 |
+| **Why** | 讓 loop 保持精簡。新行為掛接到固定事件上，不用改動或分岔 loop。 | 擴充用的介面，就是 harness 自己在跑的那套事件系統。 |
+| **How: hook events** | 固定的 27 個生命週期事件，涵蓋 tool、prompt、session、stop、subagent、compact 與 setup。 | 每個階段都有 waterfall 和 serial 事件，shell hook 靠 bridge 接上來。 |
 | **How: fire point** | 從 settings 載入，啟動時凍結。`PreToolUse` 在 permission gate 之前觸發。 | 在 pre-execute waterfall 裡，位在只會拒絕的 guard 之前。 |
-| **How: can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化的決策。多個 shell hook 折疊成 deny > ask > allow。 |
+| **How: can block or modify?** | 可以。拒絕、詢問、更新輸入、加入 context，或停止。hook 輸出會和以規則為基礎的 permission 加以協調。 | 可以，靠型別化決策。多個 shell hook 取最嚴格的：deny > ask > allow。 |
 
 ---
 
@@ -126,8 +133,8 @@ deepseek-harness 用的是另一種 hook 表面。hook 是掛在型別化事件�
 
 - [`hooks.py`](src/hooks.py)：帶有 `fire_pre` 與 `fire_post` 的 `Hooks` 物件。
 - [`loop.py`](src/loop.py)：`_dispatch` 在 gate 之前觸發 `PreToolUse`，在執行之後觸發 `PostToolUse`。
-- [`waterfall.py`](src/waterfall.py)：deepseek-harness 的對照：帶 `next()` 委派的型別化 waterfall 事件，加上 deny > ask > allow 的折疊。
-- [`test.py`](src/test.py)：一個 pre-hook 即使在 `bypassPermissions` 之下也擋下 `rm -rf`；waterfall 檢查涵蓋接手、委派和折疊。
+- [`waterfall.py`](src/waterfall.py)：deepseek-harness 的對照：一條 hook 鏈，用 `next()` 往下傳，多個結果取最嚴格的（deny > ask > allow）。
+- [`test.py`](src/test.py)：一個 pre-hook 即使在 `bypassPermissions` 之下也擋下 `rm -rf`；waterfall 檢查涵蓋直接決定、交給下游，和取最嚴格。
 
 ```bash
 python sections/04-hooks/src/test.py         # offline checks, no key

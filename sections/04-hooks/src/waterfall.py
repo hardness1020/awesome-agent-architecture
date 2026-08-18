@@ -1,10 +1,11 @@
-"""Waterfall hooks (section 4, contrast demo): deepseek-harness's hook surface.
+"""Waterfall hooks (section 4, contrast demo): deepseek-harness's hook style.
 
-In dsh a hook is an in-process listener on a typed event, not a shell
-subprocess. Listeners form a chain and each receives (payload, next).
-Returning without calling next() owns the decision; calling next() delegates
-downstream and may wrap the result. Bridged shell hooks fold
-most-restrictively: deny > ask > allow, so ordering cannot loosen a decision.
+In dsh a hook is a plain function on a named event inside the harness
+process, not a shell subprocess. Hooks form a chain and each receives
+(payload, next). Returning without calling next() owns the decision; calling
+next() lets the rest of the chain decide, then may adjust that result.
+Bridged shell hooks merge strictest-wins: deny > ask > allow, so ordering
+cannot loosen a decision.
 
 Standalone on purpose: not wired into _dispatch, so later sections carry the
 same loop forward. Mirrors dsh docs/cordis-primer.md and the hook-protocol
