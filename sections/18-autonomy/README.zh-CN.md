@@ -187,14 +187,14 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 一个闲置 agent 如何找到并认领属于自己的工作。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 没有派工者瓶颈。闲置 agent 会持续拉工作，直到看板清空，外部建立的 task 也会被接手。 |
-| **Cons** | 两个闲置 agent 可能盯上同一个 task，得靠一个真正的 lock 加一次新鲜度检查来裁定竞争。lead 指派不需要 lock，但无法扩展到超过 lead 的处理能力。 |
-| **Why** | lead 逐一派 task 会成为瓶颈，worker 一做完就闲置又浪费刚载入的 context，所以让 worker 自我组织。 |
-| **How: idle behavior** | 短 poll loop，500ms 一个周期。先查 shutdown，再看未读消息（lead 先于 peer），然后尝试认领，并宣告自己有空。 |
-| **How: work claim** | 挑一个无人拥有、也没有被阻挡的 task，在 lock 之下写入拥有权，两个 agent 不会抢到同一个。watcher 也会自动认领外部建立的 task。 |
-| **How: self-organization** | Worker 从共享看板拉取工作（第 12 章）。lead 是 spawn worker 的整合者，不是 task 路由器。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 没有派工者瓶颈。watcher 连别处建立的 task 也会接手。 | 无人看管的运行结果可预期，续跑状态也存得住。 |
+| **Cons** | 两个闲置 agent 可能盯上同一个 task，得靠一把锁裁定。 | 一个 agent 只顾一个 goal。做完了没，也是模型自己判断。 |
+| **Why** | lead 逐一派 task 会成为瓶颈，所以让 worker 自我组织。 | 自主不是一种模式，而是一个有预算的权限等级。 |
+| **How: idle behavior** | 500ms 一轮的 poll：先查 shutdown，再看未读消息，然后认领。 | 整个 agent 闲下来时，先订走下一轮，再排一条 prompt。 |
+| **How: work claim** | 在锁之下写入没被阻挡的 task 的拥有权，只有一个人抢得到。 | 拿 goal 当下的版本号去订下一轮，版本对不上就订不到。 |
+| **How: self-organization** | worker 从看板拉工作（第 12 章）。lead 只做整合，不派工。 | 没有看板。agent 续跑自己的 goal，往外开的量也有上限。 |
 
 ---
 
@@ -240,6 +240,9 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
   `utils/swarm/inProcessRunner.ts`（`runInProcessTeammate`、`waitForNextPromptOrShutdown`、`findAvailableTask`、`tryClaimNextTask`、`sendIdleNotification`）。
 - [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code)：
   `utils/tasks.ts`（`proper-lockfile` 之下的 `claimTask`、`claimTaskWithBusyCheck`）、`hooks/useTaskListWatcher.ts`、`coordinator/coordinatorMode.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/bundle/headless/README.md`、`packages/goal/goal-round-driver/README.md`、`packages/workflow/tool-ralph/README.md`、
+  `docs/subsystems/permission-presets.md`、`docs/subsystems/goal.md`。
 - [learn-claude-code · s17 autonomous agents](https://github.com/shareAI-lab/learn-claude-code)：章节定位。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，以中文原版为准）：
   为什么主动去拉的状态查询很弱、进度文件与跟读 trajectory、用 mtime 判断停摆、manager 模式的集中指派，

@@ -188,14 +188,14 @@ That result comes from the book's own experiment, so one source backs it. Treat 
 
 How an idle agent finds and claims its own work.
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | No dispatcher bottleneck. Idle agents keep pulling work until the board is empty, and externally created tasks are picked up too. |
-| **Cons** | Two idle agents can eye one task, so a real lock and a freshness check settle the race. A lead-assigns model needs no lock but cannot scale past the lead. |
-| **Why** | A lead that hands out every task becomes the bottleneck, and a worker that idles wastes its loaded context. So workers organize themselves. |
-| **How: idle behavior** | Short poll loop, a 500ms cycle. Checks shutdown first, then unread messages (lead before peers), then tries a claim. Announces it is available. |
-| **How: work claim** | Picks an unowned task that nothing blocks, then writes ownership under a lock, so one claimer wins. A watcher also auto-claims tasks created outside. |
-| **How: self-organization** | Workers pull from the shared task board (section 12). The lead is a synthesizer that spawns workers, not a task router. |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | No dispatcher bottleneck. A watcher even picks up tasks made elsewhere. | Unattended runs are predictable, and the continuation state is durable. |
+| **Cons** | Two idle agents can eye one task, so a lock settles the race. | One agent, one goal. The model itself judges when the goal is met. |
+| **Why** | A lead that hands out every task becomes the bottleneck. | Autonomy is a budgeted permission level, not a mode. |
+| **How: idle behavior** | A 500ms poll: shutdown, then unread messages, then a claim. | When fully idle it reserves the next round and queues one prompt. |
+| **How: work claim** | Writes ownership of an unblocked task under a lock, so one claimer wins. | Reserves the next round against the goal's exact revision, or fails. |
+| **How: self-organization** | Workers pull from the board (section 12). The lead synthesizes, never routes. | No board. The agent continues its own goal, and fan-out is capped. |
 
 ---
 
@@ -241,6 +241,9 @@ uv run python sections/18-autonomy/src/demo.py  # live demo, needs a key
   `utils/swarm/inProcessRunner.ts` (`runInProcessTeammate`, `waitForNextPromptOrShutdown`, `findAvailableTask`, `tryClaimNextTask`, `sendIdleNotification`).
 - [Claude Code claim and watch](https://github.com/yasasbanukaofficial/claude-code):
   `utils/tasks.ts` (`claimTask`, `claimTaskWithBusyCheck` under `proper-lockfile`), `hooks/useTaskListWatcher.ts`, `coordinator/coordinatorMode.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/bundle/headless/README.md`, `packages/goal/goal-round-driver/README.md`, `packages/workflow/tool-ralph/README.md`,
+  `docs/subsystems/permission-presets.md`, `docs/subsystems/goal.md`.
 - [learn-claude-code · s17 autonomous agents](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   why a pull-style status query is weak, progress files and trajectory tailing, mtime stall detection, the manager pattern's central assignment,

@@ -185,14 +185,14 @@ task 的 id 之后还查得到：回复收到之后、中途停下来要信息�
 
 一种设计如何定出请求的格式、为计划设闸门，并干净地停止 agent。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 每一次停止都经过确认，每一个有风险的计划都设了闸门。不会丢掉进行中的工作，也不会泄漏 task 记录。 |
-| **Cons** | 每次 handshake 都要付出往返次数和 protocol 状态，比 fire and forget 的 kill 慢。 |
-| **Why** | 队友编辑到一半就被强制停掉，会留下写到一半的文件和开着的 task 记录。有风险的计划要在行动前先审核。 |
-| **How: message shape** | 在 `type` 上区分的 typed union。`request_id` 把每条回复对应到它的请求。 |
-| **How: plan approval** | 队友请求后等待，lead 审核。回复带着裁决、可选的 feedback，以及工作所在的权限模式。 |
-| **How: shutdown** | lead 先请求，队友确认后才 kill。task 会被标记为 notified，并发出 terminated 事件。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 每一次停止都经过确认，有风险的计划都设了闸门。 | 只要按公开协议讲话，任何 client 或 server 都能接上来。 |
+| **Cons** | 每次 handshake 都要付出往返次数和 protocol 状态。 | 输出要等到定案才发出，中途的进度看不到。 |
+| **Why** | 编辑到一半被强制停掉，会留下写一半的文件。有风险的计划也该先审核。 | 对面是一个你未必拥有的 process，所以用公开契约讲话。 |
+| **How: message shape** | 在 `type` 上区分的 typed union，`request_id` 对应每条回复。 | 用 session id 分辨的 JSON-RPC 方法，一个 session 同时只跑一个 prompt。 |
+| **How: plan approval** | 队友请求后等待，lead 的回复带着裁决、feedback 和权限模式。 | 计划送到人面前。被打回来时，会以带着意见的失败调用返回。 |
+| **How: shutdown** | lead 先请求，队友确认后才 kill。 | 先取消、再关掉输入、再发 signal、最后强杀，每一阶都有时限。 |
 
 ---
 
@@ -233,6 +233,9 @@ uv run python sections/17-protocols/src/demo.py  # live demo, needs a key
 
 - [Claude Code 的 protocol 格式](https://github.com/yasasbanukaofficial/claude-code)：`tools/SendMessageTool/SendMessageTool.ts`、`utils/teammateMailbox.ts`。
 - [Claude Code plan 与 stop](https://github.com/yasasbanukaofficial/claude-code)：`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`、`tasks/stopTask.ts`、`coordinator/coordinatorMode.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/acp/acp/README.md`、`packages/subagent/subagent-acp/README.md`、`docs/subsystems/session.md`、
+  `docs/subsystems/plan.md`、`docs/subsystems/approval.md`。
 - [learn-claude-code · s16_team_protocols](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter10.md`（多 Agent 协作），以中文原版为准。
   先收尾再回 ack 的停止、砍掉那一层备援，以及第一个做成功就把整批停掉、靠一把锁让这件事只结算一次。
