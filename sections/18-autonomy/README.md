@@ -190,12 +190,12 @@ How an idle agent finds and claims its own work.
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | No dispatcher bottleneck. Idle agents pull work until the board is empty. | Unattended runs are predictable, and the continuation state is durable. |
+| **Pros** | No dispatcher bottleneck. A watcher even picks up tasks made elsewhere. | Unattended runs are predictable, and the continuation state is durable. |
 | **Cons** | Two idle agents can eye one task, so a lock settles the race. | One agent, one goal. The model itself judges when the goal is met. |
 | **Why** | A lead that hands out every task becomes the bottleneck. | Autonomy is a budgeted permission level, not a mode. |
 | **How: idle behavior** | A 500ms poll: shutdown, then unread messages, then a claim. | When fully idle it reserves the next round and queues one prompt. |
-| **How: work claim** | Writes ownership of an unblocked task under a lock, so one claimer wins. | Reserves the next round number against the goal's exact revision. |
-| **How: self-organization** | Workers pull from the shared task board (section 12). | No board. The agent continues its own goal, and fan-out is capped. |
+| **How: work claim** | Writes ownership of an unblocked task under a lock, so one claimer wins. | Reserves the next round against the goal's exact revision, or fails. |
+| **How: self-organization** | Workers pull from the board (section 12). The lead synthesizes, never routes. | No board. The agent continues its own goal, and fan-out is capped. |
 
 ---
 

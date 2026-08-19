@@ -243,7 +243,7 @@ sender 的原始歷史不放進去。那東西很長、裡面都是走不通的�
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | 隊友能直接交談，檔案 inbox 還能跨 process 或機器。 | 子代可以從任何已連接的介面暫停、中斷。 | 一支腳本就能在硬性上限之下開出大量子代。 |
-| **Cons** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，子代之間無法協作。 | 子代彼此不能講話。送訊息也不會有回覆。 |
+| **Cons** | 檔案 inbox 有 poll 和 lock 成本，記憶體 inbox 隨 process 死。 | 沒有對等 inbox，clarify 還會卡住自己的 thread。 | 子代彼此不能講話，送訊息也不會有回覆。 |
 | **Why** | 隊友彼此對等，需要 inbox 交談，也需要一條送回人的路。 | 協調維持 parent 對 child。 | 協調就是歸屬關係，每個子代只有一個 parent。 |
 | **How: teammates** | in-process 或 remote，各自跑自己的 loop。 | thread 上的委派子代，有暫停旗標。 | 由模型寫的腳本開出子代，長命的那種會常駐。 |
 | **How: channel** | SendMessage 寫進 inbox，也能 broadcast。 | completion queue 加 gateway RPC。 | 只有 parent 對 child。子代用 report 工具回話。 |

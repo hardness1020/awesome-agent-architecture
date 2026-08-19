@@ -191,9 +191,9 @@ How one design shapes requests, gates plans, and stops agents cleanly.
 | --- | --- | --- |
 | **Pros** | Every stop is confirmed and every risky plan is gated. | Any client or server speaking the public protocol interoperates. |
 | **Cons** | Each handshake costs round trips and protocol state. | Output lands only when committed, so live progress stays hidden. |
-| **Why** | A kill mid edit leaves a half written file and an open task record. | The other side is a process you may not own, so use a public contract. |
+| **Why** | A kill mid edit leaves a half written file. Risky plans need approval first. | The other side is a process you may not own, so use a public contract. |
 | **How: message shape** | One typed union on a `type` field, with a `request_id` per reply. | JSON-RPC methods keyed by session id. One prompt in flight per session. |
-| **How: plan approval** | The teammate waits. The lead's reply carries verdict, feedback, and mode. | The plan goes to a human. A rejection returns as a failed call. |
+| **How: plan approval** | The teammate waits. The lead's reply carries verdict, feedback, mode. | The plan goes to a human. A rejection returns as a failed call with feedback. |
 | **How: shutdown** | The lead requests, the teammate confirms, then the kill runs. | Cancel, end the input, signal, then kill. Every tier is time-bounded. |
 
 ---

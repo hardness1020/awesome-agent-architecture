@@ -189,12 +189,12 @@ def run_teammate(team, store, me, lead, work):         # src/autonomy.py
 
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
-| **Pros** | 沒有派工者瓶頸。閒置 agent 會一直拉工作，直到看板清空。 | 無人看管的執行結果可預期，續跑狀態也存得住。 |
+| **Pros** | 沒有派工者瓶頸。watcher 連別處建立的 task 也會接手。 | 無人看管的執行結果可預期，續跑狀態也存得住。 |
 | **Cons** | 兩個閒置 agent 可能盯上同一個 task，得靠一把鎖裁定。 | 一個 agent 只顧一個 goal。做完了沒，也是模型自己判斷。 |
 | **Why** | lead 逐一派 task 會成為瓶頸，所以讓 worker 自我組織。 | 自主不是一種模式，而是一個有預算的權限等級。 |
 | **How: idle behavior** | 500ms 一輪的 poll：先查 shutdown，再看未讀訊息，接著認領。 | 整個 agent 閒下來時，先訂走下一輪，再排一則 prompt。 |
 | **How: work claim** | 在鎖之下寫入沒被阻擋的 task 的擁有權，只有一個人搶得到。 | 拿 goal 當下的版本號去訂下一輪，版本對不上就訂不到。 |
-| **How: self-organization** | worker 從共享看板拉工作（第 12 章）。 | 沒有看板。agent 續跑自己的 goal，往外開的量也有上限。 |
+| **How: self-organization** | worker 從看板拉工作（第 12 章）。lead 只做整合，不派工。 | 沒有看板。agent 續跑自己的 goal，往外開的量也有上限。 |
 
 ---
 

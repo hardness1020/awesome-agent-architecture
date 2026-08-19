@@ -189,7 +189,7 @@ task 的 id 之後還查得到：回覆收到之後、中途停下來要資訊�
 | --- | --- | --- |
 | **Pros** | 每一次停止都經過確認，有風險的計畫都設了閘門。 | 只要照公開協定講話，任何 client 或 server 都能接上來。 |
 | **Cons** | 每次 handshake 都要付出往返次數和 protocol 狀態。 | 輸出要等到定案才送出，中途的進度看不到。 |
-| **Why** | 編輯到一半被強制停掉，會留下寫一半的檔案和開著的 task。 | 對面是一個你未必擁有的 process，所以用公開契約講話。 |
+| **Why** | 編輯到一半被強制停掉，會留下寫一半的檔案。有風險的計畫也該先審核。 | 對面是一個你未必擁有的 process，所以用公開契約講話。 |
 | **How: message shape** | 在 `type` 上區分的 typed union，`request_id` 對應每則回覆。 | 用 session id 分辨的 JSON-RPC 方法，一個 session 同時只跑一個 prompt。 |
 | **How: plan approval** | 隊友請求後等待，lead 的回覆帶著裁決、feedback 和權限模式。 | 計畫送到人面前。被打回來時，會以帶著意見的失敗呼叫回傳。 |
 | **How: shutdown** | lead 先請求，隊友確認後才 kill。 | 先取消、再關掉輸入、再送 signal、最後強殺，每一階都有時限。 |
