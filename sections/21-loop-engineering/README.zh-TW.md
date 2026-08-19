@@ -178,14 +178,14 @@ loop 能搜的範圍是一道階梯。最底下那階是 prompt 裡的一條規�
 
 各個 agent 如何組合自己的外層 loop。
 
-| | Claude Code | Hermes Agent | mini-swe-agent |
-| --- | --- | --- | --- |
-| **Pros** | 驗證和 budget 兩半都有：verify 用程式編排，budget 是硬上限。 | 有 budget，改進 loop 也能回滾。 | 每趟 run 的帳單都有硬上限；撞到預算可以當檢查點。 |
-| **Cons** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半，評分要等離線 eval。 |
-| **Why** | 把外層 loop 當成一段可以編排、可以設上限的程式。 | 目標是讓改進 loop 一路閉合到 model 本身。 | 假設一趟 run 就是一個 benchmark 任務，評分離線做。 |
-| **How: verification** | verify 階段用程式編排：adversarial verify、judge panel。 | maker 和 checker 靠 delegation 分工，加上離線測試。 | 沒有內建，評分在 SWE-bench 離線進行。 |
-| **How: event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset，watch pattern 也能喚醒。 | 沒有，batch runner 排的是 instance，不是時間。 |
-| **How: improvement loop** | workflow 可斷點續跑，跑完的步驟從 cache 重放。 | curator 從使用情況整併、修剪 skill；run 變成訓練資料。 | 沒有，budget 是唯一的外層控制。 |
+| | Claude Code | Hermes Agent | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- | --- |
+| **Pros** | verify 用程式編排，budget 是硬上限。 | 有 budget，改進也能回滾。 | 每趟 run 的帳單都有硬上限。 | 外層 loop 以 plugin 掛在公開的事件上。 |
+| **Cons** | 改進 loop 在原始碼中沒有閉環。 | 沒有內建的評分重試 loop。 | 只做了 budget 這一半。 | 沒有東西檢查成果，只有輪數當預算。 |
+| **Why** | 把外層 loop 當成一段可編排的程式。 | 目標是讓改進閉合到 model。 | 一趟 run 就是一個評分任務。 | loop 本身就是 plugin，控制自然掛在它上面。 |
+| **How: verification** | verify 階段用程式編排：judge panel。 | maker 和 checker 分工，加離線測試。 | 沒有，SWE-bench 離線評分。 | 沒有內建，做完了沒由模型自己說。 |
+| **How: event loop** | Cron、自訂節奏喚醒、remote trigger。 | gateway cron 加受限 toolset。 | 沒有，runner 排的是任務，不是時間。 | 提醒從 log 重放，以一個 turn 的形式進來。 |
+| **How: improvement loop** | workflow 可斷點續跑，從 cache 重放。 | run 會變成訓練資料。 | 沒有，只有 budget。 | 沒有現成的，但接的地方都留好了。 |
 
 ---
 
@@ -232,6 +232,8 @@ uv run python sections/21-loop-engineering/src/demo.py  # live demo, needs a key
 
 ## 出處
 
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `docs/subsystems/core.md`、`packages/workflow/tool-ralph/README.md`、`packages/schedule/schedule/README.md`、`docs/subsystems/goal.md`。
 - [cobusgreyling/loop-engineering](https://github.com/cobusgreyling/loop-engineering)：building block 與成熟度分級。
 - [LangChain · The art of loop engineering](https://www.langchain.com/blog/the-art-of-loop-engineering)：四層堆疊的 loop。
 - [Addy Osmani · Loop engineering](https://addyosmani.com/blog/loop-engineering/)：building block 的組合方式。

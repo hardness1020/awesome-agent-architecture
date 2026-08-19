@@ -157,14 +157,14 @@ Do this continuously and the eval set follows what users actually do. Section 23
 
 How each agent emits telemetry, tracks spend, and feeds the eval set.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Rich production visibility, cheap and safe. A bad sink never stalls the loop. | Even a crashed run leaves a file. Files double as audit log and eval corpus. |
-| **Cons** | Only says what happened, not if the answer was good. Sampling and scrubbing drop part of the record. | Almost no production telemetry. No live event stream to watch. |
-| **Why** | Production must be watched for crashes and cost spikes, without touching the loop. | Quality is graded offline by benchmark, so the full run record matters most. |
-| **How: telemetry** | Events queue until a sink attaches, then sample, scrub, and fan out. | One trajectory file per run: messages, config, cost, exit status, saved each step. |
-| **How: cost tracking** | Per-model tokens priced into one session USD total, shown on exit. | litellm prices each call into run and global totals; unknown models raise errors. |
-| **How: eval feed** | Not in source; reconstruction: scrubbed traces become regression cases. | Saved trajectories are the corpus; a shipped benchmark runner grades a task set. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Rich production visibility, cheap and safe. | Even a crashed run leaves a file. | Nothing extra to instrument: what the model sees is logged. |
+| **Cons** | Says what happened, not whether the answer was good. | Almost no production telemetry. | Ships no redaction rules. Delivery can lose or repeat. |
+| **Why** | Production must be watched without touching the loop. | A benchmark grades offline, so the full record matters. | The session log is already the record, so export it. |
+| **How: telemetry** | Events queue for a sink, then sample and scrub. | One trajectory file per run, saved each step. | Session events mirror out through a redaction pass. |
+| **How: cost tracking** | Per-model tokens priced into a session total. | Per-call prices roll into run and global totals. | A replay pass prices the log in tokens, not dollars. |
+| **How: eval feed** | Not in source; scrubbed traces become regression cases. | Saved trajectories feed a benchmark runner. | Recorded runs replay with no key, as fixtures. |
 
 ---
 
@@ -206,6 +206,8 @@ uv run python sections/20-observability/src/demo.py  # live demo, needs a key
   `services/analytics/index.ts` (queue + `logEvent`), `sink.ts`, `datadog.ts`, `firstPartyEventLogger.ts`, `sinkKillswitch.ts`, `shouldSampleEvent`.
 - [Claude Code cost and diagnostics](https://github.com/yasasbanukaofficial/claude-code):
   `cost-tracker.ts`, `utils/modelCost.ts`, `costHook.ts` (`formatTotalCost`), `diagnosticTracking.ts`, `upstreamproxy/relay.ts`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/subsystems/telemetry.md`, `docs/subsystems/token-meter.md`, `packages/llm/llm-replay/README.md`, `docs/subsystems/invariants.md`.
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book): `book/chapter6.md`, Chinese original canonical.
   The span tree, nonlinear agent cost with per-task caps, and production traces recycled into the eval set.
   The cost analysis carries no external citation there, so it is single-source.

@@ -183,14 +183,14 @@ So deferred loading is a setting to check in your own harness. A server cannot a
 
 How the harness reaches outside itself.
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | Any service, any language, no harness edits. Loop and gate stay unchanged. | Other clients can drive it as an MCP server. Inbound messages are gated first. |
-| **Cons** | Each server is new attack surface with self reported annotations. The tool list bloats. | Anyone can send to a channel: spam or steering instructions arrive too. |
-| **Why** | Without MCP, capability is frozen at whatever shipped in the binary. | The agent is MCP client and server at once, and chat platforms are its two-way surface. |
-| **How: transports** | Six, from local stdio to remote http/sse/ws, in separate connection pools. | MCP both ways, plus chat platform adapters. Voice rides the same channels. |
-| **How: plugin format** | A plugin bundles servers, hooks, skills. Config merges by precedence. | A manifest plus a register entry. Built-in overrides need operator opt-in. |
-| **How: tool pool assembly** | Each server tool cloned, namespaced, merged with built-ins. Annotations feed the gate. | Plugin and MCP tools join one import-time registry. |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Any service, any language, no harness edits. | Other clients can drive it as an MCP server. | A server is config, so one can swap without a restart. |
+| **Cons** | New attack surface, on self-reported annotations. | Anyone can send to a channel: spam, or steering text. | Tools only, and no chat channels to push messages in. |
+| **Why** | Without MCP, capability is frozen at what shipped. | The agent is MCP client and server at once. | Everything is a plugin, so a server is one more plugin. |
+| **How: transports** | Six, from stdio to remote http, in separate pools. | MCP both ways, plus chat adapters. | Local stdio and streaming http, one plugin per server. |
+| **How: plugin format** | A plugin bundles servers, hooks, and skills, merged by precedence. | A manifest plus a register entry. | Config rows. A patch replaces one row by id. |
+| **How: tool pool assembly** | Cloned and namespaced; annotations feed the gate. | Plugin and MCP tools join one registry. | A server's tools swap as one set, or roll back. |
 
 ---
 
@@ -238,6 +238,8 @@ uv run python sections/19-mcp-plugins-channels/src/demo.py  # live demo, needs a
   `services/mcp/types.ts` (`TransportSchema`), `client.ts` (`MCPTool` cloning, `buildMcpToolName`), `normalization.ts` (`normalizeNameForMCP`).
 - [Claude Code MCP config and channels](https://github.com/yasasbanukaofficial/claude-code):
   `config.ts` (precedence), `channelNotification.ts` (`CHANNEL_TAG`), plus `McpAuthTool`, `ListMcpResourcesTool`, `ReadMcpResourceTool`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `docs/architecture.md`, `docs/cordis-primer.md`, `packages/acp/acp/README.md`, `packages/extensions/tool-cordis/README.md`.
 - [Claude Code plugins](https://github.com/yasasbanukaofficial/claude-code): `plugins/builtinPlugins.ts`, `plugins/bundled/`, `types/plugin.ts`, plus `remote/` and `bridge/`.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent):
   `mcp_serve.py`, `hermes_cli/plugins.py` (`PluginManager`, `VALID_HOOKS`), `gateway/platforms/`, `gateway/platform_registry.py`, `plugins/platforms/`.
