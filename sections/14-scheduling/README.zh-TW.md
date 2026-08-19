@@ -134,9 +134,9 @@ for task in sched.drain():                            # src/demo.py · between t
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | 簡單又私密。durable 的 schedule 能在重啟後存活。 | 不需要託管服務，無人看管也能 fire。 | 提醒跟著 session 一起重放。錯過的幾次會併成一個 turn。 |
-| **Cons** | 只在 session 運行時才會 tick。remote trigger 要託管服務。 | gateway 得一直跑，共享 job store 還要靠鎖。 | 只能固定間隔，沒有 cron。session 關掉就什麼都不會 fire。 |
+| **Cons** | 只在 session 運行時才會 tick，remote trigger 還要託管服務。 | gateway 得一直跑，共享 job store 還要靠鎖。 | 只能固定間隔。session 關掉就什麼都不會 fire。 |
 | **Why** | 假設本地有 session 開著。 | gateway 是 server process，無人看管也能 fire。 | 提醒就是對話狀態，所以歸 session log 管。 |
-| **How: trigger** | Cron、sleep 和 remote trigger，由 ticker 定期檢查。 | gateway tick 上的 cron 表達式。 | 幾秒後、某個時間點，或固定間隔，最短五分鐘。 |
+| **How: trigger** | Cron、sleep 和 remote trigger，由 ticker 定期檢查。 | gateway tick 上的 cron，跟著使用者的時區走。 | 延遲多久後、某個時間點，或固定間隔，最快五分鐘一次。 |
 | **How: durability** | session 狀態，或存成一個帶鎖的 JSON 檔。 | CLI 和 gateway 共享一個 JSON job store，認領是原子的。 | 寫進 session log 的事件。fork 保留歷史，但不帶走提醒。 |
 | **How: wakeup** | fire 出來的 prompt 進 queue，在 turn 之間執行。 | 到點的 job 平行跑，輸出投遞到聊天平台。 | 等 agent 完全閒下來，才排一個 turn。至少送達一次。 |
 

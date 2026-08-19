@@ -137,9 +137,9 @@ How each agent decides when to run scheduled work.
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | Simple and private. Durable schedules survive restart. | Fires unattended, no hosted service. | Reminders replay with the session. Missed fires collapse to one turn. |
-| **Cons** | Only ticks while a session runs. | Needs a gateway, and locks against double fire. | Fixed rates only, no cron. Nothing fires while the session is closed. |
+| **Cons** | Ticks while a session runs; remote triggers need a service. | Needs a gateway and locks against double fire. | Fixed rates only. Nothing fires cold. |
 | **Why** | Assumes a local session is running. | The gateway is a server, so schedules fire unattended. | A reminder is conversation state, so the session log owns it. |
-| **How: trigger** | Cron, sleep, and remote triggers on a ticker. | Cron expressions on a gateway tick. | After a delay, at a time, or a fixed rate with a five-minute floor. |
+| **How: trigger** | Cron, sleep, and remote triggers on a ticker. | Cron on a gateway tick, in the user's timezone. | After a delay, at a time, or every five minutes at most. |
 | **How: durability** | Session state, or a JSON file with a lock. | A shared JSON job store with an atomic claim. | Session-log events. A fork keeps history, drops reminders. |
 | **How: wakeup** | Fired prompts queue and run between turns. | Due jobs run in parallel and deliver to chat. | Due work waits for idle, then queues one turn. At-least-once. |
 

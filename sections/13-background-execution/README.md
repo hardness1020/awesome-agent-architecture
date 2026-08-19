@@ -124,7 +124,7 @@ How each agent moves work off the loop and reports completion.
 | | Claude Code | deepseek-harness |
 | --- | --- | --- |
 | **Pros** | Throughput improves and idle waits go away. A plain wait blocks nothing. | One registry serves shell, terminal, and child agents alike. |
-| **Cons** | Results arrive late and out of order. The runtime tracks state and cleanup. | Waking an idle agent spends model turns, so it needs a budget. |
+| **Cons** | Results can arrive late and out of order. The runtime tracks state. | Waking an idle agent spends model turns, so it needs a budget. |
 | **Why** | One slow command must not freeze the whole agent. | A finished job must reach the model without the model polling. |
 | **How: off-loop primitive** | Background shell and agent tasks. The subprocess runs on, output redirected. | Any tool takes a run-in-background flag and returns a job id. |
 | **How: notification** | A `<task_notification>` message through one shared queue. | One notice per job. First finish wins, and duplicates are suppressed. |

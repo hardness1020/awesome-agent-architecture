@@ -84,8 +84,8 @@ loop 沒有改變。model 就像呼叫其他任何工具一樣，呼叫 `TaskCre
 | **Cons** | 代價是檔案系統的讀、寫和鎖，記錄還要驗證。 | 沒有相依關係的邊，也沒有認領機制。一個 session 只有一個 goal。 |
 | **Why** | 放在記憶體裡的清單會跟著 process 消失，計畫得活得比它久。 | session log 是唯一的事實來源，所以 task 狀態就是一連串事件。 |
 | **How: task record** | 每個 task 一個 JSON 檔：id、subject、status、owner 和邊。 | 一份整份清單的快照，加上一個 goal，帶 phase 和輪數上限。 |
-| **How: dependencies** | `blockedBy` 和 `blocks` 兩種邊。阻擋條件全部完成前不能認領。 | 沒有。順序就只看清單本身的排列。 |
-| **How: persistence** | 每個 task 一個檔，外加一個記號記住已發出的最大 id。 | session 事件，載入時重放。自動續跑的開關從不寫進硬碟。 |
+| **How: dependencies** | `blockedBy` 和 `blocks` 兩種邊。阻擋條件沒清完，認領會被拒絕。 | 沒有。順序就只看清單本身的排列。 |
+| **How: persistence** | 每個 task 一個檔。一個開關決定要不要用它取代 todo list。 | session 事件，載入時重放。自動續跑的開關從不寫進硬碟。 |
 | **How: lifecycle** | `pending -> in_progress -> completed`，認領動作靠一把鎖序列化。 | goal 的 phase：active、paused、blocked、complete。要改得由人出手。 |
 
 ---

@@ -84,8 +84,8 @@ loop 没有改变。model 就像调用其他任何工具一样，调用 `TaskCre
 | **Cons** | 代价是文件系统的读、写和锁，记录还要验证。 | 没有依赖关系的边，也没有认领机制。一个 session 只有一个 goal。 |
 | **Why** | 放在内存里的清单会跟着 process 消失，计划得活得比它久。 | session log 是唯一的事实来源，所以 task 状态就是一连串事件。 |
 | **How: task record** | 每个 task 一个 JSON 文件：id、subject、status、owner 和边。 | 一份整份清单的快照，加上一个 goal，带 phase 和轮数上限。 |
-| **How: dependencies** | `blockedBy` 和 `blocks` 两种边。阻挡条件全部完成前不能认领。 | 没有。顺序就只看清单本身的排列。 |
-| **How: persistence** | 每个 task 一个文件，外加一个记号记住已发出的最大 id。 | session 事件，加载时重放。自动续跑的开关从不写进磁盘。 |
+| **How: dependencies** | `blockedBy` 和 `blocks` 两种边。阻挡条件没清完，认领会被拒绝。 | 没有。顺序就只看清单本身的排列。 |
+| **How: persistence** | 每个 task 一个文件。一个开关决定要不要用它取代 todo list。 | session 事件，加载时重放。自动续跑的开关从不写进磁盘。 |
 | **How: lifecycle** | `pending -> in_progress -> completed`，认领动作靠一把锁序列化。 | goal 的 phase：active、paused、blocked、complete。要改得由人出手。 |
 
 ---
