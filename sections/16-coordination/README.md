@@ -248,7 +248,7 @@ How one design spawns cooperating agents and spreads work across them.
 | **Pros** | Peers talk directly. File inboxes cross processes. | Children pause and interrupt from any surface. | A script fans out many children under hard caps. |
 | **Cons** | Polling and lock cost. Memory inboxes die with the process. | No peer inboxes. A clarify blocks its thread. | Children cannot talk. A send gets no reply. |
 | **Why** | Peers need inboxes, plus a route to a human approver. | Coordination stays parent to child. | Coordination is ownership. Each child has one parent. |
-| **How: teammates** | In-process or remote, each running its own loop. | Delegated children on threads, with a pause flag. | A model-written script spawns them. |
+| **How: teammates** | In-process or remote, each runs its own loop. | Delegated children on threads, with a pause flag. | A model-written script spawns them; some stay resident. |
 | **How: channel** | SendMessage writes to inboxes and can broadcast. | Completion queue plus gateway calls. | Parent to child only. The child answers with a report tool. |
 | **How: shared memory** | Team task list and a team memory directory. | Shared session DB, plus lineage markers. | The parent's directory. A fork also copies its finished turns. |
 | **How: permission bubbling** | Remote requests become local approval prompts. | Clarify goes to chat; children auto-deny or approve. | A request walks up the parent chain. |
