@@ -121,14 +121,14 @@ ai-agent-book 的做法是当场补：对同一个 id 补一则占位用的 `too
 
 各个 agent 如何把工作移出 loop，又如何汇报完成。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 吞吐量提升，也不再有空闲的等待。连单纯的等待都是非阻塞的，不会占住一个 shell process。 |
-| **Cons** | 结果可能较晚抵达，顺序也可能颠倒。runtime 需要 task 状态、notification 和清理机制。 |
-| **Why** | 一个跑很久的指令不该冻结整个 agent。这种工作可以趁 agent 做别的事时继续跑。 |
-| **How: off-loop primitive** | 后台 shell task 和后台 agent task，连记忆整合都用这种方式跑。subprocess 会继续执行，输出被重定向。 |
-| **How: notification** | 一则 `<task_notification>` 消息。完成消息走同一个共享 queue，runtime 会追踪每个 task 的状态。 |
-| **How: re-entry** | notification 在 turn 之间从 queue 收进对话，分 `now`、`next`、`later` 三种优先级。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 吞吐量提升，也不再有空闲的等待。单纯的等待不会卡住任何东西。 | 同一个登记处管 shell、终端和 child agent，收结果和喊停都走同一条路。 |
+| **Cons** | 结果可能较晚抵达，顺序也可能颠倒。runtime 要顾状态和清理。 | 叫醒闲着的 agent 会花掉模型轮次，所以得给它一个额度。 |
+| **Why** | 一个跑很久的指令不该冻结整个 agent。 | 工作跑完要让模型知道，而不是叫模型自己一直去问。 |
+| **How: off-loop primitive** | 后台 shell task 和后台 agent task，subprocess 继续跑，输出被重定向。 | 任何工具都能带一个「丢到后台跑」的标志，返回一个 job id。 |
+| **How: notification** | 一则 `<task_notification>` 消息，完成消息走同一个共享 queue。 | 每个 job 一则通知。谁先结束谁算数，重复的会被压下来。 |
+| **How: re-entry** | notification 在 turn 之间收进对话，分 `now`、`next`、`later` 三种优先级。 | agent 忙的话下一步就收到；闲着就叫醒它，次数有上限。 |
 
 ---
 
@@ -165,6 +165,9 @@ uv run python sections/13-background-execution/src/demo.py  # live demo, needs a
 - [Claude Code task sources](https://github.com/yasasbanukaofficial/claude-code)：`tasks/LocalShellTask/`、`tasks/DreamTask/`。
 - [Claude Code tool and queue sources](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/BashTool/BashTool.tsx`、`tools/SleepTool/prompt.ts`、`utils/task/framework.ts`、`utils/messageQueueManager.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/jobs/jobs/src/index.ts`、`packages/jobs/jobs-local/src/index.ts`、`packages/jobs/tool-jobs/README.md`、
+  `docs/subsystems/jobs.md`、`docs/tool-catalog.md`。
 - [learn-claude-code · s13_background_tasks](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版为准。
   幂等性与取消语义、启动与完成分开命名、在安全点做 event 分类、打断占位、批次 event 的注意力稀释。

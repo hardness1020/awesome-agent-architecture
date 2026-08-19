@@ -131,14 +131,14 @@ for task in sched.drain():                            # src/demo.py · between t
 
 各个 agent 如何决定何时执行调度工作。
 
-| | Claude Code | Hermes Agent |
-| --- | --- | --- |
-| **Pros** | 简单又私密。durable 的 schedule 能在重启后存活。 | 不需要托管服务，无人看管也能 fire。heartbeat 文件分得出 ticker 是整个停掉，还是还在跑但一直失败。 |
-| **Cons** | 只在 session 运行时才会 tick。remote trigger 需要托管服务和 auth。 | gateway 得一直跑着才行。共享的 job store 需要锁来避免重复 fire。 |
-| **Why** | 假设本地有 session 开着。要在没有本地 process 时 fire，就交给托管 trigger。 | gateway 是一个 server process，所以 schedule 能在无人看管下 fire。 |
-| **How: trigger** | Cron、sleep，以及 remote trigger。ticker 以固定间隔检查 cron 条目。 | gateway tick 上的 cron 表达式，跟着用户配置的时区走。 |
-| **How: durability** | 分成 session 和 durable 两种。durable 的存成本地 JSON 文件，一把锁避免多个 session 重复 fire。 | CLI 和 gateway 共享一个 JSON job store，靠锁保护，一个 job 只会被认领走一次。 |
-| **How: wakeup** | fire 出来的 prompt 进 queue 排在后面，在 turn 之间执行。 | 到了预定时间的 job 在并行 thread 上跑，toolset 受限。输出投递到聊天平台，除非标了 [SILENT]。 |
+| | Claude Code | Hermes Agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 简单又私密。durable 的 schedule 能在重启后存活。 | 不需要托管服务，无人看管也能 fire。 | 提醒跟着 session 一起重放。错过的几次会并成一个 turn。 |
+| **Cons** | 只在 session 运行时才会 tick，remote trigger 还要托管服务。 | gateway 得一直跑，共享 job store 还要靠锁。 | 只能固定间隔。session 关掉就什么都不会 fire。 |
+| **Why** | 假设本地有 session 开着。 | gateway 是 server process，无人看管也能 fire。 | 提醒就是对话状态，所以归 session log 管。 |
+| **How: trigger** | Cron、sleep 和 remote trigger，由 ticker 定期检查。 | gateway tick 上的 cron，跟着用户的时区走。 | 延迟多久后、某个时间点，或固定间隔，最快五分钟一次。 |
+| **How: durability** | session 状态，或存成一个带锁的 JSON 文件。 | CLI 和 gateway 共享一个 JSON job store，认领是原子的。 | 写进 session log 的事件。fork 保留历史，但不带走提醒。 |
+| **How: wakeup** | fire 出来的 prompt 进 queue，在 turn 之间执行。 | 到点的 job 并行跑，输出投递到聊天平台。 | 等 agent 完全闲下来，才排一个 turn。至少送达一次。 |
 
 ---
 
@@ -177,6 +177,9 @@ uv run python sections/14-scheduling/src/demo.py  # live demo, needs a key
   `tools/ScheduleCronTool/`、`tools/RemoteTriggerTool/`、`tools/SleepTool/`、`utils/cronScheduler.ts`、`hooks/useScheduledTasks.ts`、`utils/queueProcessor.ts`。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：
   `cron/scheduler.py`（`tick`、`_resolve_cron_disabled_toolsets`）、`cron/jobs.py`（`_jobs_lock`、`claim_dispatch`）、`hermes_time.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/schedule/schedule/src/runtime.ts`、`packages/schedule/schedule/src/persistence.ts`、`packages/schedule/schedule/src/tools.ts`、
+  `docs/subsystems/schedule.md`、`docs/tool-catalog.md`。
 - [learn-claude-code · s14_cron_scheduler](https://github.com/shareAI-lab/learn-claude-code)：章节框架。
 - [ai-agent-book](https://github.com/bojieli/ai-agent-book)：`book/chapter4.md`，以中文原版为准。
   带判断的 heartbeat 唤醒、通知疲劳，以及时间驱动触发的极限。
