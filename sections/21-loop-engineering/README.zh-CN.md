@@ -184,8 +184,8 @@ loop 能搜的范围是一道阶梯。最底下那阶是 prompt 里的一条规�
 | **Cons** | 改进 loop 在源码中没有闭环。 | 没有内置的评分重试 loop。 | 只做了 budget 这一半。 | 没有东西检查成果，只有轮数当预算。 |
 | **Why** | 把外层 loop 当成一段可编排的程序。 | 目标是让改进闭合到 model。 | 一趟 run 就是一个评分任务。 | loop 本身就是 plugin，控制自然挂在它上面。 |
 | **How: verification** | verify 阶段用代码编排：judge panel。 | maker 和 checker 分工，加离线测试。 | 没有，SWE-bench 离线评分。 | 没有内置，做完了没由模型自己说。 |
-| **How: event loop** | Cron、自定节奏唤醒、remote trigger。 | gateway cron 加受限 toolset。 | 没有，runner 排的是 instance。 | 提醒从 log 重放，以一个 turn 的形式进来。 |
-| **How: improvement loop** | workflow 可断点续跑，从 cache 重放。 | curator 修剪 skill。 | 没有，只有 budget。 | 没有现成的，但接的地方都留好了。 |
+| **How: event loop** | Cron、自定节奏唤醒、remote trigger。 | gateway cron 加受限 toolset。 | 没有，runner 排的是任务，不是时间。 | 提醒从 log 重放，以一个 turn 的形式进来。 |
+| **How: improvement loop** | workflow 可断点续跑，从 cache 重放。 | run 会变成训练数据。 | 没有，只有 budget。 | 没有现成的，但接的地方都留好了。 |
 
 ---
 

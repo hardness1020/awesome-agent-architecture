@@ -203,8 +203,7 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
   From tool schemas and documented behavior, not the source backup.
 - [Hermes Agent source](https://github.com/NousResearch/hermes-agent): `tools/delegate_tool.py`, `tools/async_delegation.py`, `batch_runner.py`.
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
-  `docs/subsystems/workflow.md`, `packages/workflow/tool-workflow/README.md`. The model writes a fresh script per run,
-  each call spawns one child, and nothing persists as a graph, so it answers this section the same way the Claude Code column does.
+  `docs/subsystems/workflow.md`, `packages/workflow/tool-workflow/README.md`: a model-written script per run, no persistent graph.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the run loop and budgets in `agents/default.py`, `run/benchmarks/swebench.py`.
 - [ai-agent-book · chapter 10](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md) (《深入理解 AI Agent》, 李博杰, 多 Agent 协作; the Chinese original is canonical):
   multi-stage role switching on one trajectory: a system prompt and a tool set per phase, phase gates as tool calls, and review routing back to implementation.

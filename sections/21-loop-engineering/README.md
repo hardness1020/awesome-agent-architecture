@@ -181,12 +181,12 @@ How each agent composes its outer loops.
 
 | | Claude Code | Hermes Agent | mini-swe-agent | deepseek-harness |
 | --- | --- | --- | --- | --- |
-| **Pros** | Scripted verify plus hard budgets. | Budgets, and rollback on improvement. | Every run has a hard bill. | Outer loops attach as plugins on published events. |
-| **Cons** | No closed improvement loop in source. | No grade-and-retry loop. | Only the budget half. | Nothing checks the work. Rounds are the only budget. |
+| **Pros** | Scripted verify plus hard budgets. | Budgets, plus an improvement loop with rollback. | A hard bill per run. | Outer loops attach as plugins on published events. |
+| **Cons** | No closed improvement loop in source. | No built-in grade-and-retry loop. | Only the budget half. | Nothing checks the work; rounds are the only budget. |
 | **Why** | The outer loop is a program you script. | Improvement should reach the model. | One run is one graded task. | The loop is itself a plugin, so control attaches to it. |
 | **How: verification** | Scripted stages, judge panels. | Maker and checker, plus offline tests. | None. SWE-bench grades offline. | None built in; completion is self-declared. |
-| **How: event loop** | Cron, self-paced wakeups, remote triggers. | Cron with restricted toolsets. | None. The runner schedules tasks. | Reminders replay from the log as a turn. |
-| **How: improvement loop** | Resumable runs replay from cache. | A curator prunes skills. | None. Budgets only. | None shipped; the attach points exist. |
+| **How: event loop** | Cron, wakeups, remote triggers. | Cron with restricted toolsets. | None. The runner schedules tasks, not time. | Reminders replay from the log as a turn. |
+| **How: improvement loop** | Resumable workflows replay from cache. | Runs become training data. | None. Budgets only. | None shipped; the attach points exist. |
 
 ---
 

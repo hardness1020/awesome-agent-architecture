@@ -183,11 +183,11 @@ harness 如何伸手触及自身之外。
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | 任何服务、任何语言都接得上，不用改 harness。 | 其他 client 能把它当 MCP server 来用。 | server 就是一份配置，不重启也能换掉一台。 |
-| **Cons** | 每个 server 都是新的攻击面，工具清单也会膨胀。 | channel 谁都能发消息，垃圾消息也一样。 | 只接工具，也没有聊天 channel 能把消息推进来。 |
+| **Cons** | 每个 server 都是新的攻击面，annotation 还是自己报的。 | channel 谁都能发：垃圾消息，想操纵 agent 的话也一样。 | 只接工具，也没有聊天 channel 能把消息推进来。 |
 | **Why** | 少了 MCP，能力就停在安装当下内建的那一套。 | agent 同时是 MCP client 和 MCP server。 | 每样东西都是 plugin，MCP server 也只是其中一个。 |
 | **How: transports** | 六种，从本地 stdio 到远端 http，各连各的池。 | MCP 双向，加上聊天平台 adapter。 | 本地 stdio 和 streaming http，一台 server 一个 plugin。 |
 | **How: plugin format** | 一个 plugin 打包 server、hook、skill，按优先级合并。 | 一份 manifest 加一个注册入口。 | 一行一行的配置。patch 用 id 整行换掉。 |
-| **How: tool pool assembly** | 每个 server 工具被复制、加命名空间，再与内建工具合并。 | plugin 与 MCP 工具进同一个 registry。 | 一台 server 的工具整批换上，出错就整批回滚。 |
+| **How: tool pool assembly** | 复制、加命名空间，annotation 成为 gate 的权限提示。 | plugin 与 MCP 工具进同一个 registry。 | 一台 server 的工具整批换上，出错就整批回滚。 |
 
 ---
 

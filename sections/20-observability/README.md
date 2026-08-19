@@ -161,9 +161,9 @@ How each agent emits telemetry, tracks spend, and feeds the eval set.
 | --- | --- | --- | --- |
 | **Pros** | Rich production visibility, cheap and safe. | Even a crashed run leaves a file. | Nothing extra to instrument: what the model sees is logged. |
 | **Cons** | Says what happened, not whether the answer was good. | Almost no production telemetry. | Ships no redaction rules. Delivery can lose or repeat. |
-| **Why** | Production must be watched without touching the loop. | Quality is graded offline, so the run record matters. | The session log is already the record, so export it. |
+| **Why** | Production must be watched without touching the loop. | A benchmark grades offline, so the full record matters. | The session log is already the record, so export it. |
 | **How: telemetry** | Events queue for a sink, then sample and scrub. | One trajectory file per run, saved each step. | Session events mirror out through a redaction pass. |
-| **How: cost tracking** | Per-model tokens priced into one session total. | Per-call prices roll into run totals. | A replay pass prices the log in tokens, never dollars. |
+| **How: cost tracking** | Per-model tokens priced into a session total. | Per-call prices roll into run and global totals. | A replay pass prices the log in tokens, not dollars. |
 | **How: eval feed** | Not in source; scrubbed traces become regression cases. | Saved trajectories feed a benchmark runner. | Recorded runs replay with no key, as fixtures. |
 
 ---

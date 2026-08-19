@@ -186,11 +186,11 @@ How the harness reaches outside itself.
 | | Claude Code | Hermes Agent | deepseek-harness |
 | --- | --- | --- | --- |
 | **Pros** | Any service, any language, no harness edits. | Other clients can drive it as an MCP server. | A server is config, so one can swap without a restart. |
-| **Cons** | Each server is new attack surface. The tool list bloats. | Anyone can send to a channel, spam included. | Tools only, and no chat channels to push messages in. |
+| **Cons** | New attack surface, on self-reported annotations. | Anyone can send to a channel: spam, or steering text. | Tools only, and no chat channels to push messages in. |
 | **Why** | Without MCP, capability is frozen at what shipped. | The agent is MCP client and server at once. | Everything is a plugin, so a server is one more plugin. |
-| **How: transports** | Six, from local stdio to remote http. | MCP both ways, plus chat platform adapters. | Local stdio and streaming http, one plugin per server. |
+| **How: transports** | Six, from stdio to remote http, in separate pools. | MCP both ways, plus chat adapters. | Local stdio and streaming http, one plugin per server. |
 | **How: plugin format** | A plugin bundles servers, hooks, and skills, merged by precedence. | A manifest plus a register entry. | Config rows. A patch replaces one row by id. |
-| **How: tool pool assembly** | Each server tool is cloned, namespaced, merged. | Plugin and MCP tools join one registry. | A server's tools swap as one set, or roll back whole. |
+| **How: tool pool assembly** | Cloned and namespaced; annotations feed the gate. | Plugin and MCP tools join one registry. | A server's tools swap as one set, or roll back. |
 
 ---
 

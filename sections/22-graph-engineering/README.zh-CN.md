@@ -201,8 +201,7 @@ uv run python sections/22-graph-engineering/src/demo.py  # live demo, needs a ke
 - [Claude Code](https://code.claude.com/docs)：`Workflow` script 的约定（pipeline、并行分发、结构化输出、续跑）。内容依据 tool schema 和文档记载的行为，不是 source backup。
 - [Hermes Agent 源码](https://github.com/NousResearch/hermes-agent)：`tools/delegate_tool.py`、`tools/async_delegation.py`、`batch_runner.py`。
 - [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
-  `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`。每次运行都由模型现写一段脚本，
-  每个调用开一个 child，没有任何东西以图的形式留下来，所以它对这一章的回答跟 Claude Code 那一栏一样。
+  `docs/subsystems/workflow.md`、`packages/workflow/tool-workflow/README.md`：每次运行由模型现写脚本，不留下任何图。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`agents/default.py` 的 run loop 与 budget、`run/benchmarks/swebench.py`。
 - [ai-agent-book · 第 10 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter10.md)（《深入理解 AI Agent》，李博杰，多 Agent 协作，以中文原版为准）：
   在同一条 trajectory 上做多阶段角色转换：每个 phase 一份 system prompt 和一套 tool，phase 之间用 tool call 当关卡，review 可以绕回实现。

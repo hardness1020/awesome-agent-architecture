@@ -48,7 +48,7 @@ harness 必须：
 所以 harness engineering 不是只有加，也包含删。模型换代时，重新评估每一层：还有帮助的留下，新模型自己就做得到的就删掉。
 怎么量测，见第 20、21 章。mini-swe-agent 就是最极端的例子：几乎没有 harness，也就几乎没有东西需要重新评估。
 
-deepseek-harness 是从另一端回答同一个问题。它每个部分都是 plugin，连 loop 也是，没有哪一块算是特权内核。
+deepseek-harness 是从另一端回答同一个问题。它每个部分都是 plugin，连 loop 也是，没有哪一块算是特权核心。
 每种能力都挂在一个有名字的接缝上，由一个 plugin 认领：工具一个接缝、权限一个接缝、context 处理又一个。
 所以重新评估某一层只是改配置，不用 fork。要删掉一层，就是不要加载那个 plugin。
 
