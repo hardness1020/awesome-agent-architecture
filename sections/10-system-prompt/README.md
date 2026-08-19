@@ -105,6 +105,23 @@ for _ in range(max_steps):                             # src/loop.py
 - It reads live state such as enabled tools and session mode.
 - Passing `prompt=None` keeps the section-9 behavior.
 
+### Contrast: a section registry
+
+The list above is fixed in one file. Adding a section means editing that file, and the file order is the prompt order.
+
+deepseek-harness assembles from registrations instead. Each plugin registers a named section and a number that says where it goes.
+The numbers fall in bands by convention: harness identity first, deployment persona next, tool guidance after that.
+Assembly sorts by number, so a plugin picks its place without knowing what else is registered.
+
+Two more rules come with the registry.
+
+- One agent can register its own section under a name that already exists. That agent sees its version, everyone else keeps the shared one.
+- Section text can carry `{{variables}}`, and rendering is strict. An unknown name raises instead of rendering a hole into a shipped prompt.
+
+Dynamic facts stay out of this prompt. They are appended to the conversation as a snapshot, and only when the rendered text actually changed, so the prefix stays cache-stable.
+
+[`src/registry.py`](src/registry.py) is a strip-down of this. It is a contrast demo, not wired into `assemble()`, so later sections carry the same prompt code forward.
+
 ### Further reading
 
 None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
@@ -148,14 +165,14 @@ The prompt layer lowers the odds. The execution layer bounds the damage.
 
 How the prompt is composed each turn.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | No stale or irrelevant instructions. Tool guidance matches the enabled tool set. | One render from config. Nothing to memoize or invalidate. |
-| **Cons** | Needs a section registry, cache invalidation rules, and ordering discipline. | The prompt cannot change mid-run. Later state reaches the model as observations. |
-| **Why** | Tools, memory, and modes vary by session. The prompt should describe what is active. | Assumes the tool set never changes mid-run, so one render at start holds. |
-| **How: assembly point** | A prompt builder that returns one string per section. | Jinja2 templates in config. A missing variable fails loudly. |
-| **How: sections** | Static and dynamic sections. Project context goes in context messages. | Two templates: system and instance, filled from config, environment, and run state. |
-| **How: when built** | Per turn from live state. Dynamic parts stay memoized until the session is cleared or compacted. | Once, at run start, adapted to the platform. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | No stale instructions. Guidance matches the live tools. | One render from config. Nothing to invalidate. | Every prompt fact has one owner. Bad references fail loud. |
+| **Cons** | Needs a section registry, cache rules, and ordering discipline. | The prompt cannot change mid-run. | A registry, scopes, and order bands are a lot of machinery. |
+| **Why** | Tools, memory, and modes vary by session. | Assumes the tool set never changes mid-run. | Plugins own their facts, so the prompt is assembled, never edited. |
+| **How: assembly point** | A prompt builder, one string per section. | Jinja2 templates; a missing variable fails loudly. | A registry, plus an event each scope can adjust. |
+| **How: sections** | Static and dynamic sections; project context rides in messages. | Two templates, system and instance. | Named sections in numeric bands, shadowed by scope. |
+| **How: when built** | Per turn from live state, with dynamic parts memoized. | Once, at run start. | Once per step. Changing facts append as snapshots instead. |
 
 ---
 
@@ -177,9 +194,10 @@ How the prompt is composed each turn.
 [`src/`](src/) carries 09 forward and adds:
 
 - [`prompt.py`](src/prompt.py): `Section`, `static`, and `assemble`.
+- [`registry.py`](src/registry.py): the deepseek-harness contrast: sections registered with an order number, scope shadowing, and strict `{{variable}}` rendering.
 - [`loop.py`](src/loop.py): re-assembles the prompt each turn.
 - [`demo.py`](src/demo.py): adds top-level `cache_control`.
-- [`test.py`](src/test.py): checks state-driven inclusion.
+- [`test.py`](src/test.py): checks state-driven inclusion; registry checks cover ordering, shadowing, and the fail-loud variable.
 
 ```bash
 python sections/10-system-prompt/src/test.py         # offline checks, no key
@@ -193,6 +211,9 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code): `constants/prompts.ts`, `constants/systemPromptSections.ts`, `utils/api.ts`, `QueryEngine.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
   `config/mini.yaml`, `_render_template` and `get_template_vars` in `agents/default.py`, `models/utils/cache_control.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/core/system-prompt/README.md`, `packages/core/system-prompt/src/index.ts`, `packages/core/agent-loop/src/runtime-context.ts`,
+  `docs/subsystems/system-prompt.md`, `docs/agent-lifecycle.md`.
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching): cache breakpoints, TTLs, pricing, and token minimums.
 - [Claude Code prompt caching docs](https://code.claude.com/docs/en/prompt-caching): the explicit cache boundary between a static prefix and a dynamic tail.
 - [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):

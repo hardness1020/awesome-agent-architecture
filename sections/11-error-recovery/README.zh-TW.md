@@ -155,14 +155,14 @@ response = recovery.with_retry(
 
 Recovery 包住模型呼叫。loop 主體維持不變。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 針對性的復原路徑救回的 run 比一概重試更多。 | 只有三條路徑要維護。就算 crash，硬碟上也留有完整軌跡。 |
-| **Cons** | 要維護的分支與界限更多。 | 救回的 run 較少。context overflow 直接中止，連續三次格式錯誤也會結束 run。 |
-| **Why** | 一次暫時的 API 失敗不該終結長任務。 | 只留三條路：暫時性錯誤就重試、格式錯誤還給模型、其餘帶著具名狀態退出。 |
-| **How: retry** | 帶退避重試 429、408、409 和 5xx，`retry-after` 優先。 | tenacity 退避 4 到 60 秒，最多 10 次。救不回的錯誤直接跳過。 |
-| **How: token handling** | 提高輸出 token、在`max_tokens` 停止後續寫，或在 `prompt_too_long` 時壓縮。 | 沒有，context overflow 直接中止 run。 |
-| **How: model fallback** | 反覆過載（529）後改用 fallback。背景來源的 529 重試次數有限制。 | 沒有。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 針對性的復原路徑，救回的 run 比一概重試更多。 | 只有三條路徑要維護，crash 也留得下完整軌跡。 | 每次重試都寫進 log，session 續跑後也知道自己重試過什麼。 |
+| **Cons** | 要維護的分支與界限更多。 | 救回的 run 較少。overflow 會中止，連續三次格式錯誤也會。 | 沒有 fallback 模型。always 模式會無上限地一直重試。 |
+| **Why** | 一次暫時的 API 失敗不該終結長任務。 | 重試、把格式錯誤還給模型，其餘具名退出。 | log 才是事實，所以復原是重開一個 turn 重放。 |
+| **How: retry** | 帶退避重試 429、408、409 和 5xx，`retry-after` 優先。 | tenacity 退避 4 到 60 秒，最多 10 次。 | 失敗的 turn 收掉後發一則錯誤事件，接著開新的 turn。 |
+| **How: token handling** | 提高輸出上限、在 `max_tokens` 停止後續寫，或壓縮。 | 沒有，overflow 直接中止 run。 | 一個統一的 overflow 代碼，先修剪再摘要。 |
+| **How: model fallback** | 反覆過載（529）後改用 fallback 模型。 | 沒有。 | 沒有。重試的 turn 會重建同一個請求。 |
 
 ---
 
@@ -202,6 +202,9 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
   `services/api/withRetry.ts`、`query.ts`、`services/api/claude.ts`、`services/api/errors.ts`、`query/tokenBudget.ts`、`utils/context.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：
   `models/utils/retry.py`、`models/litellm_model.py`、`agents/default.py` 的 `run()` 與 `max_consecutive_format_errors`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/llm/llm-retry/README.md`、`packages/llm/llm-retry/src/types.ts`、`packages/core/agent-loop/src/agent.ts`、
+  `docs/subsystems/llm-streaming.md`、`docs/subsystems/core.md`、`docs/subsystems/persistence.md`。
 - [ai-agent-book · 第 5 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
   四層失敗分類、用 tool 加參數做 loop fingerprint、idle watchdog、`tool_result` 成對修補以及產品與訓練資料兩套標準、
   分級復原加錯誤隔離，還有防死亡螺旋的那幾招。它的註腳 ch5-3 說這套分類來自對生產環境 agent 的研究（其中包含 Claude Code），

@@ -105,6 +105,23 @@ for _ in range(max_steps):                             # src/loop.py
 - 它讀取即時狀態，例如啟用中的工具和 session 模式。
 - 傳入 `prompt=None` 會維持第 9 章的行為。
 
+### 對照：段落 registry
+
+上面那份清單寫死在一個檔案裡。要加段落就得改那個檔案，而檔案裡的先後順序就是 prompt 的順序。
+
+deepseek-harness 改成從註冊表組出來。每個 plugin 註冊一個有名字的段落，再給一個數字說明它該排在哪。
+數字照慣例分成幾個區段：harness 身分最前面，接著是部署方的 persona，再來才是工具指引。
+組裝時照數字排序，所以 plugin 不必知道別人註冊了什麼，也能找到自己的位置。
+
+registry 還帶來兩條規則。
+
+- 某個 agent 可以用一個已經存在的名字，註冊自己的段落。那個 agent 看到的是自己那份，其他人照樣用共用的。
+- 段落文字裡可以放 `{{variables}}`，而且 render 很嚴格。名字對不上就直接報錯，不會讓 prompt 帶著一個洞送出去。
+
+會變的事實不放進這份 prompt。它們以快照的形式接到對話後面，而且只有 render 出來的文字真的變了才接，前綴因此對 cache 友善。
+
+[`src/registry.py`](src/registry.py) 就是這件事的精簡版。它是對照用的 demo，沒有接進 `assemble()`，所以後面的章節照樣沿用同一套 prompt 程式碼。
+
 ### 延伸閱讀
 
 以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
@@ -148,14 +165,14 @@ prompt 層降低發生機率，執行層限制損害範圍。
 
 每一輪如何組出 prompt。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 不會留著過時或不相關的指令。工具指引對得上啟用中的工具集。 | 只從 config render 一次。沒有東西要 memoize，也沒有 cache 失效規則要管。 |
-| **Cons** | 多了段落 registry、cache 失效規則，以及排序上的紀律。 | prompt 在 run 中途改不了。之後的狀態只能以 observation 的形式進到模型。 |
-| **Why** | 工具、記憶和模式會因 session 而異，prompt 要描述實際啟用中的內容。 | 假設工具集在 run 中途不會變，開頭 render 一次就一直有效。 |
-| **How: assembly point** | 一個 prompt 組裝器，每個段落各回傳一個字串。 | config 裡的 Jinja2 template。變數缺了會直接報錯。 |
-| **How: sections** | 靜態與動態段落。專案脈絡以 context 訊息注入。 | 兩份 template：system 與 instance，變數來自 config、環境和執行期狀態。 |
-| **How: when built** | 每一輪從即時狀態組出。動態段落會被記憶（memoize），直到 session 被清空或壓縮。 | 只在 run 開始時組一次，並隨平台調整。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 不會留著過時的指令，工具指引對得上啟用中的工具集。 | 只從 config render 一次，沒有東西要失效。 | 每一項 prompt 事實都有一個負責人，引用錯了會直接報錯。 |
+| **Cons** | 多了段落 registry、cache 失效規則和排序紀律。 | prompt 在 run 中途改不了。 | registry、scope 和排序區段，全都是要維護的機制。 |
+| **Why** | 工具、記憶和模式會因 session 而異。 | 假設工具集在 run 中途不會變。 | plugin 各自擁有自己的事實，所以 prompt 是組出來的，不是改字串。 |
+| **How: assembly point** | 一個 prompt 組裝器，每個段落各回傳一個字串。 | config 裡的 Jinja2 template，變數缺了會直接報錯。 | 一個 registry，加上每個 scope 都能調整的組裝事件。 |
+| **How: sections** | 靜態與動態段落，專案脈絡走 context 訊息。 | 兩份 template：system 與 instance。 | 有名字的段落排在數字區段裡，scope 可以用同名蓋掉。 |
+| **How: when built** | 每一輪從即時狀態組出，動態段落會被 memoize。 | 只在 run 開始時組一次。 | 每一步組一次。會變的事實改以快照附加。 |
 
 ---
 
@@ -177,9 +194,10 @@ prompt 層降低發生機率，執行層限制損害範圍。
 [`src/`](src/) 承接 09 並加入：
 
 - [`prompt.py`](src/prompt.py)：`Section`、`static` 和 `assemble`。
+- [`registry.py`](src/registry.py)：deepseek-harness 的對照：段落註冊時帶一個排序數字，scope 可以蓋掉同名段落，`{{variable}}` 嚴格 render。
 - [`loop.py`](src/loop.py)：每一輪重新組出 prompt。
 - [`demo.py`](src/demo.py)：加入頂層的 `cache_control`。
-- [`test.py`](src/test.py)：檢查段落會依狀態正確納入或略過。
+- [`test.py`](src/test.py)：檢查段落會依狀態正確納入或略過；registry 的檢查涵蓋排序、同名覆蓋，以及變數對不上就報錯。
 
 ```bash
 python sections/10-system-prompt/src/test.py         # offline checks, no key
@@ -193,6 +211,9 @@ uv run python sections/10-system-prompt/src/demo.py  # live demo, needs a key
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`constants/prompts.ts`、`constants/systemPromptSections.ts`、`utils/api.ts`、`QueryEngine.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`config/mini.yaml`、
   `agents/default.py` 的 `_render_template` 與 `get_template_vars`、`models/utils/cache_control.py`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/core/system-prompt/README.md`、`packages/core/system-prompt/src/index.ts`、`packages/core/agent-loop/src/runtime-context.ts`、
+  `docs/subsystems/system-prompt.md`、`docs/agent-lifecycle.md`。
 - [Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)：cache 斷點、TTL、定價，以及 token 下限。
 - [Claude Code prompt caching 文件](https://code.claude.com/docs/en/prompt-caching)：靜態前綴與動態尾段之間那道明確的 cache 邊界。
 - [ai-agent-book · 第 2 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：

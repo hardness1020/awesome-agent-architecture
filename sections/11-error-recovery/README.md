@@ -155,14 +155,14 @@ Pick each one from measured failures, not from intuition. The book's three-strik
 
 Recovery wraps the model call. The loop body stays the same.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Specific recovery paths save more runs than a blanket retry. | Only three bounded paths to maintain. A crash still leaves a complete trajectory on disk. |
-| **Cons** | More branches and bounds to maintain. | Saves fewer runs. Context overflow aborts, and three format errors in a row end the run. |
-| **Why** | One temporary API failure should not end a long task. | Keeps three paths: retry transient errors, return format errors to the model, named exit for the rest. |
-| **How: retry** | Backoff retries on 429, 408, 409, and 5xx. A server `retry-after` wins. | tenacity backoff, 4 to 60 seconds, 10 attempts. Skips errors a retry cannot fix. |
-| **How: token handling** | Escalate output tokens, continue after a `max_tokens` stop, or compact on `prompt_too_long`. | None. Context overflow aborts the run. |
-| **How: model fallback** | Fallback model after repeated overload (529). Background 529 retries are capped. | None. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Specific paths save more runs than a blanket retry. | Three bounded paths. A crash leaves a full trajectory. | Retries are logged, so a resumed session knows them. |
+| **Cons** | More branches and bounds to maintain. | Saves fewer runs. Overflow aborts, and so do three format errors. | No fallback model. Its always mode retries forever. |
+| **Why** | One temporary API failure should not end a long task. | Retry, hand format errors back, name the exit. | The log is the truth, so recovery replays a fresh turn. |
+| **How: retry** | Backoff on 429, 408, 409, 5xx; `retry-after` wins. | tenacity backoff, 4 to 60 seconds, 10 attempts. | An error event after the failed turn, then a fresh one. |
+| **How: token handling** | Raise the output cap, continue after a `max_tokens` stop, or compact. | None. Overflow aborts the run. | One overflow code: prune, then summarize. |
+| **How: model fallback** | Fallback model after repeated overload (529). | None. | None. The retry turn rebuilds the same request. |
 
 ---
 
@@ -202,6 +202,9 @@ uv run python sections/11-error-recovery/src/demo.py  # live demo, needs a key
   `services/api/withRetry.ts`, `query.ts`, `services/api/claude.ts`, `services/api/errors.ts`, `query/tokenBudget.ts`, `utils/context.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent):
   `models/utils/retry.py`, `models/litellm_model.py`, `run()` and `max_consecutive_format_errors` in `agents/default.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/llm/llm-retry/README.md`, `packages/llm/llm-retry/src/types.ts`, `packages/core/agent-loop/src/agent.ts`,
+  `docs/subsystems/llm-streaming.md`, `docs/subsystems/core.md`, `docs/subsystems/persistence.md`.
 - [ai-agent-book · chapter 5](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter5.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   the four-layer failure taxonomy, tool-plus-args loop fingerprints, the idle watchdog, `tool_result` pair repair with its product versus training-data split,
   graded recovery with error quarantine, and the death-spiral defenses. Its footnote ch5-3 sources the taxonomy from a study of production agents,
