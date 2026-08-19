@@ -66,7 +66,7 @@
 | **Claude Code**    | 目前最強的 coding agent：改檔案、跑指令，直接在真實 repo 裡完成改動。 | 完整 harness 架構，從這裡讀起         | 0 到 23（全部）           | v2.1.88   |
 | **Hermes Agent**   | 長期助理：記得你、學會你的工作流程，還能跨平台跑任務。                | Memory、skills、always-on channels    | 7、9、14、16、19、21、22  | v2026.7.1 |
 | **mini-swe-agent** | 研究基準：一個 bash 工具，約 150 行。                                 | 最小的完整 loop、budget、eval harness | 0 到 3、8、10、11、20 到 23 | v2.4.5    |
-| **deepseek-harness** | Plugin 優先的 harness：每個部件（連 loop 在內）都是可替換的 plugin。 | Plugin 接縫、durable session log、ACP | 1 到 8、10 到 14、16 到 21 | dsh-v0.1.0-rc.7 |
+| **deepseek-harness** | Plugin 優先的 harness：連 loop 都是可替換的 plugin。 | Plugin 接縫、durable session log、ACP | 1 到 8、10 到 14、16 到 21 | dsh-v0.1.0-rc.7 |
 | *(更多陸續加入)*       |                                                                       |                                       |                           |           |
 
 > 之後可以再加入更多系統，例如 OpenClaw 和 aider。

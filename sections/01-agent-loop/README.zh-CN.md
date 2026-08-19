@@ -89,7 +89,7 @@ for user_text in turns:                              # the outer loop: one itera
 | **Cons** | loop 包在一个更大的 runtime 里，不能单独拿出来用。 | 无法把关副作用、流式传输进度，或并行执行工具。 | 活动零件最多。得先懂 turn、step、inbox 这套词汇。 |
 | **Why** | 核心分支保持不变，功能都加在外围。 | 小 loop 本身就是目的。检测任务是否完成的是环境，不是模型。 | loop 就是众多 plugin 里的一个。 |
 | **How: loop driver** | 一个 async generator。每个工具通过同一份契约接进 dispatch。 | 一个 while loop。每一步跟模型要一条命令，再执行。 | 一个可换掉的 plugin，跑在一份 durable 事件 log 上。 |
-| **How: stop signal** | `stop_reason: end_turn`。 | 由环境检测提交标记，附加一条 `role: "exit"` 消息。 | 模型没欠任何事、检查点没反对，或 tool result 带 `concludesTurn`。 |
+| **How: stop signal** | `stop_reason: end_turn`。 | 由环境检测提交标记，附加一条 `role: "exit"` 消息。 | 模型没欠任何事、检查点也没反对，或某个 tool result 直接把这一轮收掉。 |
 | **How: parallel tools** | 有。同一次模型轮次中的工具调用可以并行执行。 | 没有，action 依序执行。 | 有。exclusive 调用形成 barrier，安全调用共用一个有上限的池。 |
 | **How: streaming** | 有。模型 token、工具调用与工具结果发生的当下就逐一送出。 | 没有。 | 有。流式 chunk 以 durable 事件写进 session log。 |
 
