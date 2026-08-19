@@ -92,7 +92,7 @@ How each agent owns the loop and decides when to stop.
 | **Cons** | The loop sits inside a larger runtime. | No side-effect gate, no streaming, no parallel tools. | The most moving parts. Needs turn, step, and inbox vocabulary. |
 | **Why** | Keep one core branch, add features around it. | A minimal loop is the point. The environment, not the model, detects completion. | The loop is one plugin among peers. |
 | **How: loop driver** | An async generator. Tools plug in via one contract. | A while loop. Ask the model for a command, run it. | A swappable plugin over a durable event log. |
-| **How: stop signal** | `stop_reason: end_turn`. | The environment sees a submit marker and appends `role: "exit"`. | Nothing owed, no checkpoint objection, or `concludesTurn`. |
+| **How: stop signal** | `stop_reason: end_turn`. | The environment sees a submit marker and appends `role: "exit"`. | Nothing owed, no checkpoint block, or a turn-ending result. |
 | **How: parallel tools** | Yes. Calls in one model turn can run in parallel. | No. Actions run in order. | Yes. Exclusive calls form barriers; safe calls share a bounded pool. |
 | **How: streaming** | Yes. Yields model tokens, tool calls, and tool results as they happen. | No. | Yes. Stream chunks land in the session log as durable events. |
 

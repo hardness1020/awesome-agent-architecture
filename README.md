@@ -61,13 +61,13 @@ To learn from this repo:
 
 Each system is a worked example for the sections below.
 
-| System                 | Why people use it                                                               | Read it for                        | Sections             | Version studied |
-| ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------- | -------------------- | --------------- |
+| System | Why people use it | Read it for | Sections | Version studied |
+| --- | --- | --- | --- | --- |
 | **Claude Code**  | Frontier coding agent: edits files, runs commands, ships changes in real repos. | The full harness, start here       | 0 to 23 (all)        | v2.1.88         |
 | **Hermes Agent** | Long-term assistant: remembers you, learns workflows, runs anywhere. | Memory, skills, always-on channels | 7, 9, 14, 16, 19, 21, 22 | v2026.7.1 |
 | **mini-swe-agent** | Research baseline: one bash tool, about 150 lines. | The smallest complete loop, budgets, eval harness | 0 to 3, 8, 10, 11, 20 to 23 | v2.4.5 |
-| **deepseek-harness** | Plugin-first harness: every part, including the loop, is a replaceable plugin. | Plugin seams, durable session log, ACP | 1 to 8, 10 to 14, 16 to 21 | dsh-v0.1.0-rc.7 |
-| *(more soon)*        |                                                                                 |                                    |                      |                 |
+| **deepseek-harness** | Plugin-first harness: even the loop is a replaceable plugin. | Plugin seams, durable session log, ACP | 1 to 8, 10 to 14, 16 to 21 | dsh-v0.1.0-rc.7 |
+| *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw and aider.
 > The memory layer also has a companion repo: [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory).
