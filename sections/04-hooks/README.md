@@ -111,7 +111,7 @@ How each agent exposes interception points around the loop.
 | **Pros** | Users extend behavior without editing the loop: logging, validation, notifications, policy checks. | Hooks are in-process plugins; existing shell hooks still run. |
 | **Cons** | The fixed event list is the limit. A hook only intercepts where an event exists. | Two hook styles to learn; the bridge covers a subset and cannot rewrite input. |
 | **Why** | Keeps the loop small. New behavior attaches to fixed events, not forks. | The extension surface is the event system the harness itself runs on. |
-| **How: hook events** | 27 lifecycle events across tool, prompt, session, stop, subagent, compact, setup. | Waterfall and serial events per phase; bridges adapt shell hooks on. |
+| **How: hook events** | 27 lifecycle events across tool, prompt, session, stop, subagent, compact, setup. | Waterfall and serial events per phase; a bridge attaches shell hooks. |
 | **How: fire point** | Loaded from settings and frozen at startup. `PreToolUse` fires before the permission gate. | In the pre-execute waterfall, before deny-only guards. |
 | **How: can block or modify?** | Yes. Deny, ask, update input, add context, or stop; reconciled with rules. | Yes, via typed decisions; shell hooks fold deny > ask > allow. |
 
