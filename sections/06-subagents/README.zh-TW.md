@@ -55,15 +55,15 @@ loop 不會改變。subagent 只是另一個呼叫 loop 的 tool handler。
 
 各 agent 如何隔離一個子問題，並回傳結果。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | child 的情境讓 parent 保持聚焦，旁支調查不會留在主 transcript 裡。 |
-| **Cons** | parent 失去了 child 是如何得出答案的細節。摘要太單薄時，parent 就得再問一次，或去讀 child 寫下的檔案。 |
-| **Why** | parent 通常只需要結論，不需要 child 讀過的每個檔案或每個指令結果。 |
-| **How: spawn primitive** | `Agent` tool，舊的 wire 名稱是 `Task`。用 subagent type 選一個內建 persona，例如 general-purpose、explore、plan。 |
-| **How: context isolation** | child 的 messages 是全新的，不帶 parent 的 transcript。fork 出來的 child 不能再 fork。 |
-| **How: result return** | child 最後一則訊息的文字回傳給 parent，child 的 transcript 會被丟棄。 |
-| **How: resume** | 多數 agent 可以續跑，parent 再發一則訊息就能讓 child 繼續。背景 subagent 會變成被追蹤的 task。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | child 的情境讓 parent 保持聚焦，主 transcript 也乾淨。 | 同一個接縫涵蓋行程內的 child、外部 runtime，以及產品 CLI。 |
+| **Cons** | parent 不知道 child 是怎麼得出答案的，摘要太薄就得再問一次。 | 一個工具能解決的事，這裡有六種後端加一套續跑管理。 |
+| **Why** | parent 只需要結論，不需要 child 讀過的每個檔案。 | 委派只是傳輸方式的選擇，所以每種後端都掛在一個名字下。 |
+| **How: spawn primitive** | `Agent` tool。用 subagent type 選一個內建 persona。 | 每個註冊的後端各有一個工具：全新 child、fork、外部 runtime 或 CLI。 |
+| **How: context isolation** | child 的 messages 是全新的。fork 出來的 child 不能再 fork。 | 全新 child 從空的開始。fork 只複製 parent 已經跑完的 turn。 |
+| **How: result return** | child 最後一則訊息的文字回傳給 parent，transcript 丟棄。 | 最後一則 assistant 訊息，外加可選的結構化輸出，會照 schema 檢查。 |
+| **How: resume** | 多數 agent 可以續跑，parent 再發一則訊息就好。 | durable 的 child 會把後續訊息排進佇列，重啟後也能從 log 重新載回。 |
 
 ---
 
@@ -97,4 +97,7 @@ uv run python sections/06-subagents/src/demo.py  # live demo, needs a key
 
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/AgentTool/AgentTool.tsx`、`runAgent.ts`、`resumeAgent.ts`、`forkSubagent.ts`、`builtInAgents.ts`、`tasks/LocalAgentTask/`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/subagent/subagent/src/index.ts`、`src/continuation.ts`、`packages/subagent/subagent-fork-in-process/README.md`、
+  `packages/subagent/subagent-acp/README.md`、`docs/subsystems/subagent.md`、`docs/tool-catalog.md`。
 - [learn-claude-code · s06_subagent](https://github.com/shareAI-lab/learn-claude-code)：章節框架。

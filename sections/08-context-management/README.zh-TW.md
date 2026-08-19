@@ -78,6 +78,19 @@ for _ in range(max_steps):                             # src/loop.py
 
 loop 仍然維持同樣的不變條件：它用一個有效的 `messages[]` 呼叫模型，接著附上回應和任何 tool 結果。
 
+### 對照：把 tool 輸出寫出去
+
+Claude Code 和這一章的 `_budget` 都是就地把過大的 tool 結果縮小，被切掉的那段就永遠沒了。
+
+deepseek-harness 從不動已經發生的事。session log 只會被附加，模型看到的 messages 只是這份 log 的一個投影。
+每次縮減都是再寫一則事件，說明要替換掉哪一段，所以 session 續跑或 fork 之後，重放出來的畫面一模一樣。
+
+過大的 tool 輸出走的是另一條路，而且更早。結果一超過內嵌上限，tool 一回傳就直接送進 spill store。
+store 把完整文字存起來，回傳一個位址。留在 context 裡的只有頭尾預覽、那個位址，以及一句提示：要完整內容就去讀或 grep 這個檔案。
+所以輸出還在：模型需要剩下的部分時，自己去把檔案要回來。
+
+[`src/spill.py`](src/spill.py) 就是這件事的精簡版。它是對照用的 demo，沒有接進 `manage()`，所以後面的章節照樣沿用同一套 pass。
+
 ### 延伸閱讀
 
 以下設計 `src/` 都沒有實作，出自 ai-agent-book，也未經下面表格的系統證實。
@@ -110,14 +123,14 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 
 各 agent 如何決定要騰出空間，以及要移除什麼。
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | 長 session 撐得下去。多數縮減成本低，完整輸出留在硬碟上，之後還能重讀。 | 沒有東西要調度、要調參，行為一眼就能看懂。 |
-| **Cons** | 各個 pass 要講究執行順序。摘要可能丟掉模型之後會用到的細節。 | 歷史只會成長。run 拖得比預算久，window 塞爆就直接中止。 |
-| **Why** | 互動式 session 沒有固定終點，window 遲早會滿。 | 假設任務會先結束（提交或撞到成本上限，見第 21 章），輪不到 window 被塞滿。 |
-| **How: trigger** | token 門檻，外加 `prompt_too_long` 的反應式後備。 | 每則 observation，在 render 時處理。 |
-| **How: strategy** | 先跑低成本 reducer（大結果存檔、舊結果清成 stub），最後才用 LLM 摘要。 | 過長的輸出只保留頭尾，沒有壓縮。 |
-| **How: budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | 長 session 撐得下去，縮減成本低，存下來的輸出還能重讀。 | 沒有東西要調度、要調參，行為一眼就能看懂。 | 歷史從不被銷毀。 |
+| **Cons** | 各個 pass 要講究順序。摘要可能丟掉之後要用的細節。 | 歷史只會成長。run 拖得比預算久，window 塞爆就中止。 | log 在硬碟上只會長大，還得管鎖和 fold。 |
+| **Why** | 互動式 session 沒有固定終點，window 遲早會滿。 | 假設預算會先讓 run 結束（見第 21 章）。 | log 才是事實，所以要縮的是投影，不是歷史。 |
+| **How: trigger** | token 門檻，外加 `prompt_too_long` 的後備。 | 每則 observation，在 render 時處理。 | 每一步都量一次壓力，加上確認過的 overflow。 |
+| **How: strategy** | 先跑低成本 reducer（存檔、清成 stub），最後才摘要。 | 過長的輸出只保留頭尾，沒有壓縮。 | 先寫出去、再修剪，最後一則摘要事件。 |
+| **How: budget** | 保留 output 和安全緩衝空間。 | 每則 observation 上限一萬字元。 | 依模型換算比例：0.8 觸發壓縮，保留 0.16。 |
 
 ---
 
@@ -140,7 +153,8 @@ stub 如果重新算過，帶上新的時間戳或新的路徑，前綴就變了
 
 - [`context.py`](src/context.py)：`budget`、`micro` 和 `auto` 這幾個 pass 都透過 `manage` 執行。
 - [`loop.py`](src/loop.py)：在每個 turn 的最上方呼叫 `context.manage()`。
-- [`test.py`](src/test.py)：獨立檢查每一個 pass。
+- [`spill.py`](src/spill.py)：deepseek-harness 的對照：過大的結果整份存起來，context 只留預覽和檔案路徑。
+- [`test.py`](src/test.py)：獨立檢查每一個 pass，再加上一次 spill，確認完整文字還讀得回來。
 - [`demo.py`](src/demo.py)：驅動已接上 context management 的 loop。
 
 ```bash
@@ -155,6 +169,9 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：`services/compact/autoCompact.ts`、`microCompact.ts`、`timeBasedMCConfig.ts`、
   `compact.ts`、`utils/toolResultStorage.ts`、`query.ts`、`query/tokenBudget.ts`。
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent)：`config/mini.yaml` 的 observation template、`models/litellm_model.py` 的 `abort_exceptions`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/compaction/compaction/src/index.ts`、`packages/compaction/compaction-basic/README.md`、`packages/llm/token-meter/src/index.ts`、
+  `packages/spill/spill/src/index.ts`、`packages/spill/spill-policy/README.md`、`docs/subsystems/compaction.md`、`docs/subsystems/session.md`。
 - [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code)：章節框架。
 - [ai-agent-book · 第 2 章](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md)（《深入理解 AI Agent》，李博杰，以中文原版為準）：
   context rot、in-context learning 其實是檢索、壓縮與 cache 的相互影響、針對任務的壓縮與保留優先序、

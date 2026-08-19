@@ -79,6 +79,19 @@ Context reduction must run before every model call, so it has to live in the loo
 
 The loop still keeps the same invariant: it calls the model with a valid `messages[]`, then appends the response and any tool results.
 
+### Contrast: spilled tool output
+
+Claude Code and this section's `_budget` both shrink a huge tool result in place. The text that gets cut is gone.
+
+deepseek-harness never edits what happened. The session log only gets appended to, and the messages the model sees are a projection of that log.
+A reduction is one more logged event that says which span to replace, so a resumed or forked session replays the same view.
+
+Big tool output takes a separate path, before any of that. A result over an inline byte cap goes to a spill store the moment the tool returns.
+The store saves the full text and returns a locator. What stays in context is a head and tail preview, that locator, and a hint to read or grep it.
+So the output is still reachable: the model asks for the file when it needs the rest.
+
+[`src/spill.py`](src/spill.py) is a strip-down of this. It is a contrast demo, not wired into `manage()`, so later sections carry the same passes forward.
+
 ### Further reading
 
 None of this is in `src/`. It comes from ai-agent-book, and is not confirmed of the systems in the table.
@@ -111,14 +124,14 @@ Raw tool output goes first when something has to go. The budget pass already wro
 
 How each agent decides to make room and what it removes.
 
-| | Claude Code | mini-swe-agent |
-| --- | --- | --- |
-| **Pros** | Long sessions survive. Most reductions are cheap, and persisted outputs can be re-read. | Nothing to schedule or tune. Easy to audit. |
-| **Cons** | Passes need ordering rules. A summary can drop detail the model later needs. | History only grows. A run that outlives its budget dies on overflow. |
-| **Why** | Interactive sessions are open ended, so the window will fill. | Assumes a task ends, by submission or cost limit (section 21), before the window fills. |
-| **How: trigger** | Token threshold, plus a reactive fallback on `prompt_too_long`. | Every observation, at render time. |
-| **How: strategy** | Cheap reducers first (persist big results, stub old ones), LLM summary last. | Truncate long output to a head and a tail. No compaction. |
-| **How: budget** | Reserve output and safety buffers. | 10k characters per observation. |
+| | Claude Code | mini-swe-agent | deepseek-harness |
+| --- | --- | --- | --- |
+| **Pros** | Long sessions survive. Reductions are cheap and outputs re-readable. | Nothing to schedule or tune. Easy to audit. | History is never destroyed. |
+| **Cons** | Passes need ordering rules. A summary can drop detail. | History only grows. A long run dies on overflow. | The log grows on disk, and needs locks and folds. |
+| **Why** | Interactive sessions are open ended, so the window fills. | Assumes a budget ends the run first (section 21). | The log is the truth, so only the view shrinks. |
+| **How: trigger** | Token threshold, plus a fallback on `prompt_too_long`. | Every observation, at render time. | Measured pressure each step, plus confirmed overflow. |
+| **How: strategy** | Cheap reducers first (persist, stub), summary last. | Truncate long output to a head and a tail. No compaction. | Spill, prune, then a summary event. |
+| **How: budget** | Reserve output and safety buffers. | 10k characters per observation. | Ratios per routed model: compact at 0.8, keep 0.16. |
 
 ---
 
@@ -141,7 +154,8 @@ How each agent decides to make room and what it removes.
 
 - [`context.py`](src/context.py): `budget`, `micro`, and `auto` passes run through `manage`.
 - [`loop.py`](src/loop.py): calls `context.manage()` at the top of every turn.
-- [`test.py`](src/test.py): checks each pass in isolation.
+- [`spill.py`](src/spill.py): the deepseek-harness contrast: an oversized result is saved whole, and context keeps a preview plus the path.
+- [`test.py`](src/test.py): checks each pass in isolation, plus a spill that keeps the full text readable.
 - [`demo.py`](src/demo.py): drives the loop with context management wired in.
 
 ```bash
@@ -156,6 +170,9 @@ uv run python sections/08-context-management/src/demo.py  # live demo, needs a k
 - [Claude Code source](https://github.com/yasasbanukaofficial/claude-code):
   `services/compact/autoCompact.ts`, `microCompact.ts`, `timeBasedMCConfig.ts`, `compact.ts`, `utils/toolResultStorage.ts`, `query.ts`, `query/tokenBudget.ts`.
 - [mini-swe-agent source](https://github.com/swe-agent/mini-swe-agent): the observation template in `config/mini.yaml`, `abort_exceptions` in `models/litellm_model.py`.
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness) at `dsh-v0.1.0-rc.7`:
+  `packages/compaction/compaction/src/index.ts`, `packages/compaction/compaction-basic/README.md`, `packages/llm/token-meter/src/index.ts`,
+  `packages/spill/spill/src/index.ts`, `packages/spill/spill-policy/README.md`, `docs/subsystems/compaction.md`, `docs/subsystems/session.md`.
 - [learn-claude-code · s08_context_compact](https://github.com/shareAI-lab/learn-claude-code): section framing.
 - [ai-agent-book · chapter 2](https://github.com/bojieli/ai-agent-book/blob/main/book/chapter2.md) (《深入理解 AI Agent》, 李博杰; the Chinese original is canonical):
   context rot, in-context learning as retrieval, the compression and cache interplay, task-aware compression with retention priorities,

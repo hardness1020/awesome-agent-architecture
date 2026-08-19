@@ -71,14 +71,14 @@ status 是 `pending`、`in_progress` 或 `completed`。模型每次都會寫入�
 
 各個 agent 如何追蹤計畫並管制執行。
 
-| | Claude Code |
-| --- | --- |
-| **Pros** | 簡單又便宜。memory 中的 todo list 沒有相依、沒有持久化，也沒有鎖。 |
-| **Cons** | 清單只是 session 狀態。要跨 turn 或程序存活的工作，得交給硬碟上的 task graph，而那需要更多工具與硬碟狀態（見第 12 章）。 |
-| **Why** | 計畫只留在 prompt 裡，經過許多工具結果後模型會失去頭緒，所以把清單存成 session 狀態。計畫核准前，agent 不該編輯檔案。 |
-| **How: plan artifact** | Todo list 加上一個 plan 檔。`TodoWrite` 覆寫 memory 中的清單；它沒有任何對外的副作用，所以一律被允許。 |
-| **How: plan mode** | 有。進入時把 permission mode 切換成 plan，session 維持唯讀，直到離開。 |
-| **How: execution gate** | `ExitPlanMode` 讀取計畫並請求核准。除非目前的 mode 是 plan，否則這個呼叫會被拒絕。 |
+| | Claude Code | deepseek-harness |
+| --- | --- | --- |
+| **Pros** | 簡單又便宜。memory 中的 todo list 沒有相依，也沒有鎖。 | 計畫與 todo 狀態撐得過重啟、fork 與 compaction。 |
+| **Cons** | 只是 session 狀態。要跨 turn 存活的工作得交給 task graph（見第 12 章）。 | plan mode 自己擋不住任何東西，要 sandbox 或 approval policy 出手才擋得下編輯。 |
+| **Why** | 計畫只留在 prompt 裡會走丟，而且計畫核准前不該動檔案。 | session log 才是唯一的事實來源，所以計畫狀態也只是一則事件。 |
+| **How: plan artifact** | 一份 todo list 加一個 plan 檔。`TodoWrite` 覆寫清單，從不被管制。 | `todo_write` 把整份清單當成一則事件附加上去，重放事件就能還原清單。 |
+| **How: plan mode** | 有。進入時把 permission mode 切成 plan，session 維持唯讀。 | 一個寫進 log 的旗標，加上 prompt 裡的一段指引文字，不動 permission。 |
+| **How: execution gate** | `ExitPlanMode` 請求核准。不在 plan mode 時，這個呼叫會被拒絕。 | 規劃期間完全不管制。計畫被打回來時，以 tool feedback 回傳。 |
 
 ---
 
@@ -112,4 +112,6 @@ uv run python sections/05-planning-todos/src/demo.py  # live demo, needs a key
 - [Claude Code 原始碼](https://github.com/yasasbanukaofficial/claude-code)：
   `tools/TodoWriteTool/TodoWriteTool.ts`、`tools/EnterPlanModeTool/EnterPlanModeTool.ts`、`tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts`。
 - [Claude Code planning helpers](https://github.com/yasasbanukaofficial/claude-code)：`utils/plans.ts`、`utils/todo/types.ts`、`types/permissions.ts`。
+- [deepseek-harness source](https://github.com/deepseek-ai/deepseek-harness)（`dsh-v0.1.0-rc.7`）：
+  `packages/todo/tool-todo/src/index.ts`、`packages/plan/plan-mode/src/index.ts`、`docs/subsystems/plan.md`、`docs/tool-catalog.md`。
 - [learn-claude-code · s05_todo_write](https://github.com/shareAI-lab/learn-claude-code)：section framing。
