@@ -160,7 +160,7 @@ Recovery wraps the model call. The loop body stays the same.
 | **Pros** | Specific paths save more runs than a blanket retry. | Three bounded paths. A crash leaves a full trajectory. | Retries are logged, so a resumed session knows them. |
 | **Cons** | More branches and bounds to maintain. | Saves fewer runs. Overflow aborts, and so do three format errors. | No fallback model. Its always mode retries forever. |
 | **Why** | One temporary API failure should not end a long task. | Retry, hand format errors back, name the exit. | The log is the truth, so recovery replays a fresh turn. |
-| **How: retry** | Backoff on 429, 408, 409, 5xx; a server `retry-after` wins. | tenacity backoff, 10 attempts. | An error event after the failed turn closes, then a fresh one. |
+| **How: retry** | Backoff on 429, 408, 409, 5xx; `retry-after` wins. | tenacity backoff, 4 to 60 seconds, 10 attempts. | An error event after the failed turn, then a fresh one. |
 | **How: token handling** | Raise the output cap, continue after a `max_tokens` stop, or compact. | None. Overflow aborts the run. | One overflow code: prune, then summarize. |
 | **How: model fallback** | Fallback model after repeated overload (529). | None. | None. The retry turn rebuilds the same request. |
 
