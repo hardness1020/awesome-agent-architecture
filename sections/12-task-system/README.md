@@ -85,7 +85,7 @@ How the durable task graph is shaped and advanced.
 | **Why** | An in-memory list dies with the process, so the plan must outlive it. | The session log is the only source of truth, so task state is events. |
 | **How: task record** | A JSON file per task: id, subject, status, owner, edges. | A whole-list snapshot, plus one goal with a phase and a round cap. |
 | **How: dependencies** | `blockedBy` and `blocks` edges. A claim is refused until blockers finish. | None. List order is the only ordering. |
-| **How: persistence** | One file per task. A switch decides whether these replace todos. | Session events, replayed on load. Self-continuation is never stored. |
+| **How: persistence** | One file per task, plus the largest issued id. A switch can replace todos. | Session events, replayed on load. Self-continuation is never stored. |
 | **How: lifecycle** | `pending -> in_progress -> completed`, with a lock on claims. | Goal phases: active, paused, blocked, complete. Edits need a human. |
 
 ---
