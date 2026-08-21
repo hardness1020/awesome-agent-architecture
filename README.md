@@ -28,6 +28,11 @@ it runs tools, keeps state across calls, gates side effects, and coordinates loo
 This repo explains the harness section by section: loop, tools, memory, permissions, context, tasks, and interfaces.
 Learn it once and you can read many agents, since a coding tool, chat assistant, and autonomous runner mostly differ in harness choices.
 
+Two companion repos go deeper than one section can:
+
+- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory): scales the memory loop into a production memory subsystem.
+- [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness): learns deepseek-harness from scratch, one plugin seam at a time.
+
 **Contents:** [Loop](#the-agent-loop) · [Method](#how-to-learn) · [Systems](#systems-under-study) ·
 [Sections](#sections) · [Structure](#repository-structure) · [Running](#running-the-demos)
 
@@ -73,7 +78,8 @@ Each system is a worked example for the sections below.
 | *(more soon)* | | | | |
 
 > More systems can be added later, including OpenClaw and aider.
-> The memory layer also has a companion repo: [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory).
+> Two companion repos go deeper: [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) for the memory layer,
+> and [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) for learning deepseek-harness from scratch.
 
 ---
 
@@ -143,7 +149,8 @@ Sections 1 to 23 also carry a runnable `src/`. The code accumulates section by s
 Each section adds one mechanism and evolves `loop.py`, so a diff between adjacent sections shows what changed.
 
 Deep dives that outgrow one section live in their own repos.
-[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) is the first: it scales the section 9 loop into a full memory subsystem.
+[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) scales the section 9 loop into a full memory subsystem.
+[learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) learns deepseek-harness from scratch, one plugin seam at a time.
 
 ---
 

@@ -28,6 +28,11 @@
 
 学会这一套之后，你就有能力看懂很多种 agent，因为写代码的工具、聊天助手和自动执行器，差别大多只在 harness 的设计选择上。
 
+有两个延伸 repo，讲得比单一章节更深：
+
+- [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)：把 memory loop 放大成 production 规模的 memory 子系统。
+- [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness)：从零开始学 deepseek-harness，一次拆一个 plugin 接缝。
+
 **目录：** [Agent loop](#agent-loop) · [学习方法](#学习方法) · [研究的系统](#研究的系统) ·
 [各章节](#各章节) · [文件结构](#文件结构) · [运行示范](#运行示范)
 
@@ -73,7 +78,8 @@
 | *(更多陆续加入)*       |                                                                       |                                       |                           |           |
 
 > 之后可以再加入更多系统，例如 OpenClaw 和 aider。
-> memory 这一层另外有一个专门的 repo：[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)。
+> 另外有两个延伸 repo：[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) 专讲 memory 这一层，
+> [learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) 则是从零开始学 deepseek-harness。
 
 ---
 
@@ -143,7 +149,8 @@ awesome-agent-architecture/
 每一章新增一个机制，并让 `loop.py` 演进，所以对比相邻两章的 diff，就能看出改了什么。
 
 超出单一章节篇幅的深入主题，会独立成自己的 repo。
-第一个是 [learn-agent-memory](https://github.com/hardness1020/learn-agent-memory)，把第 9 章的 memory loop 放大成完整的子系统。
+[learn-agent-memory](https://github.com/hardness1020/learn-agent-memory) 把第 9 章的 memory loop 放大成完整的子系统。
+[learn-deepseek-harness](https://github.com/hardness1020/learn-deepseek-harness) 从零开始学 deepseek-harness，一次拆一个 plugin 接缝。
 
 ---
 
